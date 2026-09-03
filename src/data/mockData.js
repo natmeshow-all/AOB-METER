@@ -24,8 +24,9 @@ export const WATER_METERS = [
     baselineAug31: 205342,
     readingSep01: 206074, // ค่าจริงจากรูป 000,206,074 (ตัดทศนิยม 3 จุด .572 ออกตามข้อกำหนด)
     avgDailyUsage: 732,
-    maxDailyUsage: 1200,
-    decimalPlaces: 0, // ไม่เอาทศนิยม
+    expectedMin: 650,
+    expectedMax: 850,
+    decimalPlaces: 0,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
   {
@@ -37,10 +38,13 @@ export const WATER_METERS = [
     serialNumber: "F19S000630",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644839.jpg",
-    baselineAug31: 12143.0,
-    readingSep01: 12191.2,
+    baselineAug31: 12859,
+    readingSep01: 12907, // ค่าจริงจากรูป 12907 ตามที่ระบุ
     avgDailyUsage: 48,
-    maxDailyUsage: 150,
+    expectedMin: 35,
+    expectedMax: 70,
+    decimalPlaces: 0,
+    storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
   {
     id: "WATER-EVAP",
@@ -51,10 +55,13 @@ export const WATER_METERS = [
     serialNumber: "F19S000648",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644834.jpg",
-    baselineAug31: 77508.0,
-    readingSep01: 77678.5,
-    avgDailyUsage: 170,
-    maxDailyUsage: 350,
+    baselineAug31: 77422.6,
+    readingSep01: 77593.1, // ค่าจริงจากรูป 77593.1 ตามที่ระบุ
+    avgDailyUsage: 170.5,
+    expectedMin: 140,
+    expectedMax: 210,
+    decimalPlaces: 1,
+    storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
 ];
 

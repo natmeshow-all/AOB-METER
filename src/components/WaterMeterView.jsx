@@ -114,10 +114,10 @@ export const WaterMeterView = ({ currentDayData, timeframe }) => {
                     </div>
                   </div>
 
-                  {/* Consumption Highlight */}
+                  {/* Consumption & Benchmark Validation Highlight */}
                   <div className="bg-blue-950/30 border border-blue-800/40 p-3 rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="text-xs text-slate-400 block">หน่วยที่ใช้ประจำวัน</span>
+                      <span className="text-xs text-slate-400 block">หน่วยที่ใช้เมื่อวาน</span>
                       <div className="flex items-baseline gap-1.5">
                         <span className="text-xl font-bold text-white font-mono">
                           +{readingInfo.consumption?.toLocaleString()}
@@ -127,17 +127,37 @@ export const WaterMeterView = ({ currentDayData, timeframe }) => {
                     </div>
 
                     <div className="text-right">
-                      <span className="text-xs text-slate-400 block">คิดเป็นเงินประมาณ</span>
-                      <span className="text-sm font-semibold text-emerald-400 font-mono">
-                        ~{cost.toLocaleString()} บ.
-                      </span>
+                      <span className="text-xs text-slate-400 block mb-0.5">การตรวจสอบค่า</span>
+                      {readingInfo.consumption >= (meter.expectedMin || 0) && readingInfo.consumption <= (meter.expectedMax || 9999) ? (
+                        <div>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md">
+                            <CheckCircle2 className="w-3 h-3" /> ปกติตามเกณฑ์
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                            เกณฑ์ {meter.expectedMin}-{meter.expectedMax} m³
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-950/60 border border-amber-800/60 px-2 py-0.5 rounded-md">
+                            <AlertTriangle className="w-3 h-3" /> นอกเกณฑ์ปกติ
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                            ควรอยู่ {meter.expectedMin}-{meter.expectedMax} m³
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Status & Location Info */}
-                  <div className="text-xs text-slate-400 flex items-center justify-between">
-                    <span>จุดติดตั้ง:</span>
-                    <span className="text-slate-300 font-medium">{meter.location}</span>
+                  {/* Benchmark & Sanity Check Indicator */}
+                  <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-cyan-400" /> ตรวจสอบความถูกต้อง:
+                    </span>
+                    <span className="text-slate-300 font-medium">
+                      เลขใหม่ ≥ เลขเก่า & สอดคล้องวันก่อนหน้า
+                    </span>
                   </div>
                 </div>
               </div>

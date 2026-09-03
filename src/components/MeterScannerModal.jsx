@@ -30,7 +30,7 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
       image: '/meter_samples/media_1788432644834.jpg',
       type: 'water',
       expectedSN: 'F19S000648',
-      expectedReading: '77593.1 m³',
+      expectedReading: '77593.1 m³ (ลูกล้อดำ 77593 แดง 1)',
       detectedItems: [
         {
           target: 'มิเตอร์น้ำ ระบบ EVAP. (WATER-EVAP)',
@@ -38,8 +38,8 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
           readingRaw: '77593.1',
           unit: 'm³',
           convertedKWh: null,
-          confidence: '99.4%',
-          status: 'Valid (Sanity Check Passed)',
+          confidence: '99.5%',
+          status: '✅ ปกติตามเกณฑ์ (ใช้ไป 170.5 m³ สอดคล้องเกณฑ์ 140-210 m³)',
         }
       ]
     },
@@ -49,16 +49,16 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
       image: '/meter_samples/media_1788432644839.jpg',
       type: 'water',
       expectedSN: 'F19S000630',
-      expectedReading: '12191.2 m³',
+      expectedReading: '12907 m³ (ลูกล้อดำ 12907)',
       detectedItems: [
         {
           target: 'มิเตอร์น้ำ ระบบ Soft (WATER-SOFT)',
           anchor: 'Serial Number: F19S000630',
-          readingRaw: '12191.2',
+          readingRaw: '12907',
           unit: 'm³',
           convertedKWh: null,
-          confidence: '98.8%',
-          status: 'Valid (Sanity Check Passed)',
+          confidence: '99.2%',
+          status: '✅ ปกติตามเกณฑ์ (ใช้ไป 48 m³ สอดคล้องเกณฑ์ 35-70 m³)',
         }
       ]
     },

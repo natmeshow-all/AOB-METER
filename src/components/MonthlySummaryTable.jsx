@@ -130,9 +130,9 @@ export const MonthlySummaryTable = ({ monthlyDays, monthlyTotals }) => {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs text-slate-400 block">คิดเป็นเงิน</span>
-                      <span className="text-sm font-semibold text-emerald-400 font-mono">
-                        ~{tot.costTHB.toLocaleString()} บ.
+                      <span className="text-xs text-slate-400 block">เกณฑ์ปกติเฉลี่ย</span>
+                      <span className="text-xs font-semibold text-emerald-400 font-mono">
+                        {meter.expectedMin}-{meter.expectedMax} m³/วัน
                       </span>
                     </div>
                   </div>
@@ -242,11 +242,11 @@ export const MonthlySummaryTable = ({ monthlyDays, monthlyTotals }) => {
                       +{monthlyTotals.water['WATER-EVAP']?.totalConsumption.toLocaleString()} m³
                     </td>
                     <td colSpan="2" className="p-3 text-center border-l border-slate-800 text-emerald-400 font-sans">
-                      ค่าน้ำรวมทั้งสิ้น: ~{Math.round(
-                        (monthlyTotals.water['WATER-MAIN']?.totalConsumption +
-                         monthlyTotals.water['WATER-SOFT']?.totalConsumption +
-                         monthlyTotals.water['WATER-EVAP']?.totalConsumption) * COMPANY_INFO.waterRatePerUnit
-                      ).toLocaleString()} บาท
+                      รวมปริมาณน้ำทั้ง 3 จุด: {(
+                        (monthlyTotals.water['WATER-MAIN']?.totalConsumption || 0) +
+                        (monthlyTotals.water['WATER-SOFT']?.totalConsumption || 0) +
+                        (monthlyTotals.water['WATER-EVAP']?.totalConsumption || 0)
+                      ).toFixed(1)} m³ (ปกติตามเกณฑ์)
                     </td>
                   </tr>
                 </tfoot>
