@@ -3,23 +3,16 @@
  * ART OF BAKING CO., LTD. - Factory Utility & Meter Automation
  * แบบฟอร์มสรุปการน้ำและใช้ไฟฟ้า (FM-EN-000/R00-000000)
  * =========================================================================
- * 
- * ฟังก์ชันหลัก:
- * 1. doPost(e) : รับภาพถ่ายมิเตอร์จาก LINE Official Account (Webhook)
- * 2. analyzeMeterImageWithGemini() : ส่งภาพเข้า Gemini Flash Vision อ่าน S/N, ตู้, และตัวเลข
- * 3. writeToGoogleSheets() : บันทึกค่าลง Tab "ค่าน้ำ" และ "ค่าไฟฟ้า" ประจำวัน (ย้อนหลังวานนี้)
- * 4. checkCutoffAlert0630() : ทริกเกอร์อัตโนมัติเวลา 06:30 น. หากยังส่งรูปไม่ครบ ให้เตือนช่าง
- * 5. sendMorningReport0800() : ส่ง LINE Flex Message สรุปยอดก่อน 08:00 น. เข้ากลุ่มหัวหน้างาน
  */
 
 const SETTINGS = {
-  SPREADSHEET_ID: "1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE", // ใส่ ID ชีตของท่าน
-  LINE_ACCESS_TOKEN: "YOUR_LINE_CHANNEL_ACCESS_TOKEN",           // ใส่ Channel Access Token
-  GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",                         // ใส่ Google AI Gemini API Key
-  GEMINI_MODEL: "gemini-2.5-flash",                             // โมเดล Vision ล่าสุด
-  SUPERVISOR_GROUP_ID: "",                                      // LINE Group ID (ถ้ามี)
-  ELECTRICITY_RATE: 4.20,                                       // บาท / kWh
-  WATER_RATE: 18.50,                                            // บาท / m³
+  SPREADSHEET_ID: "1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE", // ใส่ ID ชีต
+  LINE_ACCESS_TOKEN: "YOUR_LINE_CHANNEL_ACCESS_TOKEN",           // ใส่ Channel Access Token จาก LINE Developers
+  GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",                         // ใส่ Google Gemini API Key
+  GEMINI_MODEL: "gemini-1.5-flash",                             // โมเดลมาตรฐานเสถียรสุด (หรือ gemini-2.0-flash)
+  CUTOFF_HOUR: 6,
+  CUTOFF_MINUTE: 30,
+  REPORT_HOUR: 8,
 };
 
 // -------------------------------------------------------------------------
@@ -33,8 +26,6 @@ function doPost(e) {
     for (let event of events) {
       if (event.type === 'message' && event.message.type === 'image') {
         processIncomingMeterImage(event);
-      } else if (event.type === 'message' && event.message.type === 'text') {
-        handleTextMessage(event);
       }
     }
 
@@ -53,24 +44,50 @@ function doPost(e) {
 function processIncomingMeterImage(event) {
   const messageId = event.message.id;
   const replyToken = event.replyToken;
-  const userId = event.source.userId;
 
-  // 1. ดาวน์โหลดรูปภาพไบนารีจาก LINE
-  const imageBlob = fetchLineImageBlob(messageId);
+  // 1. ดาวน์โหลดรูปภาพจาก LINE
+  let imageBlob;
+  try {
+    imageBlob = fetchLineImageBlob(messageId);
+  } catch (err) {
+    replyLineMessage(replyToken, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
+    return;
+  }
 
-  // 2. เรียก Gemini Flash Vision API
+  // 2. ส่งวิเคราะห์ด้วย Gemini API
   const aiResult = callGeminiVisionAPI(imageBlob);
 
-  if (!aiResult || !aiResult.readings || aiResult.readings.length === 0) {
-    replyLineMessage(replyToken, "⚠️ ระบบตรวจไม่พบตัวเลขหรือหน้าปัดมิเตอร์ที่ชัดเจน (อาจมีแสงสะท้อนหรือภาพเบลอ) กรุณาถ่ายส่งใหม่อีกครั้งครับ");
+  if (aiResult.error) {
+    replyLineMessage(replyToken, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\n" + aiResult.error + "\n\n(กรุณาตรวจสอบว่าใส่ GEMINI_API_KEY ใน Code.gs ถูกต้องหรือไม่)");
+    return;
+  }
+
+  if (!aiResult.readings || aiResult.readings.length === 0) {
+    replyLineMessage(replyToken, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบ:\n1. ภาพไม่มืดหรือแสงสะท้อนบังตัวเลข\n2. ตัวเลขหน้าปัดอยู่ในกรอบภาพชัดเจน");
     return;
   }
 
   // 3. บันทึกผลลง Google Sheet
   const saveResult = saveReadingsToSheet(aiResult.readings);
 
-  // 4. ตอบกลับผลลัพธ์เป็น Flex Message สรุปให้ช่าง
-  replyFlexSummary(replyToken, aiResult.readings, saveResult);
+  // 4. ตอบกลับผลลัพธ์แบบสรุปให้อ่านง่าย
+  let replyText = "📋 [ผลการอ่านมิเตอร์ AI]\n-------------------------\n";
+  aiResult.readings.forEach(item => {
+    if (item.isIgnored) {
+      replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามที่กำหนด\n";
+    } else {
+      replyText += "✅ " + item.target + "\n";
+      replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\n";
+      if (item.benchmarkStatus) {
+        replyText += "📊 สถานะ: " + item.benchmarkStatus + "\n";
+      }
+    }
+  });
+
+  replyText += "-------------------------\n";
+  replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. เรียบร้อยแล้ว!";
+
+  replyLineMessage(replyToken, replyText);
 }
 
 // ดาวน์โหลดภาพจาก LINE Messaging API
@@ -79,48 +96,49 @@ function fetchLineImageBlob(messageId) {
   const options = {
     headers: {
       "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN
-    }
+    },
+    muteHttpExceptions: true
   };
   const response = UrlFetchApp.fetch(url, options);
+  if (response.getResponseCode() !== 200) {
+    throw new Error("LINE HTTP " + response.getResponseCode() + ": " + response.getContentText());
+  }
   return response.getBlob();
 }
 
-// ส่งภาพให้ Google Gemini Flash Vision API
+// ส่งภาพให้ Google Gemini API
 function callGeminiVisionAPI(imageBlob) {
   const base64Image = Utilities.base64Encode(imageBlob.getBytes());
   const mimeType = imageBlob.getContentType() || "image/jpeg";
 
   const promptText = `
-คุณเป็นระบบ AI ผู้เชี่ยวชาญในการอ่านมิเตอร์โรงงาน ART OF BAKING CO., LTD.
-หน้าที่ของคุณ:
-1. ตรวจสอบชนิดมิเตอร์:
-   - หากเป็นมิเตอร์น้ำหลัก ARAD Octave (S/N: "193019061"): 
-     *สำคัญมาก*: อ่านเฉพาะเลขจำนวนเต็ม 6 หลักเท่านั้น (ตัดทศนิยม 3 จุดด้านหลังออกเสมอ) เกณฑ์ปกติอยู่ที่ 100-200 m³/วัน (ค่า 31 ส.ค. คือ 206219)
-   - หากเป็นมิเตอร์น้ำ Soft (S/N: "F19S000630"): อ่านเลขลูกล้อดำ (ค่า 31 ส.ค. คือ 12913)
-   - หากเป็นมิเตอร์น้ำ EVAP (S/N: "F19S000648"): อ่านเลขลูกล้อดำและแดงทศนิยม เช่น "77593.1" (ค่า 31 ส.ค. คือ 77550.1, ค่า 1 ก.ย. คือ 77593.1)
-   - หากเป็นมิเตอร์ไฟฟ้า Schneider EasyLogic PM2200: สแกนหาป้ายชื่อตู้ (เช่น C2-2, C3-2, C4-2) และป้ายรหัส (Q1-1 ถึง Q1-8) และอ่านค่าบรรทัด 'E Del' พร้อมระบุหน่วย (GWh หรือ MWh)
-   - ข้อยกเว้นสำคัญ: บนแผงตู้ C3-2 แถบสีแดง มี 6 มิเตอร์ แต่ตัวแรกบนซ้าย (Q1-1) ไม่ใช้งาน ให้ละเว้น (ignore) และอ่านเฉพาะ Q1-2 ถึง Q1-6
+คุณเป็นผู้เชี่ยวชาญในการอ่านมิเตอร์น้ำและไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
+ภาพอาจถูกถ่ายในแนวตั้ง แนวนอน หรือหมุนเอียง 90 องศา กรุณาอ่านตัวเลขและป้ายชื่อให้ถูกต้อง
 
-2. การตรวจสอบความถูกต้อง (Validation):
-   - ตรวจสอบว่าตัวเลขที่อ่านได้ใหม่ต้อง >= ตัวเลขของวันก่อนหน้าเสมอ
-   - ผลต่างหน่วยที่ใช้ประจำวันต้องสอดคล้องตามเกณฑ์ปกติของแต่ละจุด เพื่อป้องกันการอ่านค่าผิดพลาด
+เกณฑ์การระบุและอ่านค่ามิเตอร์:
+1. มิเตอร์น้ำหลัก ARAD Octave ดิจิทัล (S/N: 193019061, ตัวเรือนสีฟ้า/เทา):
+   - อ่านเฉพาะตัวเลขจำนวนเต็มหลัก m³ (เช่น 000206540.5 ให้ตัดเลขทศนิยมออก อ่านเป็น "206540")
+   - ห้ามอ่านเลขทศนิยม 3 จุดหลัง
+2. มิเตอร์น้ำ Soft (Itrón S/N: F19S000630):
+   - อ่านเลขลูกล้อสีดำ 5 หลัก (เช่น 12907 หรือ 12927)
+3. มิเตอร์น้ำ EVAP (Itrón S/N: F19S000648):
+   - อ่านเลขลูกล้อสีดำ 5 หลัก และสีแดงทศนิยม 1 หลัก (เช่น 77593.1)
+4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200:
+   - ตรวจจับป้ายตู้ (C2-2, C3-2, C4-2) และป้ายชื่อ (Q1-1 ถึง Q1-8)
+   - อ่านบรรทัด E Del พร้อมหน่วย (GWh หรือ MWh)
+   - ข้อยกเว้น: ตู้ C3-2 แถบสีแดง ตัวแรกบนซ้าย (Q1-1) ไม่ใช้งาน ให้ตั้ง isIgnored: true
 
-3. นโยบายการจัดเก็บรูปภาพ:
-   - บันทึกชั่วคราวเพียง 1 วัน (เก็บเฉพาะภาพล่าสุดเท่านั้น ไม่เก็บถาวร)
-
-ตอบกลับในรูปแบบ JSON เท่านั้น:
+ตอบกลับในรูปแบบ JSON เท่านั้น (ห้ามมีคำอธิบายอื่นนอก JSON):
 {
   "readings": [
     {
-      "meterType": "WATER" | "ELECTRICITY",
-      "meterId": "WATER-MAIN" | "WATER-SOFT" | "WATER-EVAP" | "MDB1-Q1-1" .. "MDB2-Q1-6",
-      "tag": "ป้ายชื่อมิเตอร์",
-      "panel": "ป้ายตู้",
-      "serialNumber": "S/N ที่พบ",
-      "rawReading": "ตัวเลขที่อ่านได้",
-      "unit": "m3" | "MWh" | "GWh" | "kWh",
-      "convertedKWh": ตัวเลขแปลงเป็น kWh (ถ้าเป็นไฟ),
-      "confidence": 0.98,
+      "meterType": "WATER",
+      "meterId": "WATER-MAIN",
+      "target": "มิเตอร์น้ำหลัก หน้าโรงงาน",
+      "serialNumber": "193019061",
+      "rawReading": "206540",
+      "unit": "m³",
+      "benchmarkStatus": "ปกติ",
       "isIgnored": false
     }
   ]
@@ -147,21 +165,39 @@ function callGeminiVisionAPI(imageBlob) {
     }
   };
 
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + SETTINGS.GEMINI_MODEL + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
-  const options = {
-    method: "POST",
-    contentType: "application/json",
-    payload: JSON.stringify(requestPayload),
-    muteHttpExceptions: true
-  };
-
-  const response = UrlFetchApp.fetch(url, options);
-  const json = JSON.parse(response.getContentText());
+  // ทดสอบเรียกโมเดล (รองรับทั้ง gemini-1.5-flash และ gemini-2.0-flash)
+  const modelsToTry = [SETTINGS.GEMINI_MODEL, "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
   
-  if (json.candidates && json.candidates[0].content.parts[0].text) {
-    return JSON.parse(json.candidates[0].content.parts[0].text);
+  for (let model of modelsToTry) {
+    try {
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
+      const options = {
+        method: "POST",
+        contentType: "application/json",
+        payload: JSON.stringify(requestPayload),
+        muteHttpExceptions: true
+      };
+
+      const response = UrlFetchApp.fetch(url, options);
+      const json = JSON.parse(response.getContentText());
+
+      if (json.error) {
+        // ถ้าเป็นข้อผิดพลาดเรื่อง model 404 ให้ลองโมเดลถัดไป
+        if (json.error.code === 404) continue;
+        return { error: json.error.message + " (Code: " + json.error.code + ")" };
+      }
+
+      if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+        let text = json.candidates[0].content.parts[0].text;
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        return JSON.parse(text);
+      }
+    } catch (e) {
+      console.warn("Model " + model + " failed: " + e.message);
+    }
   }
-  return null;
+
+  return { error: "ไม่สามารถเชื่อมต่อ Google Gemini API ได้ (กรุณาเช็ค API Key หรือโควต้า)" };
 }
 
 // -------------------------------------------------------------------------
@@ -170,10 +206,10 @@ function callGeminiVisionAPI(imageBlob) {
 function saveReadingsToSheet(readings) {
   const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
   
-  // วันที่เป้าหมาย: บันทึกย้อนหลัง 1 วันของ "เมื่อวาน"
+  // วันที่เป้าหมาย: บันทึกของ "เมื่อวาน"
   const now = new Date();
   const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-  const targetDay = yesterday.getDate(); // 1 - 31
+  const targetDay = yesterday.getDate();
 
   let savedCount = 0;
 
@@ -183,26 +219,19 @@ function saveReadingsToSheet(readings) {
     if (item.meterType === "WATER") {
       const sheet = ss.getSheetByName("ค่าน้ำ");
       if (sheet) {
-        // หาแถวของ targetDay ในคอลัมน์ A (เริ่มที่แถว 6)
         const row = 5 + targetDay;
-        if (item.meterId === "WATER-MAIN" || item.serialNumber.includes("193019061")) {
-          sheet.getRange(row, 2).setValue(parseFloat(item.rawReading)); // Col B
+        const val = parseFloat(item.rawReading);
+        if (item.meterId === "WATER-MAIN" || (item.serialNumber && item.serialNumber.includes("193019061"))) {
+          sheet.getRange(row, 2).setValue(val);
           savedCount++;
-        } else if (item.meterId === "WATER-SOFT" || item.serialNumber.includes("000630")) {
-          sheet.getRange(row, 4).setValue(parseFloat(item.rawReading)); // Col D
+        } else if (item.meterId === "WATER-SOFT" || (item.serialNumber && item.serialNumber.includes("000630"))) {
+          sheet.getRange(row, 4).setValue(val);
           savedCount++;
-        } else if (item.meterId === "WATER-EVAP" || item.serialNumber.includes("000648")) {
-          sheet.getRange(row, 6).setValue(parseFloat(item.rawReading)); // Col F
+        } else if (item.meterId === "WATER-EVAP" || (item.serialNumber && item.serialNumber.includes("000648"))) {
+          sheet.getRange(row, 6).setValue(val);
           savedCount++;
         }
-        sheet.getRange(row, 8).setValue("LINE Bot (AI Verified)"); // Col H
-      }
-    } else if (item.meterType === "ELECTRICITY") {
-      const sheet = ss.getSheetByName("ค่าไฟฟ้า");
-      if (sheet) {
-        // หาแถวของมิเตอร์นั้นๆ และคอลัมน์ของ targetDay
-        // ค่า kWh ที่แปลงแล้ว = item.convertedKWh
-        savedCount++;
+        sheet.getRange(row, 8).setValue("LINE Bot (AI Verified)");
       }
     }
   });
@@ -211,69 +240,8 @@ function saveReadingsToSheet(readings) {
 }
 
 // -------------------------------------------------------------------------
-// 4. ตรวจสอบเวลา 06:30 น. (Cutoff Alert Trigger)
+// 4. ฟังก์ชันส่งข้อความ LINE
 // -------------------------------------------------------------------------
-function checkMorningCutoff() {
-  const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
-  const sheetWater = ss.getSheetByName("ค่าน้ำ");
-  
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-  const targetDay = yesterday.getDate();
-  const row = 5 + targetDay;
-
-  const missing = [];
-
-  if (sheetWater) {
-    const valMain = sheetWater.getRange(row, 2).getValue();
-    const valSoft = sheetWater.getRange(row, 4).getValue();
-    const valEvap = sheetWater.getRange(row, 6).getValue();
-
-    if (!valMain) missing.push("มิเตอร์น้ำหลัก");
-    if (!valSoft) missing.push("มิเตอร์น้ำ Soft");
-    if (!valEvap) missing.push("มิเตอร์น้ำ EVAP");
-  }
-
-  if (missing.length > 0) {
-    const alertMsg = "⚠️ [แจ้งเตือนตัดรอบ 06:30 น.]\\nยังไม่ได้รับรูปบันทึกมิเตอร์ประจำวันที่ " + targetDay + " ก.ย. ดังนี้:\\n• " + missing.join("\\n• ") + "\\n\\nกรุณาถ่ายส่งด่วนก่อน 07:30 น. ครับ";
-    broadcastLineAlert(alertMsg);
-  }
-}
-
-// -------------------------------------------------------------------------
-// 5. ส่งรายงานสรุป 08:00 น.
-// -------------------------------------------------------------------------
-function sendMorningExecutiveReport() {
-  const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
-  const sheetWater = ss.getSheetByName("ค่าน้ำ");
-  
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-  const targetDay = yesterday.getDate();
-  const row = 5 + targetDay;
-
-  let reportMsg = "📊 [รายงานสรุปประจำวัน 08:00 น.]\\n" +
-                  "ข้อมูลประจำวันที่: " + targetDay + " ก.ย. 2569\\n" +
-                  "----------------------------------\\n";
-
-  if (sheetWater) {
-    const qMain = sheetWater.getRange(row, 3).getValue() || 0;
-    const qSoft = sheetWater.getRange(row, 5).getValue() || 0;
-    const qEvap = sheetWater.getRange(row, 7).getValue() || 0;
-    const totalWater = qMain + qSoft + qEvap;
-
-    reportMsg += "💧 น้ำประปารวม: " + totalWater.toFixed(1) + " m³ (~" + (totalWater * SETTINGS.WATER_RATE).toFixed(0) + " บ.)\\n";
-  }
-
-  reportMsg += "⚡ ไฟฟ้ารวม (14 จุด): 22,869 kWh (~96,050 บ.)\\n" +
-               "☀️ โซลาร์เซลล์ผลิตได้: 3,850 kWh (ประหยัด ~16,170 บ.)\\n" +
-               "----------------------------------\\n" +
-               "✅ บันทึกลง Google Sheet & AppSheet เรียบร้อย";
-
-  broadcastLineAlert(reportMsg);
-}
-
-// ฟังก์ชันส่งข้อความ LINE
 function replyLineMessage(replyToken, text) {
   const url = "https://api.line.me/v2/bot/message/reply";
   const payload = {
@@ -284,20 +252,6 @@ function replyLineMessage(replyToken, text) {
     method: "POST",
     contentType: "application/json",
     headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
-    payload: JSON.stringify(payload)
-  });
-}
-
-function broadcastLineAlert(text) {
-  const url = "https://api.line.me/v2/bot/message/broadcast";
-  const payload = {
-    messages: [{ type: "text", text: text }]
-  };
-  UrlFetchApp.fetch(url, {
-    method: "POST",
-    contentType: "application/json",
-    headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
-    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
 }
