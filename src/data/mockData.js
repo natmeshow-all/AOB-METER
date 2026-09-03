@@ -21,11 +21,11 @@ export const WATER_METERS = [
     serialNumber: "193019061",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644869.jpg",
-    baselineAug31: 205342,
-    readingSep01: 206074, // ค่าจริงจากรูป 000,206,074 (ตัดทศนิยม 3 จุด .572 ออกตามข้อกำหนด)
-    avgDailyUsage: 732,
-    expectedMin: 650,
-    expectedMax: 850,
+    baselineAug31: 206219, // ค่า 31 ส.ค. ตามที่ระบุ
+    readingSep01: 206378,  // ค่า 1 ก.ย. (ใช้ไป 159 m³ อยู่ในเกณฑ์ 100-200)
+    avgDailyUsage: 160,
+    expectedMin: 100,
+    expectedMax: 200,      // เกณฑ์ปกติ 100-200 หน่วย
     decimalPlaces: 0,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
@@ -38,11 +38,11 @@ export const WATER_METERS = [
     serialNumber: "F19S000630",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644839.jpg",
-    baselineAug31: 12859,
-    readingSep01: 12907, // ค่าจริงจากรูป 12907 ตามที่ระบุ
-    avgDailyUsage: 48,
-    expectedMin: 35,
-    expectedMax: 70,
+    baselineAug31: 12913,  // ค่า 31 ส.ค. ตามที่ระบุ
+    readingSep01: 12921,   // ค่า 1 ก.ย. (ใช้ไป 8 m³)
+    avgDailyUsage: 8,
+    expectedMin: 3,
+    expectedMax: 25,
     decimalPlaces: 0,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
@@ -55,11 +55,11 @@ export const WATER_METERS = [
     serialNumber: "F19S000648",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644834.jpg",
-    baselineAug31: 77422.6,
-    readingSep01: 77593.1, // ค่าจริงจากรูป 77593.1 ตามที่ระบุ
-    avgDailyUsage: 170.5,
-    expectedMin: 140,
-    expectedMax: 210,
+    baselineAug31: 77673.7, // ค่า 31 ส.ค. ตามที่ระบุ (776737)
+    readingSep01: 77678.5,  // ค่า 1 ก.ย. ตรงตามแผ่นงาน FM-EN-000 (ใช้ไป 4.8 m³)
+    avgDailyUsage: 5,
+    expectedMin: 2,
+    expectedMax: 20,
     decimalPlaces: 1,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
