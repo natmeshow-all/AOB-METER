@@ -55,11 +55,11 @@ export const WATER_METERS = [
     serialNumber: "F19S000648",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644834.jpg",
-    baselineAug31: 77673.7, // ค่า 31 ส.ค. ตามที่ระบุ (776737)
-    readingSep01: 77678.5,  // ค่า 1 ก.ย. ตรงตามแผ่นงาน FM-EN-000 (ใช้ไป 4.8 m³)
-    avgDailyUsage: 5,
-    expectedMin: 2,
-    expectedMax: 20,
+    baselineAug31: 77550.1, // ค่า 31 ส.ค. ตามที่ระบุ
+    readingSep01: 77593.1,  // ค่า 1 ก.ย. ตามที่ระบุ (ใช้ไป 43.0 m³)
+    avgDailyUsage: 43.0,
+    expectedMin: 25,
+    expectedMax: 65,        // เกณฑ์ปกติ 25-65 หน่วย
     decimalPlaces: 1,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
