@@ -68,16 +68,16 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
       image: '/meter_samples/media_1788432644869.jpg',
       type: 'water',
       expectedSN: '193019061',
-      expectedReading: '206074.572 m³ (Flow: 5.66 m³/h)',
+      expectedReading: '206074 m³ (ตัดทศนิยม 3 จุด .572 ออก)',
       detectedItems: [
         {
           target: 'มิเตอร์น้ำหลัก หน้าโรงงาน (WATER-MAIN)',
           anchor: 'Serial Number: 193019061',
-          readingRaw: '206074.572',
+          readingRaw: '206074',
           unit: 'm³',
           flowRate: '5.66 m³/h',
-          confidence: '99.8%',
-          status: 'Valid (Flow active)',
+          confidence: '99.9%',
+          status: 'Valid (อ่านเฉพาะจำนวนเต็ม 206074 ตัดทศนิยม 3 จุดออก)',
         }
       ]
     },

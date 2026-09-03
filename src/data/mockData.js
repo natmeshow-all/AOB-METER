@@ -21,10 +21,12 @@ export const WATER_METERS = [
     serialNumber: "193019061",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644869.jpg",
-    baselineAug31: 205646.300,
-    readingSep01: 206378.702,
-    avgDailyUsage: 730,
+    baselineAug31: 205342,
+    readingSep01: 206074, // ค่าจริงจากรูป 000,206,074 (ตัดทศนิยม 3 จุด .572 ออกตามข้อกำหนด)
+    avgDailyUsage: 732,
     maxDailyUsage: 1200,
+    decimalPlaces: 0, // ไม่เอาทศนิยม
+    storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
   {
     id: "WATER-SOFT",
