@@ -12,6 +12,8 @@ import {
   ExternalLink 
 } from 'lucide-react';
 
+import { getGasScriptCode } from '../data/gasCodeTemplate';
+
 export const SettingsModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
@@ -21,72 +23,8 @@ export const SettingsModal = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('config'); // 'config' | 'gas-code'
   const [isCopied, setIsCopied] = useState(false);
 
-  // Full production-ready Google Apps Script Code
-  const gasScriptCode = `/**
- * ART OF BAKING CO., LTD. - Factory Meter & Utility Tracker (GAS Backend)
- * สคริปต์เชื่อมต่อ LINE Webhook + Gemini Vision AI + บันทึกลง Google Sheets FM-EN-000
- */
-
-const CONFIG = {
-  SPREADSHEET_ID: "${spreadsheetId}",
-  LINE_ACCESS_TOKEN: "${lineToken}",
-  GEMINI_API_KEY: "${geminiApiKey}",
-  GEMINI_MODEL: "gemini-2.5-flash", // หรือโมเดล Vision ล่าสุด
-  CUTOFF_HOUR: 6, // 06:30 น.
-  CUTOFF_MINUTE: 30,
-  REPORT_HOUR: 8, // 08:00 น.
-};
-
-// Webhook รับรูปภาพและข้อความจาก LINE Official Account
-function doPost(e) {
-  try {
-    const events = JSON.parse(e.postData.contents).events;
-    for (let event of events) {
-      if (event.type === 'message' && event.message.type === 'image') {
-        handleMeterImage(event);
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({ status: 'ok' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    console.error(err);
-    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// ฟังก์ชันประมวลผลรูปภาพมิเตอร์ด้วย Gemini Vision
-function handleMeterImage(event) {
-  const messageId = event.message.id;
-  const replyToken = event.replyToken;
-  
-  // 1. ดึงไฟล์รูปภาพจาก LINE Messaging API
-  const imageBlob = getLineImageBlob(messageId);
-  
-  // 2. ส่งวิเคราะห์ด้วย Gemini Flash Multimodal
-  const aiResult = analyzeMeterWithGemini(imageBlob);
-  
-  // 3. บันทึกลง Google Sheet ประจำวัน (ย้อนหลัง 1 วันของเมื่อวาน)
-  const saveResult = writeToSheet(aiResult);
-  
-  // 4. ส่งข้อความ Flex Message ยืนยันกลับไปหาช่างใน LINE
-  replyLineFlexChecklist(replyToken, aiResult, saveResult);
-}
-
-// ฟังก์ชันตั้งเวลาตรวจเช็ค 06:30 น. (Time-driven Trigger)
-function checkMorningCutoff() {
-  const missingMeters = checkMissingMetersForYesterday();
-  if (missingMeters.length > 0) {
-    sendLineAlertMessage("⚠️ แจ้งเตือน 06:30 น.: ยังไม่ได้รับรูปมิเตอร์ [" + missingMeters.join(", ") + "] กรุณาส่งด่วนก่อน 07:30 น.");
-  }
-}
-
-// ฟังก์ชันส่งรายงาน 08:00 น. ให้หัวหน้างาน
-function sendMorningExecutiveReport() {
-  const summary = calculateDailySummaryForYesterday();
-  sendLineFlexReport(summary);
-}
-`;
+  // Full production-ready Google Apps Script Code (ครบถ้วนทุกฟังก์ชัน 295 บรรทัด)
+  const gasScriptCode = getGasScriptCode(spreadsheetId, lineToken, geminiApiKey);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(gasScriptCode);
