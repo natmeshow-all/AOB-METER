@@ -335,6 +335,30 @@ function fetchLineImageBlob(messageId) {
 }
 
 function callGeminiVisionBatch(imageBlobs) {
+  const CHUNK_SIZE = 3;
+  if (imageBlobs.length <= CHUNK_SIZE) {
+    return callGeminiVisionSingleChunk(imageBlobs);
+  }
+
+  const allReadings = [];
+  for (let i = 0; i < imageBlobs.length; i += CHUNK_SIZE) {
+    const chunk = imageBlobs.slice(i, i + CHUNK_SIZE);
+    const chunkResult = callGeminiVisionSingleChunk(chunk);
+    if (chunkResult && chunkResult.readings && Array.isArray(chunkResult.readings)) {
+      allReadings.push(...chunkResult.readings);
+    } else if (chunkResult && chunkResult.error) {
+      console.warn("Chunk error:", chunkResult.error);
+    }
+  }
+
+  if (allReadings.length === 0) {
+    return { error: "ระบบไม่สามารถอ่านภาพได้ในขณะนี้ กรุณารอสักครู่แล้วลองใหม่" };
+  }
+
+  return { readings: allReadings };
+}
+
+function callGeminiVisionSingleChunk(imageBlobs) {
   const promptText = \`
 คุณเป็นผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
 ในคำขอนี้จะมีรูปถ่ายมิเตอร์น้ำและตู้ไฟฟ้าจำนวน 1 หรือหลายภาพ กรุณาวิเคราะห์ทุกภาพและอ่านค่าตัวเลขให้ครบถ้วนทุกจุด
@@ -772,6 +796,39 @@ function saveDay4Now() {
 
   const res = saveReadingsToSheet(readings, 4);
   Logger.log("✅ บันทึกข้อมูลวันที่ 4 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+}
+
+function saveDay3Now() {
+  Logger.log("🚀 กำลังบันทึกข้อมูลมิเตอร์วันที่ 3 ก.ย. 2569 ทั้ง 17 จุดเข้า Google Sheet...");
+
+  const readings = [
+    // ค่าน้ำ 3 จุด (วันที่ 3: แถว 9)
+    { meterType: "WATER", meterId: "WATER-MAIN", rawReading: "206783", unit: "m³" },
+    { meterType: "WATER", meterId: "WATER-SOFT", rawReading: "12936", unit: "m³" },
+    { meterType: "WATER", meterId: "WATER-EVAP", rawReading: "77766.5", unit: "m³" },
+
+    // ค่าไฟฟ้า 14 จุด (วันที่ 3: คอลัมน์ H = Col 8)
+    // MDB-1
+    { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-1", target: "C2-2 Q1-1 MMC-PRO-1 (Frozen Line)", convertedKWh: 2559500 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-2", target: "C3-2 Q1-2 MMC-PRO-2 (RTE Line)", convertedKWh: 4269300 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-3", target: "C4-2 Q1-3 MCC-ACP (Air Compressor)", convertedKWh: 813910 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-4", target: "C3-2 Q1-4 MCC-WSP (Water Pump)", convertedKWh: 90513 },
+    { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-5", target: "C2-2 Q1-5 DC-AC (Control Room)", convertedKWh: 982840 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-6", target: "C4-2 Q1-6 DB-PRO-1 (Office)", convertedKWh: 1783000 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-7", target: "C4-2 Q1-7 DB-PRO-2 (Outside)", convertedKWh: 882120 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-8", target: "C4-2 Q1-8 MCC-SILO (Silo)", convertedKWh: 229490 },
+
+    // MDB-2
+    { meterType: "ELECTRICITY", panel: "C3-2 Black", tag: "Q1-1", target: "MDB-2 Q1-1 REFRIGERATION PLANT (System)", convertedKWh: 21347000 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-2", target: "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)", convertedKWh: 863920 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-3", target: "C3-2 Q1-3 ELP-PRO-1 (LP Emergency)", convertedKWh: 378850 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-4", target: "C3-2 Q1-4 EDB-PRO (Water Treatment)", convertedKWh: 816970 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-5", target: "C3-2 Q1-5 ELP-OFF (Server Room)", convertedKWh: 264360 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-6", target: "C3-2 Q1-6 EDB-AS/RS (AS/RS)", convertedKWh: 63941 }
+  ];
+
+  const res = saveReadingsToSheet(readings, 3);
+  Logger.log("✅ บันทึกข้อมูลวันที่ 3 ก.ย. 2569 ลง Google Sheet เรียบร้อยแล้ว " + res.savedCount + " รายการ!");
 }
 
 function fixWaterReadingsDay4() {
