@@ -352,17 +352,26 @@ function callGeminiVisionBatch(imageBlobs) {
    - meterType: "WATER", meterId: "WATER-EVAP"
    - อ่านเลขลูกล้อสีดำ 5 หลัก และสีแดงทศนิยม 1 หลัก (เช่น 77593.1 หรือ 77811.8)
    - หน่วย: m³
-4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200 (14 จุดในตู้ C2-2, C3-2, C4-2):
+4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200 (ครบทั้ง 14 จุดของโรงงาน):
    - meterType: "ELECTRICITY"
-   - สแกนหาป้ายรหัสตู้ (C2-2, C3-2, C4-2) และป้ายชื่อเบรกเกอร์ (Q1-1 ถึง Q1-8)
-   - อ่านค่าบรรทัด "E Del" พร้อมหน่วย (GWh หรือ MWh หรือ kWh)
-   - แปลงค่าเป็นหน่วย kWh เสมอ:
-     * หากเป็น GWh ให้คูณ 1,000,000 (เช่น 1.7788 GWh -> 1778800 kWh, 21.320 GWh -> 21320000 kWh, 4.2722 GWh -> 4272200 kWh)
-     * หากเป็น MWh ให้คูณ 1,000 (เช่น 812.14 MWh -> 812140 kWh, 983.63 MWh -> 983630 kWh, 229.85 MWh -> 229850 kWh)
+   - อ่านค่าบรรทัด "E Del" พร้อมหน่วย (GWh หรือ MWh หรือ kWh) แปลงเป็น kWh เสมอ:
+     * หากเป็น GWh ให้คูณ 1,000,000
+     * หากเป็น MWh ให้คูณ 1,000
      * หากเป็น kWh ให้ใช้ค่านั้นได้เลย
-   - กฎพิเศษสำหรับตู้ C3-2 แถบสีแดง:
-     * ตัวแรกบนซ้าย ป้าย Q1-1 (Fire Pump / ไม่ใช้งาน) ให้ตั้ง isIgnored: true
-     * บันทึกเฉพาะตัวที่ 2 ถึง 6 (Q1-2 ถึง Q1-6)
+   
+   ⚠️ กฎสำคัญมากในการแยกแยะตู้ C3-2:
+   ก) ตู้ C3-2 สีดำ (MDB-1 & MDB-2):
+      - Q1-1 REFRIGERATION PLANT (System): ค่าประมาณ 21.3x GWh (~21,3xx,000 kWh) 🌟 ห้ามข้ามเด็ดขาด! ต้องบันทึกแถว 12! target: "MDB-2 Q1-1 REFRIGERATION PLANT (System)"
+      - Q1-2 MMC-PRO-2 (RTE Line): ค่าประมาณ 4.2x GWh (~4,2xx,000 kWh) -> บันทึกแถว 4
+      - Q1-4 MCC-WSP (Water Pump): ค่าประมาณ 90.5x MWh (~90,5xx kWh) -> บันทึกแถว 6
+   
+   ข) ตู้ C3-2 แถบสีแดง (EMDB-2 มี 6 มิเตอร์ 2 แถว แถวละ 3 ตัว):
+      - แถวบนซ้าย Q1-1 (Fire Pump / แอมป์ 0.00A / ~204 MWh): 🚫 ตัวนี้ตัวเดียวเท่านั้นในโรงงานที่ให้ข้าม (isIgnored: true)
+      - แถวบนกลาง Q1-2 EMCC-FP&SN (Fire alarm system): ค่าประมาณ 862-865 MWh (~862,xxx kWh) 🌟 ต้องอ่านและบันทึกแถว 13! target: "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)"
+      - แถวบนขวา Q1-3 ELP-PRO-1 (LP Emergency): ค่าประมาณ 378 MWh -> บันทึกแถว 14
+      - แถวล่างซ้าย Q1-4 EDB-PRO (Water Treatment): ค่าประมาณ 816 MWh -> บันทึกแถว 15
+      - แถวล่างกลาง Q1-5 ELP-OFF (Server Room): ค่าประมาณ 264 MWh -> บันทึกแถว 16
+      - แถวล่างขวา Q1-6 EDB-AS/RS (AS/RS): ค่าประมาณ 63.9 MWh -> บันทึกแถว 17
 
 ตอบกลับในรูปแบบ JSON Array เท่านั้น:
 {
@@ -379,13 +388,24 @@ function callGeminiVisionBatch(imageBlobs) {
     },
     {
       "meterType": "ELECTRICITY",
-      "meterId": "MDB1-Q1-3",
-      "panel": "C4-2",
-      "tag": "Q1-3",
-      "target": "C4-2 Q1-3 (MCC-ACP Air Compressor)",
-      "rawReading": "814.28 MWh",
+      "meterId": "MDB2-Q1-1",
+      "panel": "C3-2 Black",
+      "tag": "Q1-1",
+      "target": "MDB-2 Q1-1 REFRIGERATION PLANT (System)",
+      "rawReading": "21.359 GWh",
+      "unit": "GWh",
+      "convertedKWh": 21359000,
+      "isIgnored": false
+    },
+    {
+      "meterType": "ELECTRICITY",
+      "meterId": "MDB2-Q1-2",
+      "panel": "C3-2 Red",
+      "tag": "Q1-2",
+      "target": "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)",
+      "rawReading": "864.60 MWh",
       "unit": "MWh",
-      "convertedKWh": 814280,
+      "convertedKWh": 864600,
       "isIgnored": false
     }
   ]
@@ -569,6 +589,7 @@ function saveReadingsToSheet(readings, customDay) {
     const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
     const sheetElec = getElectricitySheet(ss);
     
+    let targetDay = customDay;
     if (!targetDay) {
       const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
       if (manualDayStr) {
@@ -724,6 +745,8 @@ function saveDay4Now() {
     { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-4", target: "C3-2 Q1-4 (Water Pump)", convertedKWh: 90568 },
     { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-5", target: "C2-2 Q1-5 (Control Room)", convertedKWh: 983630 },
     { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-1", target: "C2-2 Q1-1 (Frozen Line)", convertedKWh: 2561400 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Black", tag: "Q1-1", target: "MDB-2 Q1-1 REFRIGERATION PLANT (System)", convertedKWh: 21359000 },
+    { meterType: "ELECTRICITY", panel: "C3-2 Red", tag: "Q1-2", target: "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)", convertedKWh: 864600 },
     { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-3", target: "C3-2 Q1-3 (Red LP Emergency)", convertedKWh: 378850 },
     { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-4", target: "C3-2 Q1-4 (Red Water Treatment)", convertedKWh: 816970 },
     { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-5", target: "C3-2 Q1-5 (Red Server Room)", convertedKWh: 264360 },
@@ -732,6 +755,23 @@ function saveDay4Now() {
 
   const res = saveReadingsToSheet(readings, 4);
   Logger.log("✅ บันทึกข้อมูลวันที่ 4 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+}
+
+function fillMissingRow12And13(refrigKWh, fireAlarmKWh) {
+  const ss = getTargetSpreadsheet();
+  const sheetElec = getElectricitySheet(ss);
+  if (!sheetElec) return;
+
+  const targetDay = 4;
+  const colDay4 = findElectricityTargetCol(sheetElec, targetDay);
+
+  const val12 = refrigKWh || 21359000;
+  sheetElec.getRange(12, colDay4).setValue(val12);
+
+  const val13 = fireAlarmKWh || 864600;
+  sheetElec.getRange(13, colDay4).setValue(val13);
+
+  Logger.log("✅ เติมค่าแถว 12 (" + val12.toLocaleString() + " kWh) และแถว 13 (" + val13.toLocaleString() + " kWh) เข้าวันที่ 4 สำเร็จ!");
 }
 
 function saveDay5Now() {

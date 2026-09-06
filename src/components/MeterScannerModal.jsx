@@ -373,8 +373,11 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
 1. มิเตอร์น้ำหลัก Octave ดิจิทัล (S/N 193019061): อ่านเฉพาะตัวเลขจำนวนเต็ม m³ (ตัดจุดทศนิยม 3 หลักหลังออก)
 2. มิเตอร์น้ำ Soft (S/N F19S000630): อ่านเลขลูกล้อดำ 5 หลัก
 3. มิเตอร์น้ำ EVAP (S/N F19S000648): อ่านเลขลูกล้อดำ 5 หลัก + แดง 1 หลัก
-4. ตู้ไฟฟ้า C2-2, C3-2, C4-2 (Q1-1 ถึง Q1-8): อ่านค่า E Del แปลงหน่วยเป็น kWh (GWh * 1,000,000, MWh * 1,000, kWh * 1)
-   - ข้อยกเว้น: ตู้ C3-2 แดง ตัวแรกบนซ้าย Q1-1 ให้ตั้ง isIgnored: true
+4. ตู้ไฟฟ้า C2-2, C3-2, C4-2 (ครบ 14 จุด): อ่านค่า E Del แปลงหน่วยเป็น kWh (GWh * 1,000,000, MWh * 1,000, kWh * 1)
+   - ⚠️ ข้อควรระวังในการแยกแยะตู้ C3-2:
+     * C3-2 ดำ Q1-1 REFRIGERATION PLANT (~21.3x GWh): ต้องอ่านและบันทึกเสมอ (ห้ามข้าม!) target: "MDB-2 Q1-1 REFRIGERATION PLANT (System)"
+     * C3-2 แดง แถวบนกลาง Q1-2 EMCC-FP&SN Fire alarm system (~862-865 MWh): ต้องอ่านและบันทึกเสมอ target: "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)"
+     * C3-2 แดง บนซ้าย Q1-1 Fire Pump (0.00A): ข้ามการบันทึกตัวเดียวเท่านั้น (isIgnored: true)
 ตอบกลับใน JSON format: { "readings": [ { "meterType": "WATER"|"ELECTRICITY", "meterId": string, "target": string, "rawReading": string, "unit": string, "convertedKWh": number|null, "confidence": "99.5%", "status": string, "isIgnored": boolean } ] }
 `
           }
