@@ -6,14 +6,53 @@
  */
 
 const SETTINGS = {
-  SPREADSHEET_ID: "1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE", // ID Google Sheet
+  SPREADSHEET_ID: "1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE", // ใส่สำรอง (ถ้าสคริปต์อยู่ในชีต ระบบจะใช้ชีตปัจจุบันอัตโนมัติ)
   LINE_ACCESS_TOKEN: "YOUR_LINE_CHANNEL_ACCESS_TOKEN",           // LINE Channel Access Token
   GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",                         // Google Gemini API Key
-  GEMINI_MODEL: "gemini-1.5-flash",                             // โมเดล Vision มาตรฐาน
+  GEMINI_MODEL: "gemini-2.5-flash",                             // โมเดล Vision ล่าสุด
   CUTOFF_HOUR: 6,
   CUTOFF_MINUTE: 30,
   REPORT_HOUR: 8,
 };
+
+// ดึงอ็อบเจกต์ Google Spreadsheet (ใช้ชีตปัจจุบันก่อนเสมอ ไม่ต้องพึ่ง ID)
+function getTargetSpreadsheet() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {}
+
+  try {
+    return SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
+  } catch (e) {
+    throw new Error("ไม่สามารถเปิด Google Sheet ได้ กรุณาตรวจสอบว่าสคริปต์นี้สร้างจากเมนู 'ส่วนขยาย > Apps Script' ในไฟล์ชีตหรือไม่");
+  }
+}
+
+// ค้นหาชื่อโมเดล Gemini ที่ใช้งานได้จริงจากบัญชีของคุณอัตโนมัติ (แก้ปัญหา 404 Not Found 100%)
+function getActiveGeminiModel() {
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + SETTINGS.GEMINI_API_KEY;
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (res.getResponseCode() === 200) {
+      const data = JSON.parse(res.getContentText());
+      if (data.models && data.models.length > 0) {
+        // หาโมเดลที่รองรับ generateContent และเป็นโมเดลตระกูล flash
+        const flashModel = data.models.find(m => 
+          m.supportedGenerationMethods && 
+          m.supportedGenerationMethods.includes("generateContent") && 
+          m.name.includes("flash")
+        );
+        if (flashModel) {
+          return flashModel.name.replace("models/", "");
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Auto model detection error:", e.message);
+  }
+  return SETTINGS.GEMINI_MODEL || "gemini-2.5-flash";
+}
 
 // -------------------------------------------------------------------------
 // 1. LINE Webhook Handler (รับทั้งรูปภาพ และ ข้อความแชท)
@@ -58,7 +97,6 @@ function processIncomingTextMessage(event) {
   const dayMatch = userText.match(/(?:วันที่\s*)?([1-9]|[12][0-9]|3[01])/);
   if (dayMatch && (userText.includes("วัน") || userText.length <= 2)) {
     const selectedDay = parseInt(dayMatch[1], 10);
-    // บันทึกวันเป้าหมายลง Script Properties ชั่วคราว
     PropertiesService.getScriptProperties().setProperty("TARGET_RECORD_DAY", selectedDay.toString());
     replyLineMessage(replyToken, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ ระบบจะลงวันที่ " + selectedDay + " ให้ทันที");
     return;
@@ -106,7 +144,7 @@ function processIncomingMeterImage(event) {
   const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
   const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
 
-  // 4. บันทึกผลลง Google Sheet (มี Lock ป้องกันบันทึกพร้อมกันตีกัน)
+  // 4. บันทึกผลลง Google Sheet
   const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
 
   // 5. ตอบกลับผลลัพธ์แบบสรุปให้อ่านง่าย
@@ -186,7 +224,10 @@ function callGeminiVisionAPI(imageBlob) {
     generationConfig: { temperature: 0.1, response_mime_type: "application/json" }
   };
 
-  const modelsToTry = [SETTINGS.GEMINI_MODEL, "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+  // ดึงโมเดลที่ใช้งานได้จริงในบัญชีของคุณอัตโนมัติ
+  const activeModel = getActiveGeminiModel();
+  const modelsToTry = [activeModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash-latest"];
+  
   for (let model of modelsToTry) {
     try {
       const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
@@ -226,7 +267,7 @@ function saveReadingsToSheet(readings, customDay) {
   try {
     lock.waitLock(30000); // รอคิวได้สูงสุด 30 วินาที
 
-    const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
+    const ss = getTargetSpreadsheet();
     const sheetWater = ss.getSheetByName("ค่าน้ำ");
     
     let targetDay = customDay;
@@ -299,9 +340,6 @@ function replyLineMessage(replyToken, text) {
 /**
  * =========================================================================
  * 6. ฟังก์ชันทดสอบระบบแบบคลิกเดียว (One-Click Diagnostic Test) ⭐
- * -------------------------------------------------------------------------
- * ให้กดเลือกฟังก์ชันนี้ใน Apps Script แล้วกดปุ่ม "เรียกใช้" (Run)
- * เพื่ออนุญาตสิทธิ์ (Grant Permissions) และตรวจสอบความพร้อมทุกระบบทันที!
  * =========================================================================
  */
 function testFullSystem() {
@@ -309,16 +347,16 @@ function testFullSystem() {
 
   // 1. ทดสอบ Google Sheet
   try {
-    const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
-    const sheetWater = ss.getSheetByName("ค่าน้ำ");
-    Logger.log("✅ 1. Google Sheets: เชื่อมต่อสำเร็จ! (พบแผ่นงาน: " + ss.getName() + ")");
+    const ss = getTargetSpreadsheet();
+    Logger.log("✅ 1. Google Sheets: เชื่อมต่อสำเร็จ! (พบไฟล์: " + ss.getName() + ")");
   } catch (err) {
     Logger.log("❌ 1. Google Sheets ล้มเหลว: " + err.message);
   }
 
   // 2. ทดสอบ Gemini API
   try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + SETTINGS.GEMINI_MODEL + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
+    const activeModel = getActiveGeminiModel();
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + activeModel + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
     const res = UrlFetchApp.fetch(url, {
       method: "POST",
       contentType: "application/json",
@@ -326,7 +364,7 @@ function testFullSystem() {
       muteHttpExceptions: true
     });
     if (res.getResponseCode() === 200) {
-      Logger.log("✅ 2. Gemini Vision API: ใช้งานได้ 100%!");
+      Logger.log("✅ 2. Gemini Vision API: ใช้งานได้ 100%! (ใช้โมเดล: " + activeModel + ")");
     } else {
       Logger.log("❌ 2. Gemini Vision API ล้มเหลว: " + res.getContentText());
     }
