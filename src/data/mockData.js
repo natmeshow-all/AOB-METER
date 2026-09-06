@@ -55,12 +55,12 @@ export const WATER_METERS = [
     serialNumber: "F19S000648",
     unit: "m³",
     sampleImage: "/meter_samples/media_1788432644834.jpg",
-    baselineAug31: 77550.1, // ค่า 31 ส.ค. ตามที่ระบุ
-    readingSep01: 77593.1,  // ค่า 1 ก.ย. ตามที่ระบุ (ใช้ไป 43.0 m³)
+    baselineAug31: 77635.0, // ค่า 31 ส.ค. (77678 - 43 = 77635 ตรงตามใบรายงาน)
+    readingSep01: 77678.0,  // ค่า 1 ก.ย. ตรงตามใบรายงาน (ใช้ไป 43 m³)
     avgDailyUsage: 43.0,
     expectedMin: 20,
-    expectedMax: 180,       // เกณฑ์ปกติรองรับช่วงโหลดทำความเย็นสูง (20-180 หน่วย)
-    decimalPlaces: 1,
+    expectedMax: 80,
+    decimalPlaces: 0,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
 ];
@@ -284,29 +284,57 @@ export const generateMonthlyData = () => {
     const waterReadings = {};
     WATER_METERS.forEach((m) => {
       if (day === 1) {
+        // วันที่ 1/9/2026: น้ำหลัก 206378 (159), Soft 12921 (8), EVAP 77678 (43)
         waterReadings[m.id] = {
           current: m.readingSep01,
           previous: m.baselineAug31,
           consumption: Number((m.readingSep01 - m.baselineAug31).toFixed(1)),
         };
       } else if (day === 2) {
-        // ข้อมูลจริงจากรูปถ่ายวันที่ 2 ก.ย. 2569
-        let d2Current = m.readingSep01;
-        let d2Prev = m.readingSep01;
+        // วันที่ 2/9/2026: น้ำหลัก 206540 (162), Soft 12927 (6), EVAP 77720 (42)
+        let d2Current = 0;
+        let d2Prev = 0;
+        let d2Use = 0;
         if (m.id === "WATER-MAIN") {
-          d2Current = 206540; // ค่าจริงจากรูปถ่าย 000206540 (ตัดทศนิยม .5)
-          d2Prev = 206378;
+          d2Current = 206540.0;
+          d2Prev = 206378.0;
+          d2Use = 162.0;
         } else if (m.id === "WATER-SOFT") {
-          d2Current = 12927; // ค่าจริงจากรูปถ่าย 12927 (ลูกล้อดำ)
-          d2Prev = 12921;
+          d2Current = 12927.0;
+          d2Prev = 12921.0;
+          d2Use = 6.0;
         } else if (m.id === "WATER-EVAP") {
-          d2Current = 77720; // ค่าจริงวันที่ 2 ก.ย. ตามที่ระบุ (ใช้น้ำไป 77720 - 77593.1 = 126.9 m³)
-          d2Prev = 77593.1;
+          d2Current = 77720.0;
+          d2Prev = 77678.0;
+          d2Use = 42.0;
         }
         waterReadings[m.id] = {
           current: d2Current,
           previous: d2Prev,
-          consumption: Number((d2Current - d2Prev).toFixed(1)),
+          consumption: d2Use,
+        };
+      } else if (day === 3) {
+        // วันที่ 3/9/2026: น้ำหลัก 206783 (243), Soft 12936 (9), EVAP 77766 (46)
+        let d3Current = 0;
+        let d3Prev = 0;
+        let d3Use = 0;
+        if (m.id === "WATER-MAIN") {
+          d3Current = 206783.0;
+          d3Prev = 206540.0;
+          d3Use = 243.0;
+        } else if (m.id === "WATER-SOFT") {
+          d3Current = 12936.0;
+          d3Prev = 12927.0;
+          d3Use = 9.0;
+        } else if (m.id === "WATER-EVAP") {
+          d3Current = 77766.0;
+          d3Prev = 77720.0;
+          d3Use = 46.0;
+        }
+        waterReadings[m.id] = {
+          current: d3Current,
+          previous: d3Prev,
+          consumption: d3Use,
         };
       } else {
         const prevCurrent = days[day - 2]?.water[m.id]?.current || m.readingSep01;
