@@ -9,7 +9,7 @@ const SETTINGS = {
   SPREADSHEET_ID: "1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE", // ใส่สำรอง (ถ้าสคริปต์อยู่ในชีต ระบบจะใช้ชีตปัจจุบันอัตโนมัติ)
   LINE_ACCESS_TOKEN: "YOUR_LINE_CHANNEL_ACCESS_TOKEN",           // LINE Channel Access Token
   GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",                         // Google Gemini API Key
-  GEMINI_MODEL: "gemini-2.5-flash",                             // โมเดล Vision ล่าสุด
+  GEMINI_MODEL: "gemini-3.6-flash",                             // โมเดล Vision ล่าสุดตามที่ Google กำหนด
   CUTOFF_HOUR: 6,
   CUTOFF_MINUTE: 30,
   REPORT_HOUR: 8,
@@ -37,11 +37,10 @@ function getActiveGeminiModel() {
     if (res.getResponseCode() === 200) {
       const data = JSON.parse(res.getContentText());
       if (data.models && data.models.length > 0) {
-        // หาโมเดลที่รองรับ generateContent และเป็นโมเดลตระกูล flash
         const flashModel = data.models.find(m => 
           m.supportedGenerationMethods && 
           m.supportedGenerationMethods.includes("generateContent") && 
-          m.name.includes("flash")
+          m.name.toLowerCase().includes("flash")
         );
         if (flashModel) {
           return flashModel.name.replace("models/", "");
@@ -51,7 +50,7 @@ function getActiveGeminiModel() {
   } catch (e) {
     console.warn("Auto model detection error:", e.message);
   }
-  return SETTINGS.GEMINI_MODEL || "gemini-2.5-flash";
+  return SETTINGS.GEMINI_MODEL || "gemini-3.6-flash";
 }
 
 // -------------------------------------------------------------------------
@@ -226,7 +225,7 @@ function callGeminiVisionAPI(imageBlob) {
 
   // ดึงโมเดลที่ใช้งานได้จริงในบัญชีของคุณอัตโนมัติ
   const activeModel = getActiveGeminiModel();
-  const modelsToTry = [activeModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash-latest"];
+  const modelsToTry = [activeModel, "gemini-3.6-flash", "gemini-3.6-flash-latest"];
   
   for (let model of modelsToTry) {
     try {
