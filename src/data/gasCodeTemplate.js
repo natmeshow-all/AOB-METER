@@ -151,32 +151,51 @@ function callGeminiVisionAPI(imageBlob) {
   return { error: "ไม่สามารถเชื่อมต่อ Google Gemini API ได้ (กรุณาเช็ค API Key หรือโควต้า)" };
 }
 
-function saveReadingsToSheet(readings) {
+function saveReadingsToSheet(readings, customDay) {
   const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-  const targetDay = yesterday.getDate();
+  const sheet = ss.getSheetByName("ค่าน้ำ");
+  
+  let targetDay = customDay;
+
+  // 1. หากไม่ได้ระบุวันมา ให้หารอบวันที่ว่างถัดไปในชีตอัตโนมัติ (เช่น วันที่ 1, 2, 3 ลงแล้ว จะเลือกวันที่ 4 ให้ทันที!)
+  if (!targetDay && sheet) {
+    for (let d = 1; d <= 31; d++) {
+      const row = 5 + d;
+      const valMain = sheet.getRange(row, 2).getValue();
+      const valSoft = sheet.getRange(row, 4).getValue();
+      const valEvap = sheet.getRange(row, 6).getValue();
+      if (!valMain || !valSoft || !valEvap) {
+        targetDay = d;
+        break;
+      }
+    }
+  }
+
+  // 2. Fallback
+  if (!targetDay) {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    targetDay = yesterday.getDate();
+  }
+
   let savedCount = 0;
 
   readings.forEach(item => {
     if (item.isIgnored) return;
-    if (item.meterType === "WATER") {
-      const sheet = ss.getSheetByName("ค่าน้ำ");
-      if (sheet) {
-        const row = 5 + targetDay;
-        const val = parseFloat(item.rawReading);
-        if (item.meterId === "WATER-MAIN" || (item.serialNumber && item.serialNumber.includes("193019061"))) {
-          sheet.getRange(row, 2).setValue(val);
-          savedCount++;
-        } else if (item.meterId === "WATER-SOFT" || (item.serialNumber && item.serialNumber.includes("000630"))) {
-          sheet.getRange(row, 4).setValue(val);
-          savedCount++;
-        } else if (item.meterId === "WATER-EVAP" || (item.serialNumber && item.serialNumber.includes("000648"))) {
-          sheet.getRange(row, 6).setValue(val);
-          savedCount++;
-        }
-        sheet.getRange(row, 8).setValue("LINE Bot (AI Verified)");
+    if (item.meterType === "WATER" && sheet) {
+      const row = 5 + targetDay;
+      const val = parseFloat(item.rawReading);
+      if (item.meterId === "WATER-MAIN" || (item.serialNumber && item.serialNumber.includes("193019061"))) {
+        sheet.getRange(row, 2).setValue(val);
+        savedCount++;
+      } else if (item.meterId === "WATER-SOFT" || (item.serialNumber && item.serialNumber.includes("000630"))) {
+        sheet.getRange(row, 4).setValue(val);
+        savedCount++;
+      } else if (item.meterId === "WATER-EVAP" || (item.serialNumber && item.serialNumber.includes("000648"))) {
+        sheet.getRange(row, 6).setValue(val);
+        savedCount++;
       }
+      sheet.getRange(row, 8).setValue("LINE Bot (AI Verified)");
     }
   });
 
