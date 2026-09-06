@@ -255,3 +255,40 @@ function replyLineMessage(replyToken, text) {
     muteHttpExceptions: true
   });
 }
+
+/**
+ * =========================================================================
+ * 5. บันทึกข้อมูลค่าไฟฟ้า 14 จุด วันที่ 1, 2, 3 ก.ย. ลงชีต "ค่าไฟฟ้า" สำหรับ AppSheet
+ * =========================================================================
+ */
+function updateOfficialElectricityDataDays123() {
+  const ss = SpreadsheetApp.openById(SETTINGS.SPREADSHEET_ID);
+  let sheet = ss.getSheetByName("ค่าไฟฟ้า");
+  if (!sheet) {
+    sheet = ss.insertSheet("ค่าไฟฟ้า");
+  }
+
+  // ข้อมูลหน่วยไฟฟ้าที่ใช้จริงตามใบรายงาน
+  const data = [
+    ["กลุ่มตู้", "รหัส", "สถานที่ใช้งาน", "CT", "1 ก.ย. 69", "2 ก.ย. 69", "3 ก.ย. 69"],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-1", "MMC-PRO-1 (Frozen Line)", 1, 2800, 2900, 1900],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-2", "MMC-PRO-2 (RTE Line)", 1, 2700, 2500, 2700],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-3", "MCC-ACP (Air compressor)", 1, 430, 450, 410],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-4", "MCC-WSP (Water Pump)", 1, 49, 49, 49],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-5", "DC-AC (Air conditioner for all control room)", 1, 700, 760, 720],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-6", "DB-PRO-1 (LP _ Office)", 1, 1000, 1200, 1000],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-7", "DB-PRO-2 (LP _ outside)", 1, 440, 470, 440],
+    ["MDB-1 TR1 @ 1,600 kVA", "Q1-8", "MCC-SILO (Silo)", 1, 120, 150, 160],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-1", "REFRIGERATION PLANT (System)", 1, 13000, 14000, 13000],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-2", "EMCC-FP&SN (Fire alarm system)", 1, 780, 560, 600],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-3", "ELP-PRO-1 (LP _ Emergency )", 1, 260, 270, 260],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-4", "EDB-PRO (Water treatment plant)", 1, 430, 420, 410],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-5", "ELP-OFF (Server room)", 1, 110, 120, 110],
+    ["MDB-2 TR2 @ 1,600 kVA", "Q1-6", "EDB-AS/RS (AS/RS)", 1, 50, 42, 39],
+    ["รวมการใช้ไฟฟ้าทั้งโรงงาน", "-", "Factory By Meter Total (14 จุด)", 14, 22869, 23891, 21798]
+  ];
+
+  sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+  SpreadsheetApp.flush();
+  Logger.log("✅ บันทึกค่าไฟฟ้าลง AppSheet สำเร็จเรียบร้อย: วันที่ 1 (22,869), วันที่ 2 (23,891), วันที่ 3 (21,798)");
+}

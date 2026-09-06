@@ -350,12 +350,50 @@ export const generateMonthlyData = () => {
 
     // Electricity points
     const elecReadings = {};
+    const OFFICIAL_ELEC_DATA = {
+      1: {
+        "MDB1-Q1-1": 2800, "MDB1-Q1-2": 2700, "MDB1-Q1-3": 430, "MDB1-Q1-4": 49,
+        "MDB1-Q1-5": 700,  "MDB1-Q1-6": 1000, "MDB1-Q1-7": 440, "MDB1-Q1-8": 120,
+        "MDB2-Q1-1": 13000, "MDB2-Q1-2": 780, "MDB2-Q1-3": 260, "MDB2-Q1-4": 430,
+        "MDB2-Q1-5": 110,  "MDB2-Q1-6": 50,
+      },
+      2: {
+        "MDB1-Q1-1": 2900, "MDB1-Q1-2": 2500, "MDB1-Q1-3": 450, "MDB1-Q1-4": 49,
+        "MDB1-Q1-5": 760,  "MDB1-Q1-6": 1200, "MDB1-Q1-7": 470, "MDB1-Q1-8": 150,
+        "MDB2-Q1-1": 14000, "MDB2-Q1-2": 560, "MDB2-Q1-3": 270, "MDB2-Q1-4": 420,
+        "MDB2-Q1-5": 120,  "MDB2-Q1-6": 42,
+      },
+      3: {
+        "MDB1-Q1-1": 1900, "MDB1-Q1-2": 2700, "MDB1-Q1-3": 410, "MDB1-Q1-4": 49,
+        "MDB1-Q1-5": 720,  "MDB1-Q1-6": 1000, "MDB1-Q1-7": 440, "MDB1-Q1-8": 160,
+        "MDB2-Q1-1": 13000, "MDB2-Q1-2": 600, "MDB2-Q1-3": 260, "MDB2-Q1-4": 410,
+        "MDB2-Q1-5": 110,  "MDB2-Q1-6": 39,
+      },
+    };
+
     ELECTRICITY_METERS.forEach((m) => {
       if (day === 1) {
+        const use = OFFICIAL_ELEC_DATA[1][m.id] || (m.readingSep01 - m.baselineAug31);
         elecReadings[m.id] = {
-          current: m.readingSep01,
+          current: m.baselineAug31 + use,
           previous: m.baselineAug31,
-          consumption: m.readingSep01 - m.baselineAug31,
+          consumption: use,
+        };
+      } else if (day === 2) {
+        const prev = days[0]?.electricity[m.id]?.current || m.readingSep01;
+        const use = OFFICIAL_ELEC_DATA[2][m.id] || m.avgDailyUsage;
+        elecReadings[m.id] = {
+          current: prev + use,
+          previous: prev,
+          consumption: use,
+        };
+      } else if (day === 3) {
+        const prev = days[1]?.electricity[m.id]?.current || (m.readingSep01 + m.avgDailyUsage);
+        const use = OFFICIAL_ELEC_DATA[3][m.id] || m.avgDailyUsage;
+        elecReadings[m.id] = {
+          current: prev + use,
+          previous: prev,
+          consumption: use,
         };
       } else {
         const prevCurrent = days[day - 2]?.electricity[m.id]?.current || m.readingSep01;
