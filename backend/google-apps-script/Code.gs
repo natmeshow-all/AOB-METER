@@ -81,7 +81,6 @@ function doPost(e) {
 // 2. จัดการข้อความตัวหนังสือ (เช่น พิมพ์ "วันที่4" หรือ "ทดสอบ")
 // -------------------------------------------------------------------------
 function processIncomingTextMessage(event) {
-  const replyToken = event.replyToken;
   const userText = (event.message.text || "").trim();
 
   // ตรวจจับถ้าผู้ใช้พิมพ์วันที่ เช่น "วันที่ 4", "วันที่4", "4"
@@ -89,70 +88,99 @@ function processIncomingTextMessage(event) {
   if (dayMatch && (userText.includes("วัน") || userText.length <= 2)) {
     const selectedDay = parseInt(dayMatch[1], 10);
     PropertiesService.getScriptProperties().setProperty("TARGET_RECORD_DAY", selectedDay.toString());
-    replyLineMessage(replyToken, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ ระบบจะลงวันที่ " + selectedDay + " ให้ทันที");
+    sendLineNotification(event, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ (ส่งพร้อมกันหลายรูปได้ ระบบจะเข้าคิวอ่านให้อัตโนมัติ)");
     return;
   }
 
   // คำสั่งทดสอบระบบ
   if (userText.includes("ทดสอบ") || userText.toLowerCase().includes("test") || userText.includes("สวัสดี")) {
-    replyLineMessage(replyToken, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\n\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาได้เลย (ระบบจะอ่านค่าและลง Google Sheet ให้ทันที)");
+    sendLineNotification(event, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\n\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาได้เลย (ส่งทีเดียวหลายรูปได้ ระบบจัดการคิวให้อัตโนมัติ)");
     return;
   }
 
-  replyLineMessage(replyToken, "🤖 รับข้อความแล้วครับ: '" + userText + "'\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ");
+  sendLineNotification(event, "🤖 รับข้อความแล้วครับ: '" + userText + "'\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ");
 }
 
 // -------------------------------------------------------------------------
-// 3. ประมวลผลรูปภาพด้วย Gemini Vision
+// 3. ระบบหน่วงเวลาและคิวอัตโนมัติ (ป้องกัน Rate Limit 5 ครั้ง/นาที 100%)
+// -------------------------------------------------------------------------
+function throttleGeminiRateLimit() {
+  const minIntervalMs = 12500; // หน่วงเวลา 12.5 วินาทีต่อภาพ (การันตีไม่เกิน 5 ครั้ง/นาที)
+  const props = PropertiesService.getScriptProperties();
+  const lastCall = parseInt(props.getProperty("LAST_GEMINI_CALL_TIME") || "0", 10);
+  const now = Date.now();
+  const elapsed = now - lastCall;
+  if (elapsed < minIntervalMs) {
+    const waitTime = minIntervalMs - elapsed;
+    console.log("หน่วงเวลาเพื่อรอคิวโควต้า Gemini: " + waitTime + " ms");
+    Utilities.sleep(waitTime);
+  }
+  props.setProperty("LAST_GEMINI_CALL_TIME", Date.now().toString());
+}
+
+// -------------------------------------------------------------------------
+// 4. ประมวลผลรูปภาพด้วย Gemini Vision (มีระบบคิว + Rate Limiter)
 // -------------------------------------------------------------------------
 function processIncomingMeterImage(event) {
   const messageId = event.message.id;
-  const replyToken = event.replyToken;
+  const lock = LockService.getScriptLock();
 
-  // 1. ดาวน์โหลดรูปภาพจาก LINE
-  let imageBlob;
   try {
-    imageBlob = fetchLineImageBlob(messageId);
-  } catch (err) {
-    replyLineMessage(replyToken, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
-    return;
-  }
+    // 1. เข้าคิวประมวลผล (รอได้สูงสุด 2 นาที สำหรับรูปที่ส่งพร้อมกันรวดเดียว)
+    lock.waitLock(120000);
 
-  // 2. ส่งวิเคราะห์ด้วย Gemini API
-  const aiResult = callGeminiVisionAPI(imageBlob);
+    // 2. ตรวจสอบและหน่วงเวลาให้อยู่ในโควต้า 5 ครั้ง/นาที อย่างแม่นยำ
+    throttleGeminiRateLimit();
 
-  if (aiResult.error) {
-    replyLineMessage(replyToken, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\n" + aiResult.error + "\n\n(กรุณาตรวจสอบว่าใส่ GEMINI_API_KEY ใน Code.gs ถูกต้องหรือไม่)");
-    return;
-  }
-
-  if (!aiResult.readings || aiResult.readings.length === 0) {
-    replyLineMessage(replyToken, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบ:\n1. ภาพไม่มืดหรือแสงสะท้อนบังตัวเลข\n2. ตัวเลขหน้าปัดอยู่ในกรอบภาพชัดเจน");
-    return;
-  }
-
-  // 3. ดึงวันเป้าหมาย (หากผู้ใช้เคยพิมพ์บอกไว้ หรือหาแถวว่างอัตโนมัติ)
-  const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
-  const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
-
-  // 4. บันทึกผลลง Google Sheet
-  const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
-
-  // 5. ตอบกลับผลลัพธ์แบบสรุปให้อ่านง่าย
-  let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ]\n-------------------------\n";
-  aiResult.readings.forEach(item => {
-    if (item.isIgnored) {
-      replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามกำหนด\n";
-    } else {
-      replyText += "✅ " + item.target + "\n";
-      replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\n";
+    // 3. ดาวน์โหลดรูปภาพจาก LINE
+    let imageBlob;
+    try {
+      imageBlob = fetchLineImageBlob(messageId);
+    } catch (err) {
+      sendLineNotification(event, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
+      return;
     }
-  });
 
-  replyText += "-------------------------\n";
-  replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569 เรียบร้อย!";
+    // 4. ส่งวิเคราะห์ด้วย Gemini API (มี Auto-Retry ในตัว)
+    const aiResult = callGeminiVisionAPI(imageBlob);
 
-  replyLineMessage(replyToken, replyText);
+    if (aiResult.error) {
+      sendLineNotification(event, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\n" + aiResult.error);
+      return;
+    }
+
+    if (!aiResult.readings || aiResult.readings.length === 0) {
+      sendLineNotification(event, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบว่าภาพชัดเจนและถ่ายใหม่อีกครั้ง");
+      return;
+    }
+
+    // 5. ดึงวันเป้าหมายและบันทึกผลลง Google Sheet
+    const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
+    const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
+    const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
+
+    // 6. ส่งสรุปผลกลับ LINE (รองรับทั้ง Reply และ Push Message อัตโนมัติเมื่อคิวนาน)
+    let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ]\n-------------------------\n";
+    aiResult.readings.forEach(item => {
+      if (item.isIgnored) {
+        replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามกำหนด\n";
+      } else {
+        replyText += "✅ " + item.target + "\n";
+        replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\n";
+      }
+    });
+
+    replyText += "-------------------------\n";
+    replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569 เรียบร้อย!";
+
+    sendLineNotification(event, replyText);
+
+  } catch (err) {
+    console.error("Queue Processing Error:", err);
+    sendLineNotification(event, "⚠️ คิวส่งรูปหนาแน่นเกินไป กรุณาส่งรูปนี้ใหม่อีกครั้งครับ");
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ดาวน์โหลดภาพจาก LINE Messaging API
@@ -333,22 +361,50 @@ function saveReadingsToSheet(readings, customDay) {
 }
 
 // -------------------------------------------------------------------------
-// 5. ฟังก์ชันส่งข้อความ LINE
+// 6. ฟังก์ชันส่งข้อความ LINE (รองรับทั้ง Reply Token และ Push Message อัตโนมัติ)
 // -------------------------------------------------------------------------
-function replyLineMessage(replyToken, text) {
-  const url = "https://api.line.me/v2/bot/message/reply";
+function sendLineNotification(event, text) {
+  const replyToken = event.replyToken;
+  const replyUrl = "https://api.line.me/v2/bot/message/reply";
   const payload = {
     replyToken: replyToken,
     messages: [{ type: "text", text: text }]
   };
-  const res = UrlFetchApp.fetch(url, {
+
+  // 1. ลองส่งด้วย Reply Token ก่อน
+  const res = UrlFetchApp.fetch(replyUrl, {
     method: "POST",
     contentType: "application/json",
     headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
+
   console.log("LINE Reply Response: " + res.getResponseCode() + " - " + res.getContentText());
+
+  // 2. ถ้า Reply Token หมดอายุ (เช่น รอนานเกิน 60 วินาทีในคิว) ให้ใช้ Push Message ทันที
+  if (res.getResponseCode() !== 200) {
+    const targetId = (event.source && (event.source.groupId || event.source.userId || event.source.roomId));
+    if (targetId) {
+      console.log("Reply token failed/expired, using Push fallback to " + targetId);
+      const pushUrl = "https://api.line.me/v2/bot/message/push";
+      const pushRes = UrlFetchApp.fetch(pushUrl, {
+        method: "POST",
+        contentType: "application/json",
+        headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
+        payload: JSON.stringify({
+          to: targetId,
+          messages: [{ type: "text", text: text }]
+        }),
+        muteHttpExceptions: true
+      });
+      console.log("LINE Push Response: " + pushRes.getResponseCode() + " - " + pushRes.getContentText());
+    }
+  }
+}
+
+function replyLineMessage(replyToken, text) {
+  sendLineNotification({ replyToken: replyToken }, text);
 }
 
 /**

@@ -70,68 +70,92 @@ function doPost(e) {
 }
 
 function processIncomingTextMessage(event) {
-  const replyToken = event.replyToken;
   const userText = (event.message.text || "").trim();
 
   const dayMatch = userText.match(/(?:วันที่\\s*)?([1-9]|[12][0-9]|3[01])/);
   if (dayMatch && (userText.includes("วัน") || userText.length <= 2)) {
     const selectedDay = parseInt(dayMatch[1], 10);
     PropertiesService.getScriptProperties().setProperty("TARGET_RECORD_DAY", selectedDay.toString());
-    replyLineMessage(replyToken, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ ระบบจะลงวันที่ " + selectedDay + " ให้ทันที");
+    sendLineNotification(event, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ (ส่งพร้อมกันหลายรูปได้ ระบบจะเข้าคิวอ่านให้อัตโนมัติ)");
     return;
   }
 
   if (userText.includes("ทดสอบ") || userText.toLowerCase().includes("test") || userText.includes("สวัสดี")) {
-    replyLineMessage(replyToken, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\\n\\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาได้เลย (ระบบจะอ่านค่าและลง Google Sheet ให้ทันที)");
+    sendLineNotification(event, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\\n\\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาได้เลย (ส่งทีเดียวหลายรูปได้ ระบบจัดการคิวให้อัตโนมัติ)");
     return;
   }
 
-  replyLineMessage(replyToken, "🤖 รับข้อความแล้วครับ: '" + userText + "'\\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ");
+  sendLineNotification(event, "🤖 รับข้อความแล้วครับ: '" + userText + "'\\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ");
+}
+
+function throttleGeminiRateLimit() {
+  const minIntervalMs = 12500;
+  const props = PropertiesService.getScriptProperties();
+  const lastCall = parseInt(props.getProperty("LAST_GEMINI_CALL_TIME") || "0", 10);
+  const now = Date.now();
+  const elapsed = now - lastCall;
+  if (elapsed < minIntervalMs) {
+    const waitTime = minIntervalMs - elapsed;
+    console.log("หน่วงเวลาคิวโควต้า Gemini: " + waitTime + " ms");
+    Utilities.sleep(waitTime);
+  }
+  props.setProperty("LAST_GEMINI_CALL_TIME", Date.now().toString());
 }
 
 function processIncomingMeterImage(event) {
   const messageId = event.message.id;
-  const replyToken = event.replyToken;
+  const lock = LockService.getScriptLock();
 
-  let imageBlob;
   try {
-    imageBlob = fetchLineImageBlob(messageId);
-  } catch (err) {
-    replyLineMessage(replyToken, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
-    return;
-  }
+    lock.waitLock(120000);
+    throttleGeminiRateLimit();
 
-  const aiResult = callGeminiVisionAPI(imageBlob);
-
-  if (aiResult.error) {
-    replyLineMessage(replyToken, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\\n" + aiResult.error + "\\n\\n(กรุณาตรวจสอบว่าใส่ GEMINI_API_KEY ใน Code.gs ถูกต้องหรือไม่)");
-    return;
-  }
-
-  if (!aiResult.readings || aiResult.readings.length === 0) {
-    replyLineMessage(replyToken, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบ:\\n1. ภาพไม่มืดหรือแสงสะท้อนบังตัวเลข\\n2. ตัวเลขหน้าปัดอยู่ในกรอบภาพชัดเจน");
-    return;
-  }
-
-  const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
-  const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
-
-  const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
-
-  let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ]\\n-------------------------\\n";
-  aiResult.readings.forEach(item => {
-    if (item.isIgnored) {
-      replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามกำหนด\\n";
-    } else {
-      replyText += "✅ " + item.target + "\\n";
-      replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\\n";
+    let imageBlob;
+    try {
+      imageBlob = fetchLineImageBlob(messageId);
+    } catch (err) {
+      sendLineNotification(event, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
+      return;
     }
-  });
 
-  replyText += "-------------------------\\n";
-  replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569 เรียบร้อย!";
+    const aiResult = callGeminiVisionAPI(imageBlob);
 
-  replyLineMessage(replyToken, replyText);
+    if (aiResult.error) {
+      sendLineNotification(event, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\\n" + aiResult.error);
+      return;
+    }
+
+    if (!aiResult.readings || aiResult.readings.length === 0) {
+      sendLineNotification(event, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบว่าภาพชัดเจนและถ่ายใหม่อีกครั้ง");
+      return;
+    }
+
+    const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
+    const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
+
+    const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
+
+    let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ]\\n-------------------------\\n";
+    aiResult.readings.forEach(item => {
+      if (item.isIgnored) {
+        replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามกำหนด\\n";
+      } else {
+        replyText += "✅ " + item.target + "\\n";
+        replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\\n";
+      }
+    });
+
+    replyText += "-------------------------\\n";
+    replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569 เรียบร้อย!";
+
+    sendLineNotification(event, replyText);
+
+  } catch (err) {
+    console.error("Queue Processing Error:", err);
+    sendLineNotification(event, "⚠️ คิวส่งรูปหนาแน่นเกินไป กรุณาส่งรูปนี้ใหม่อีกครั้งครับ");
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function fetchLineImageBlob(messageId) {
@@ -283,20 +307,46 @@ function saveReadingsToSheet(readings, customDay) {
   }
 }
 
-function replyLineMessage(replyToken, text) {
-  const url = "https://api.line.me/v2/bot/message/reply";
+function sendLineNotification(event, text) {
+  const replyToken = event.replyToken;
+  const replyUrl = "https://api.line.me/v2/bot/message/reply";
   const payload = {
     replyToken: replyToken,
     messages: [{ type: "text", text: text }]
   };
-  const res = UrlFetchApp.fetch(url, {
+
+  const res = UrlFetchApp.fetch(replyUrl, {
     method: "POST",
     contentType: "application/json",
     headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
+
   console.log("LINE Reply Response: " + res.getResponseCode() + " - " + res.getContentText());
+
+  if (res.getResponseCode() !== 200) {
+    const targetId = (event.source && (event.source.groupId || event.source.userId || event.source.roomId));
+    if (targetId) {
+      console.log("Reply token failed/expired, using Push fallback to " + targetId);
+      const pushUrl = "https://api.line.me/v2/bot/message/push";
+      const pushRes = UrlFetchApp.fetch(pushUrl, {
+        method: "POST",
+        contentType: "application/json",
+        headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
+        payload: JSON.stringify({
+          to: targetId,
+          messages: [{ type: "text", text: text }]
+        }),
+        muteHttpExceptions: true
+      });
+      console.log("LINE Push Response: " + pushRes.getResponseCode() + " - " + pushRes.getContentText());
+    }
+  }
+}
+
+function replyLineMessage(replyToken, text) {
+  sendLineNotification({ replyToken: replyToken }, text);
 }
 
 function testFullSystem() {
