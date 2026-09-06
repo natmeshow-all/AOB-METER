@@ -832,6 +832,28 @@ function saveDay2Now() {
   }
 
   Logger.log("✅ บันทึกข้อมูลวันที่ 2 ก.ย. 2569 ลง Google Sheet ครบทั้ง 17 จุดเรียบร้อย 100%!");
+
+  // ส่งแจ้งเตือนสรุปเข้า LINE
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const targetId = props.getProperty("LAST_LINE_TARGET_ID");
+    if (targetId && SETTINGS.LINE_ACCESS_TOKEN && !SETTINGS.LINE_ACCESS_TOKEN.startsWith("YOUR_")) {
+      let lineMsg = "📋 [รายงานผลมิเตอร์ วันที่ 2 ก.ย. 2569]\n";
+      lineMsg += "-------------------------\n";
+      lineMsg += "💧 ค่าน้ำ (3 จุด - แถว 8):\n";
+      lineMsg += "  • มิเตอร์หลัก: 206,580 m³\n";
+      lineMsg += "  • Soft Water: 12,927 m³\n";
+      lineMsg += "  • EVAP: 77,722.5 m³\n";
+      lineMsg += "⚡ ค่าไฟฟ้า (14 จุด - คอลัมน์ G):\n";
+      lineMsg += "  • MDB-1 (8 จุด): ครบ 100%\n";
+      lineMsg += "  • MDB-2 (6 จุด รวม Q1-1 Refrig & Q1-2 Fire alarm): ครบ 100%\n";
+      lineMsg += "-------------------------\n";
+      lineMsg += "💾 บันทึกลง Google Sheet และ AppSheet สำเร็จครบ 17 จุดเรียบร้อย!";
+      pushLineMessage(targetId, lineMsg);
+    }
+  } catch (err) {
+    Logger.log("LINE push skipped: " + err.message);
+  }
 }
 
 function saveDay3Now() {
@@ -869,6 +891,28 @@ function saveDay3Now() {
   }
 
   Logger.log("✅ บันทึกข้อมูลวันที่ 3 ก.ย. 2569 ลง Google Sheet ครบทั้ง 17 จุดเรียบร้อย 100%!");
+
+  // ส่งแจ้งเตือนสรุปเข้า LINE
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const targetId = props.getProperty("LAST_LINE_TARGET_ID");
+    if (targetId && SETTINGS.LINE_ACCESS_TOKEN && !SETTINGS.LINE_ACCESS_TOKEN.startsWith("YOUR_")) {
+      let lineMsg = "📋 [รายงานผลมิเตอร์ วันที่ 3 ก.ย. 2569]\n";
+      lineMsg += "-------------------------\n";
+      lineMsg += "💧 ค่าน้ำ (3 จุด - แถว 9):\n";
+      lineMsg += "  • มิเตอร์หลัก: 206,783 m³\n";
+      lineMsg += "  • Soft Water: 12,936 m³\n";
+      lineMsg += "  • EVAP: 77,766.5 m³\n";
+      lineMsg += "⚡ ค่าไฟฟ้า (14 จุด - คอลัมน์ H):\n";
+      lineMsg += "  • MDB-1 (8 จุด): ครบ 100%\n";
+      lineMsg += "  • MDB-2 (6 จุด รวม Q1-1 Refrig & Q1-2 Fire alarm): ครบ 100%\n";
+      lineMsg += "-------------------------\n";
+      lineMsg += "💾 บันทึกลง Google Sheet และ AppSheet สำเร็จครบ 17 จุดเรียบร้อย!";
+      pushLineMessage(targetId, lineMsg);
+    }
+  } catch (err) {
+    Logger.log("LINE push skipped: " + err.message);
+  }
 }
 
 function fixWaterReadingsDay4() {

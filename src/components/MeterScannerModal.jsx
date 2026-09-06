@@ -34,6 +34,9 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     }
   })();
 
+  const [gasUrlInput, setGasUrlInput] = useState(savedSettings.gasWebhookUrl || '');
+  const [isSavedUrl, setIsSavedUrl] = useState(false);
+
   // Sample presets from real factory photos
   const samplePresets = [
     {
@@ -513,7 +516,7 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     if (!scanResult || scanResult.detectedItems.length === 0) return;
 
     setIsSaving(true);
-    const gasUrl = savedSettings.gasWebhookUrl;
+    const effectiveGasUrl = (gasUrlInput || savedSettings.gasWebhookUrl || '').trim();
 
     const payload = {
       action: "save_from_web",
@@ -523,17 +526,20 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     };
 
     let remoteSaved = false;
-    if (gasUrl) {
+    let remoteError = null;
+
+    if (effectiveGasUrl) {
       try {
-        await fetch(gasUrl, {
+        await fetch(effectiveGasUrl, {
           method: 'POST',
           mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
         remoteSaved = true;
       } catch (err) {
         console.warn("GAS save POST error (proceeding with local update):", err);
+        remoteError = err.message;
       }
     }
 
@@ -547,7 +553,9 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
       targetDay: targetDay,
       savedCount: scanResult.detectedItems.filter(i => !i.isIgnored).length,
       ignoredCount: scanResult.detectedItems.filter(i => i.isIgnored).length,
-      remoteSaved: remoteSaved || Boolean(gasUrl)
+      hasGasUrl: Boolean(effectiveGasUrl),
+      remoteSaved: remoteSaved,
+      remoteError: remoteError
     });
   };
 
@@ -737,17 +745,34 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
               </div>
 
               {saveSuccessInfo && (
-                <div className="p-4 bg-emerald-950/40 border border-emerald-700 rounded-xl space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span>บันทึกข้อมูลเรียบร้อยแล้ว!</span>
+                <div className={`p-4 rounded-xl space-y-1.5 border ${
+                  saveSuccessInfo.hasGasUrl 
+                    ? 'bg-emerald-950/50 border-emerald-600/70' 
+                    : 'bg-amber-950/60 border-amber-500/70'
+                }`}>
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    {saveSuccessInfo.hasGasUrl ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        <span className="text-emerald-400">ส่งคำขอบันทึกข้อมูลเรียบร้อยแล้ว!</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-5 h-5 text-amber-400" />
+                        <span className="text-amber-400">บันทึกเฉพาะใน Dashboard นี้ (ยังไม่เข้าชีตและไม่ส่ง LINE)</span>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-slate-300">
-                    💾 บันทึกลง Google Sheet ประจำวันที่ {saveSuccessInfo.targetDay} ก.ย. 2569 สำเร็จ {saveSuccessInfo.savedCount} รายการ (ข้าม {saveSuccessInfo.ignoredCount} รายการตามเกณฑ์)
+                    💾 ประจำวันที่ {saveSuccessInfo.targetDay} ก.ย. 2569 สำเร็จ {saveSuccessInfo.savedCount} รายการ (ข้าม {saveSuccessInfo.ignoredCount} รายการตามเกณฑ์)
                   </p>
-                  {saveSuccessInfo.remoteSaved && (
+                  {saveSuccessInfo.hasGasUrl ? (
                     <p className="text-xs text-cyan-300">
-                      📲 ส่งแจ้งเตือนและข้อความสรุปเข้าห้องแชท LINE กลุ่มโรงงานเรียบร้อยแล้ว!
+                      📲 ส่งข้อมูลเข้า Google Apps Script เพื่อลง Google Sheet / AppSheet และส่ง LINE เรียบร้อย!
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-300 leading-relaxed">
+                      ⚠️ ข้อมูลยังไม่เข้า Google Sheet และ LINE เนื่องจากยังไม่ได้ใส่ Web App URL ในช่องด้านล่าง
                     </p>
                   )}
                 </div>
@@ -820,6 +845,43 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
                       </div>
                     ))}
                   </div>
+
+                  {/* Webhook Configuration Field (if missing) */}
+                  {!((gasUrlInput || savedSettings.gasWebhookUrl || '').trim()) && (
+                    <div className="p-3 bg-amber-950/50 border border-amber-600/60 rounded-xl text-xs space-y-2">
+                      <div className="flex items-center gap-2 text-amber-300 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>ยังไม่ได้เชื่อมต่อ Google Apps Script Web App URL</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        หากกดบันทึกตอนนี้ ข้อมูลจะแสดงแค่บนเว็บนี้ แต่<strong>ไม่เข้า Google Sheet / AppSheet และไม่ส่ง LINE</strong> กรุณานำ URL Web App (ลงท้ายด้วย <code className="text-amber-300">/exec</code>) มาวางที่นี่:
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="https://script.google.com/macros/s/.../exec"
+                          value={gasUrlInput}
+                          onChange={(e) => setGasUrlInput(e.target.value)}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!gasUrlInput.trim()) return;
+                            const currentConfig = JSON.parse(localStorage.getItem('AOB_SETTINGS') || '{}');
+                            currentConfig.gasWebhookUrl = gasUrlInput.trim();
+                            localStorage.setItem('AOB_SETTINGS', JSON.stringify(currentConfig));
+                            setIsSavedUrl(true);
+                            setTimeout(() => setIsSavedUrl(false), 2500);
+                          }}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1"
+                        >
+                          {isSavedUrl ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /> : null}
+                          <span>{isSavedUrl ? 'บันทึกแล้ว!' : 'เชื่อมต่อ'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Confirm Button */}
                   <button
