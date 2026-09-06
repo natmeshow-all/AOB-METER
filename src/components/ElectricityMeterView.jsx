@@ -169,13 +169,13 @@ export const ElectricityMeterView = ({ currentDayData, timeframe }) => {
                 {/* Meter Reading Comparison */}
                 <div className="mt-3.5 grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
                   <div>
-                    <span className="text-slate-400 block">31 ส.ค. 2569</span>
+                    <span className="text-slate-400 block">เลขวันก่อนหน้า</span>
                     <span className="text-slate-300 font-mono text-sm font-semibold">
                       {readingInfo.previous?.toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-amber-400 block font-medium">1 ก.ย. 2569</span>
+                    <span className="text-amber-400 block font-medium">เลขประจำวัน ({currentDayData?.day || 1} ก.ย.)</span>
                     <span className="text-amber-300 font-mono text-sm font-semibold">
                       {readingInfo.current?.toLocaleString()}
                     </span>

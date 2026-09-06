@@ -101,15 +101,15 @@ export const WaterMeterView = ({ currentDayData, timeframe }) => {
                 <div className="p-4 space-y-3.5">
                   <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
                     <div>
-                      <span className="text-slate-400 block">เลขวานนี้ (31 ส.ค.)</span>
+                      <span className="text-slate-400 block">เลขวันก่อนหน้า</span>
                       <span className="text-slate-200 font-mono text-sm font-semibold">
-                        {readingInfo.previous?.toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                        {readingInfo.previous?.toLocaleString(undefined, { minimumFractionDigits: meter.decimalPlaces || 0 })}
                       </span>
                     </div>
                     <div>
-                      <span className="text-blue-400 block font-medium">เลขอ่านล่าสุด (1 ก.ย.)</span>
+                      <span className="text-blue-400 block font-medium">เลขประจำวัน ({currentDayData?.day || 1} ก.ย.)</span>
                       <span className="text-blue-300 font-mono text-sm font-semibold">
-                        {readingInfo.current?.toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                        {readingInfo.current?.toLocaleString(undefined, { minimumFractionDigits: meter.decimalPlaces || 0 })}
                       </span>
                     </div>
                   </div>

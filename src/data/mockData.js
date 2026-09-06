@@ -289,6 +289,25 @@ export const generateMonthlyData = () => {
           previous: m.baselineAug31,
           consumption: Number((m.readingSep01 - m.baselineAug31).toFixed(1)),
         };
+      } else if (day === 2) {
+        // ข้อมูลจริงจากรูปถ่ายวันที่ 2 ก.ย. 2569
+        let d2Current = m.readingSep01;
+        let d2Prev = m.readingSep01;
+        if (m.id === "WATER-MAIN") {
+          d2Current = 206540; // ค่าจริงจากรูปถ่าย 000206540 (ตัดทศนิยม .5)
+          d2Prev = 206378;
+        } else if (m.id === "WATER-SOFT") {
+          d2Current = 12927; // ค่าจริงจากรูปถ่าย 12927 (ลูกล้อดำ)
+          d2Prev = 12921;
+        } else if (m.id === "WATER-EVAP") {
+          d2Current = 77636.1;
+          d2Prev = 77593.1;
+        }
+        waterReadings[m.id] = {
+          current: d2Current,
+          previous: d2Prev,
+          consumption: Number((d2Current - d2Prev).toFixed(1)),
+        };
       } else {
         const prevCurrent = days[day - 2]?.water[m.id]?.current || m.readingSep01;
         const dailyUse = Number((m.avgDailyUsage * variance(day)).toFixed(1));
