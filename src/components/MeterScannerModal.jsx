@@ -335,20 +335,52 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     setSaveSuccessInfo(null);
   };
 
-  // Convert image to base64
-  const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
+  // High-speed client-side image compression for instant Gemini Vision scan
+  const compressImageForVision = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.82) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1];
-        resolve(base64);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl.split(',')[1]);
+        };
+        img.onerror = () => {
+          resolve(e.target.result.split(',')[1]);
+        };
+        img.src = e.target.result;
       };
-      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
 
-  // Execute Batch Vision Scan (All images in 1 Single API Request)
+  // Convert image to base64 fallback
+  const fileToBase64 = (file) => {
+    return compressImageForVision(file);
+  };
+
+  // Execute Batch Vision Scan (All images compressed, ultra-fast 1 Single API Request)
   const handleStartBatchScan = async () => {
     if (selectedImages.length === 0) {
       alert("กรุณาเลือกรูปภาพมิเตอร์อย่างน้อย 1 ภาพ");
@@ -383,17 +415,25 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
           }
         ];
 
-        for (const img of selectedImages) {
-          if (img.file) {
-            const b64 = await fileToBase64(img.file);
-            parts.push({
-              inline_data: {
-                mime_type: img.file.type || 'image/jpeg',
-                data: b64
-              }
-            });
-          }
-        }
+        // Compress all images in parallel for maximum speed (takes ~100ms)
+        const compressedBlobs = await Promise.all(
+          selectedImages.map(async (img) => {
+            if (img.file) {
+              const b64 = await compressImageForVision(img.file);
+              return {
+                inline_data: {
+                  mime_type: 'image/jpeg',
+                  data: b64
+                }
+              };
+            }
+            return null;
+          })
+        );
+
+        compressedBlobs.forEach(b => {
+          if (b) parts.push(b);
+        });
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         const res = await fetch(url, {
