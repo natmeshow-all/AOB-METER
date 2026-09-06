@@ -107,8 +107,8 @@ function processIncomingMeterImage(event) {
   const lock = LockService.getScriptLock();
 
   try {
-    lock.waitLock(120000);
-    throttleGeminiRateLimit();
+    lock.waitLock(60000);
+    Utilities.sleep(1500);
 
     let imageBlob;
     try {

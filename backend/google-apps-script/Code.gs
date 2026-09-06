@@ -126,11 +126,11 @@ function processIncomingMeterImage(event) {
   const lock = LockService.getScriptLock();
 
   try {
-    // 1. เข้าคิวประมวลผล (รอได้สูงสุด 2 นาที สำหรับรูปที่ส่งพร้อมกันรวดเดียว)
-    lock.waitLock(120000);
+    // 1. เข้าคิวประมวลผล (รอได้สูงสุด 60 วินาที สำหรับรูปที่ส่งพร้อมกัน)
+    lock.waitLock(60000);
 
-    // 2. ตรวจสอบและหน่วงเวลาให้อยู่ในโควต้า 5 ครั้ง/นาที อย่างแม่นยำ
-    throttleGeminiRateLimit();
+    // หน่วงเวลาสั้นๆ 1.5 วินาทีเพื่อความเร็วสูงสุด และป้องกัน memory ชนกัน
+    Utilities.sleep(1500);
 
     // 3. ดาวน์โหลดรูปภาพจาก LINE
     let imageBlob;
