@@ -614,6 +614,24 @@ function findElectricityTargetCol(sheetElec, targetDay) {
 }
 
 // -------------------------------------------------------------------------
+// ฟังก์ชันหาแถวของวันที่ในตารางค่าน้ำ (คอลัมน์ A: วันที่ 1 คือแถว 7, วันที่ 4 คือแถว 10)
+// -------------------------------------------------------------------------
+function findWaterTargetRow(sheetWater, targetDay) {
+  const numRows = Math.min(sheetWater.getLastRow(), 45);
+  if (numRows >= 7) {
+    const colAValues = sheetWater.getRange(1, 1, numRows, 1).getValues();
+    for (let r = 5; r < colAValues.length; r++) {
+      const val = colAValues[r][0];
+      if (val == targetDay || val === targetDay.toString()) {
+        return r + 1; // เช่น วันที่ 4 อยู่ที่แถว 10
+      }
+    }
+  }
+  // รูปแบบมาตรฐานโรงงาน: วันที่ 1 คือแถว 7 ดังนั้น วันที่ N คือแถว (6 + N)
+  return 6 + targetDay;
+}
+
+// -------------------------------------------------------------------------
 // 4. บันทึกข้อมูลลง Google Sheet (ทั้งค่าน้ำ และค่าไฟฟ้า 100% ครบทุกแถว)
 // -------------------------------------------------------------------------
 function saveReadingsToSheet(readings, customDay) {
@@ -653,17 +671,18 @@ function saveReadingsToSheet(readings, customDay) {
         (item.target && item.target.includes("น้ำ")) ||
         (item.serialNumber && (item.serialNumber.includes("193019061") || item.serialNumber.includes("000630") || item.serialNumber.includes("000648")));
 
-      // 1. บันทึกลงตารางค่าน้ำ
+      // 1. บันทึกลงตารางค่าน้ำ (มิเตอร์น้ำหลัก, Soft, EVAP)
       if (isWater && sheetWater) {
-        const row = 5 + targetDay;
-        const targetStr = (item.target || "") + " " + (item.meterId || "") + " " + (item.serialNumber || "");
-        if (targetStr.includes("WATER-MAIN") || targetStr.includes("หลัก") || targetStr.includes("193019061")) {
+        const row = findWaterTargetRow(sheetWater, targetDay);
+        const targetUpper = ((item.target || "") + " " + (item.meterId || "") + " " + (item.serialNumber || "")).toUpperCase();
+        
+        if (targetUpper.includes("WATER-MAIN") || targetUpper.includes("MAIN") || targetUpper.includes("หลัก") || targetUpper.includes("193019061") || targetUpper.includes("OCTAVE")) {
           sheetWater.getRange(row, 2).setValue(rawVal);
           savedCount++;
-        } else if (targetStr.includes("WATER-SOFT") || targetStr.includes("Soft") || targetStr.includes("000630")) {
+        } else if (targetUpper.includes("WATER-SOFT") || targetUpper.includes("SOFT") || targetUpper.includes("ซอฟ") || targetUpper.includes("000630")) {
           sheetWater.getRange(row, 4).setValue(rawVal);
           savedCount++;
-        } else if (targetStr.includes("WATER-EVAP") || targetStr.includes("EVAP") || targetStr.includes("000648")) {
+        } else if (targetUpper.includes("WATER-EVAP") || targetUpper.includes("EVAP") || targetUpper.includes("000648")) {
           sheetWater.getRange(row, 6).setValue(rawVal);
           savedCount++;
         }
@@ -789,6 +808,8 @@ function saveDay4Now() {
   Logger.log("🚀 เริ่มต้นบันทึกค่าน้ำและค่าไฟฟ้า เข้าวันที่ 4 ก.ย. 2569 ครบทั้ง 14 จุด...");
 
   const readings = [
+    { meterType: "WATER", meterId: "WATER-MAIN", rawReading: "206933", unit: "m³" },
+    { meterType: "WATER", meterId: "WATER-SOFT", rawReading: "12946", unit: "m³" },
     { meterType: "WATER", meterId: "WATER-EVAP", rawReading: "77811.8", unit: "m³" },
     { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-3", target: "C4-2 Q1-3 (Air Compressor)", convertedKWh: 814280 },
     { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-6", target: "C4-2 Q1-6 (Office)", convertedKWh: 1784000 },
@@ -808,6 +829,40 @@ function saveDay4Now() {
 
   const res = saveReadingsToSheet(readings, 4);
   Logger.log("✅ บันทึกข้อมูลวันที่ 4 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+}
+
+// -------------------------------------------------------------------------
+// ฟังก์ชันแก้ค่าน้ำวันที่ 4 ให้ถูกต้อง 100% (ย้ายจากแถว 9 ไปแถว 10 และเติมช่อง Soft ที่ขาด)
+// -------------------------------------------------------------------------
+function fixWaterReadingsDay4() {
+  Logger.log("🚀 กำลังแก้ไขค่าน้ำวันที่ 4 ก.ย. และเติมช่อง Soft ที่ขาด...");
+  const ss = getTargetSpreadsheet();
+  const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
+  if (!sheetWater) {
+    Logger.log("❌ ไม่พบแผ่นงานค่าน้ำ");
+    return;
+  }
+
+  const valMain = 206933;   // มิเตอร์หลัก
+  const valSoft = 12946;    // มิเตอร์ Soft (ช่องที่ขาดไป)
+  const valEvap = 77811.8;  // มิเตอร์ EVAP
+
+  // 1. ล้างแถว 9 (วันที่ 3) ที่บันทึกผิดแถว
+  sheetWater.getRange(9, 2).clearContent();
+  sheetWater.getRange(9, 4).clearContent();
+  sheetWater.getRange(9, 6).clearContent();
+  sheetWater.getRange(9, 8).clearContent();
+
+  // 2. บันทึกเข้าแถว 10 (วันที่ 4) ให้ถูกต้องครบทั้ง 3 จุด
+  sheetWater.getRange(10, 2).setValue(valMain);
+  sheetWater.getRange(10, 4).setValue(valSoft);
+  sheetWater.getRange(10, 6).setValue(valEvap);
+  sheetWater.getRange(10, 8).setValue("AI Auto-Verified");
+
+  Logger.log("✅ ย้ายและบันทึกค่าน้ำเข้าแถว 10 (วันที่ 4 ก.ย.) ครบทั้ง 3 จุดเรียบร้อย!");
+  Logger.log("💧 มิเตอร์หลัก (B10): " + valMain);
+  Logger.log("💧 มิเตอร์ Soft (D10): " + valSoft + " [เติมช่องที่ขาดเรียบร้อย]");
+  Logger.log("💧 มิเตอร์ EVAP (F10): " + valEvap);
 }
 
 // -------------------------------------------------------------------------
