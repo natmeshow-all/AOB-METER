@@ -8,12 +8,30 @@ export const getGasScriptCode = (spreadsheetId, lineToken, geminiApiKey) => `/**
 const SETTINGS = {
   SPREADSHEET_ID: "${spreadsheetId || '1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE'}",
   LINE_ACCESS_TOKEN: "${lineToken || 'YOUR_LINE_CHANNEL_ACCESS_TOKEN'}",
+  
+  // 🔑 ใส่ Gemini API Keys ได้หลายบัญชี (ระบบจะสลับกุญแจหมุนเวียนอัตโนมัติ และสลับหนี Error ทันที)
+  GEMINI_API_KEYS: [
+    "${geminiApiKey || 'YOUR_GEMINI_API_KEY_1'}",
+    "YOUR_GEMINI_API_KEY_2",
+    "YOUR_GEMINI_API_KEY_3"
+  ],
   GEMINI_API_KEY: "${geminiApiKey || 'YOUR_GEMINI_API_KEY'}",
   GEMINI_MODEL: "gemini-3.6-flash",
   CUTOFF_HOUR: 6,
   CUTOFF_MINUTE: 30,
   REPORT_HOUR: 8,
 };
+
+function getGeminiApiKeys() {
+  if (Array.isArray(SETTINGS.GEMINI_API_KEYS) && SETTINGS.GEMINI_API_KEYS.length > 0) {
+    const valid = SETTINGS.GEMINI_API_KEYS.filter(k => k && k.length > 10 && !k.startsWith("YOUR_"));
+    if (valid.length > 0) return valid;
+  }
+  if (SETTINGS.GEMINI_API_KEY && SETTINGS.GEMINI_API_KEY.length > 10 && !SETTINGS.GEMINI_API_KEY.startsWith("YOUR_")) {
+    return [SETTINGS.GEMINI_API_KEY];
+  }
+  return [];
+}
 
 function getTargetSpreadsheet() {
   try {
@@ -195,12 +213,23 @@ function callGeminiVisionAPI(imageBlob) {
     generationConfig: { temperature: 0.1, response_mime_type: "application/json" }
   };
 
-  const activeModel = getActiveGeminiModel();
-  const modelsToTry = [activeModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash-latest"];
-  
-  for (let model of modelsToTry) {
+  const model = getActiveGeminiModel();
+  const keys = getGeminiApiKeys();
+
+  if (keys.length === 0) {
+    return { error: "ไม่พบ Gemini API Key ในระบบ กรุณาใส่ใน SETTINGS.GEMINI_API_KEYS" };
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  let startIdx = parseInt(props.getProperty("KEY_ROTATION_INDEX") || "0", 10);
+  if (isNaN(startIdx) || startIdx >= keys.length) startIdx = 0;
+
+  for (let attempt = 0; attempt < keys.length; attempt++) {
+    const currentIdx = (startIdx + attempt) % keys.length;
+    const currentKey = keys[currentIdx];
+
     try {
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + currentKey;
       const options = {
         method: "POST",
         contentType: "application/json",
@@ -211,54 +240,48 @@ function callGeminiVisionAPI(imageBlob) {
       const response = UrlFetchApp.fetch(url, options);
       const json = JSON.parse(response.getContentText());
 
-      if (json.error) {
-        if (json.error.code === 404) continue;
-        if (json.error.code === 429 || json.error.code === 503) {
-          let waitMs = 20000;
-          const match = (json.error.message || "").match(/retry in ([0-9.]+)s/i);
-          if (match) {
-            waitMs = (Math.ceil(parseFloat(match[1])) + 2) * 1000;
-          }
-          console.warn("Gemini 429/503. Waiting " + waitMs + " ms before retry...");
-          Utilities.sleep(Math.min(waitMs, 65000));
-
-          const retryRes = UrlFetchApp.fetch(url, options);
-          const retryJson = JSON.parse(retryRes.getContentText());
-          if (retryJson.candidates && retryJson.candidates[0].content && retryJson.candidates[0].content.parts[0].text) {
-            let text = retryJson.candidates[0].content.parts[0].text;
-            text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            return JSON.parse(text);
-          }
-          if (retryJson.error && (retryJson.error.code === 429 || retryJson.error.code === 503)) {
-            let waitMs2 = 25000;
-            const match2 = (retryJson.error.message || "").match(/retry in ([0-9.]+)s/i);
-            if (match2) {
-              waitMs2 = (Math.ceil(parseFloat(match2[1])) + 2) * 1000;
-            }
-            Utilities.sleep(Math.min(waitMs2, 65000));
-            const retryRes2 = UrlFetchApp.fetch(url, options);
-            const retryJson2 = JSON.parse(retryRes2.getContentText());
-            if (retryJson2.candidates && retryJson2.candidates[0].content && retryJson2.candidates[0].content.parts[0].text) {
-              let text = retryJson2.candidates[0].content.parts[0].text;
-              text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-              return JSON.parse(text);
-            }
-          }
-        }
-        return { error: json.error.message + " (Code: " + json.error.code + ")" };
-      }
-
       if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+        props.setProperty("KEY_ROTATION_INDEX", ((currentIdx + 1) % keys.length).toString());
         let text = json.candidates[0].content.parts[0].text;
-        text = text.replace(/\`\`\`json/g, "").replace(/\`\`\`/g, "").trim();
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(text);
       }
+
+      if (json.error) {
+        console.warn("Key #" + (currentIdx + 1) + " ตอบกลับ: " + json.error.code + " (" + json.error.message + ")");
+        if (json.error.code === 429 || json.error.code === 503) {
+          if (keys.length > 1 && attempt < keys.length - 1) {
+            console.log("⚡ สลับไปใช้ Key สำรองตัวถัดไปทันที...");
+            continue;
+          }
+        }
+      }
     } catch (e) {
-      console.warn("Model " + model + " failed: " + e.message);
+      console.warn("Key #" + (currentIdx + 1) + " Exception: " + e.message);
     }
   }
 
-  return { error: "ไม่สามารถเชื่อมต่อ Google Gemini API ได้ (กรุณาเช็ค API Key หรือโควต้า)" };
+  console.warn("ทุก Key ติดโควต้า กำลังรอ 20 วินาทีก่อนลองรอบสุดท้าย...");
+  Utilities.sleep(20000);
+  for (let k = 0; k < keys.length; k++) {
+    try {
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + keys[k];
+      const response = UrlFetchApp.fetch(url, {
+        method: "POST",
+        contentType: "application/json",
+        payload: JSON.stringify(requestPayload),
+        muteHttpExceptions: true
+      });
+      const json = JSON.parse(response.getContentText());
+      if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
+        let text = json.candidates[0].content.parts[0].text;
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        return JSON.parse(text);
+      }
+    } catch (err) {}
+  }
+
+  return { error: "ระบบไม่สามารถอ่านภาพได้ในขณะนี้ (โควต้าทุก Key เต็มชั่วคราว กรุณารอ 30 วินาที)" };
 }
 
 function saveReadingsToSheet(readings, customDay) {
@@ -372,17 +395,27 @@ function testFullSystem() {
 
   try {
     const activeModel = getActiveGeminiModel();
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + activeModel + ":generateContent?key=" + SETTINGS.GEMINI_API_KEY;
-    const res = UrlFetchApp.fetch(url, {
-      method: "POST",
-      contentType: "application/json",
-      payload: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
-      muteHttpExceptions: true
-    });
-    if (res.getResponseCode() === 200) {
-      Logger.log("✅ 2. Gemini Vision API: ใช้งานได้ 100%! (ใช้โมเดล: " + activeModel + ")");
+    const keys = getGeminiApiKeys();
+    if (keys.length === 0) {
+      Logger.log("❌ 2. Gemini API: ไม่พบ API Key ในระบบ");
     } else {
-      Logger.log("❌ 2. Gemini Vision API ล้มเหลว: " + res.getContentText());
+      let passCount = 0;
+      keys.forEach((k, idx) => {
+        const url = "https://generativelanguage.googleapis.com/v1beta/models/" + activeModel + ":generateContent?key=" + k;
+        const res = UrlFetchApp.fetch(url, {
+          method: "POST",
+          contentType: "application/json",
+          payload: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+          muteHttpExceptions: true
+        });
+        if (res.getResponseCode() === 200) {
+          passCount++;
+          Logger.log("✅ Key [" + (idx + 1) + "]: เชื่อมต่อสำเร็จ 100%");
+        } else {
+          Logger.log("⚠️ Key [" + (idx + 1) + "] ล้มเหลว: " + res.getContentText());
+        }
+      });
+      Logger.log("✅ 2. Gemini Vision API: พร้อมใช้งาน " + passCount + "/" + keys.length + " Keys (โมเดล: " + activeModel + ")");
     }
   } catch (err) {
     Logger.log("❌ 2. Gemini API Exception: " + err.message);
