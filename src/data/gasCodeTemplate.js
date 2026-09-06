@@ -50,6 +50,28 @@ function getTargetSpreadsheet() {
   }
 }
 
+// ดึงชีตค่าไฟฟ้าอย่างแม่นยำ (ตรวจชื่อชีต และหัวตารางเซลล์ A1)
+function getElectricitySheet(ss) {
+  const candidates = ["ค่าไฟฟ้า", "ไฟฟ้า", "ค่าไฟ", "MDB", "Electricity"];
+  for (let name of candidates) {
+    const s = ss.getSheetByName(name);
+    if (s) return s;
+  }
+  const allSheets = ss.getSheets();
+  for (let s of allSheets) {
+    const sName = s.getName();
+    if (sName.includes("ไฟ") || sName.includes("MDB") || sName.includes("Elec")) return s;
+    const a1 = s.getRange(1, 1).getValue().toString();
+    if (a1.includes("ค่าไฟฟ้า") || a1.includes("ไฟ")) return s;
+  }
+  if (allSheets.length >= 2) {
+    for (let s of allSheets) {
+      if (!s.getName().includes("น้ำ")) return s;
+    }
+  }
+  return null;
+}
+
 // คืนค่าโมเดล Gemini ที่ถูกต้อง (gemini-3.6-flash ตามที่ Google API กำหนด)
 function getActiveGeminiModel() {
   if (SETTINGS.GEMINI_MODEL && !SETTINGS.GEMINI_MODEL.includes("2.5")) {
@@ -78,16 +100,10 @@ function doPost(e) {
 
     const data = JSON.parse(e.postData.contents);
 
-    // =========================================================================
-    // ช่องทางที่ 2: คำสั่งบันทึกโดยตรงจาก Web Dashboard
-    // =========================================================================
     if (data.action === "save_from_web") {
       return handleSaveFromWeb(data);
     }
 
-    // =========================================================================
-    // ช่องทางที่ 1: รับข้อความและรูปภาพจาก LINE OA Webhook
-    // =========================================================================
     const events = data.events || [];
 
     for (let event of events) {
@@ -130,10 +146,8 @@ function handleSaveFromWeb(data) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // บันทึกลง Google Sheet
     const saveResult = saveReadingsToSheet(readings, targetDay);
 
-    // สร้างข้อความสรุปส่งเข้ากลุ่ม LINE
     let reportMsg = "🌐 [บันทึกข้อมูลผ่าน Web Dashboard สำเร็จ]\\n";
     reportMsg += "📅 ข้อมูลประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569\\n";
     reportMsg += "👤 ผู้บันทึก: " + recordedBy + "\\n";
@@ -143,8 +157,12 @@ function handleSaveFromWeb(data) {
       if (item.isIgnored) {
         reportMsg += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\\n";
       } else {
+        const rawStr = (item.rawReading || item.readingRaw || "").toString();
+        const unit = (item.unit || "").toString();
+        const readingDisplay = rawStr.includes(unit) ? rawStr : (rawStr + " " + unit);
+
         reportMsg += "✅ " + item.target + "\\n";
-        reportMsg += "🔢 ค่าที่อ่านได้: " + (item.rawReading || item.readingRaw) + " " + (item.unit || "") + "\\n";
+        reportMsg += "🔢 ค่าที่อ่านได้: " + readingDisplay.trim() + "\\n";
         if (item.convertedKWh) {
           reportMsg += "⚡ บันทึกหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\\n";
         }
@@ -223,7 +241,6 @@ function processIncomingMeterImage(event) {
     cache.put(cacheKey, JSON.stringify(pendingIds), 60);
   }
 
-  // หน่วงเวลารอ 3.5 วินาที เพื่อรวบรวมรูปในรอบเดียวกัน
   Utilities.sleep(3500);
 
   const latestExisting = cache.get(cacheKey);
@@ -255,7 +272,6 @@ function processIncomingMeterImage(event) {
 
     if (imageBlobs.length === 0) return;
 
-    // ส่งทุกภาพในชุดให้ Gemini Vision ใน 1 คำขอเดียว
     const aiResult = callGeminiVisionBatch(imageBlobs);
 
     if (aiResult.error) {
@@ -281,8 +297,12 @@ function processIncomingMeterImage(event) {
       if (item.isIgnored) {
         replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\\n";
       } else {
+        const rawStr = (item.rawReading || item.readingRaw || "").toString();
+        const unit = (item.unit || "").toString();
+        const readingDisplay = rawStr.includes(unit) ? rawStr : (rawStr + " " + unit);
+
         replyText += "✅ " + item.target + "\\n";
-        replyText += "🔢 อ่านได้: " + (item.rawReading || item.readingRaw) + " " + (item.unit || "") + "\\n";
+        replyText += "🔢 อ่านได้: " + readingDisplay.trim() + "\\n";
         if (item.convertedKWh) {
           replyText += "⚡ แปลงหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\\n";
         }
@@ -315,28 +335,30 @@ function fetchLineImageBlob(messageId) {
 }
 
 function callGeminiVisionBatch(imageBlobs) {
-  const promptText = \`คุณเป็นผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
+  const promptText = \`
+คุณเป็นผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
 ในคำขอนี้จะมีรูปถ่ายมิเตอร์น้ำและตู้ไฟฟ้าจำนวน 1 หรือหลายภาพ กรุณาวิเคราะห์ทุกภาพและอ่านค่าตัวเลขให้ครบถ้วนทุกจุด
 
 เกณฑ์การระบุและอ่านค่ามิเตอร์ของโรงงาน:
 1. มิเตอร์น้ำหลัก ARAD Octave ดิจิทัล (S/N: 193019061, หน้าปัด LCD ดิจิทัล ตัวเรือนสีฟ้า/เทา):
+   - meterType: "WATER", meterId: "WATER-MAIN"
    - อ่านเฉพาะตัวเลขจำนวนเต็มหลัก m³ (เช่น 000206933.155 หรือ 206074 ให้ตัดจุดทศนิยม 3 หลักหลังออก บันทึกเป็นจำนวนเต็ม เช่น "206933" หรือ "206074")
    - หน่วย: m³
-   - meterId: "WATER-MAIN"
 2. มิเตอร์น้ำ Soft (Itrón S/N: F19S000630):
+   - meterType: "WATER", meterId: "WATER-SOFT"
    - อ่านเลขลูกล้อสีดำ 5 หลัก (เช่น 12907 หรือ 12927)
    - หน่วย: m³
-   - meterId: "WATER-SOFT"
 3. มิเตอร์น้ำ EVAP (Itrón S/N: F19S000648):
+   - meterType: "WATER", meterId: "WATER-EVAP"
    - อ่านเลขลูกล้อสีดำ 5 หลัก และสีแดงทศนิยม 1 หลัก (เช่น 77593.1 หรือ 77811.8)
    - หน่วย: m³
-   - meterId: "WATER-EVAP"
 4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200 (14 จุดในตู้ C2-2, C3-2, C4-2):
-   - สแกนหาป้ายรหัสตู้ และป้ายชื่อเบรกเกอร์ (Q1-1 ถึง Q1-8)
+   - meterType: "ELECTRICITY"
+   - สแกนหาป้ายรหัสตู้ (C2-2, C3-2, C4-2) และป้ายชื่อเบรกเกอร์ (Q1-1 ถึง Q1-8)
    - อ่านค่าบรรทัด "E Del" พร้อมหน่วย (GWh หรือ MWh หรือ kWh)
    - แปลงค่าเป็นหน่วย kWh เสมอ:
-     * หากเป็น GWh ให้คูณ 1,000,000 (เช่น 1.7788 GWh -> 1778800 kWh, 21.320 GWh -> 21320000 kWh)
-     * หากเป็น MWh ให้คูณ 1,000 (เช่น 812.14 MWh -> 812140 kWh)
+     * หากเป็น GWh ให้คูณ 1,000,000 (เช่น 1.7788 GWh -> 1778800 kWh, 21.320 GWh -> 21320000 kWh, 4.2722 GWh -> 4272200 kWh)
+     * หากเป็น MWh ให้คูณ 1,000 (เช่น 812.14 MWh -> 812140 kWh, 983.63 MWh -> 983630 kWh, 229.85 MWh -> 229850 kWh)
      * หากเป็น kWh ให้ใช้ค่านั้นได้เลย
    - กฎพิเศษสำหรับตู้ C3-2 แถบสีแดง:
      * ตัวแรกบนซ้าย ป้าย Q1-1 (Fire Pump / ไม่ใช้งาน) ให้ตั้ง isIgnored: true
@@ -347,17 +369,28 @@ function callGeminiVisionBatch(imageBlobs) {
   "readings": [
     {
       "meterType": "WATER",
-      "meterId": "WATER-MAIN",
-      "target": "มิเตอร์น้ำหลัก หน้าโรงงาน",
-      "serialNumber": "193019061",
-      "rawReading": "206074",
+      "meterId": "WATER-EVAP",
+      "target": "มิเตอร์น้ำ EVAP",
+      "serialNumber": "F19S000648",
+      "rawReading": "77811.8",
       "unit": "m³",
       "convertedKWh": null,
-      "benchmarkStatus": "ปกติ",
+      "isIgnored": false
+    },
+    {
+      "meterType": "ELECTRICITY",
+      "meterId": "MDB1-Q1-3",
+      "panel": "C4-2",
+      "tag": "Q1-3",
+      "target": "C4-2 Q1-3 (MCC-ACP Air Compressor)",
+      "rawReading": "814.28 MWh",
+      "unit": "MWh",
+      "convertedKWh": 814280,
       "isIgnored": false
     }
   ]
-}\`;
+}
+\`;
 
   const parts = [{ text: promptText }];
   imageBlobs.forEach(blob => {
@@ -431,14 +464,110 @@ function callGeminiVisionBatch(imageBlobs) {
   return { error: "ระบบไม่สามารถอ่านภาพได้ในขณะนี้ กรุณารอสักครู่แล้วลองใหม่" };
 }
 
+function extractKWhValue(item) {
+  if (item.convertedKWh && !isNaN(parseFloat(item.convertedKWh)) && parseFloat(item.convertedKWh) > 0) {
+    return Math.round(parseFloat(item.convertedKWh));
+  }
+  
+  const rawStr = (item.rawReading || item.readingRaw || "").toString().replace(/,/g, "").trim();
+  const numMatch = rawStr.match(/([0-9.]+)/);
+  if (!numMatch) return 0;
+  
+  const num = parseFloat(numMatch[1]);
+  const text = (rawStr + " " + (item.unit || "")).toUpperCase();
+  
+  if (text.includes("GWH")) {
+    return Math.round(num * 1000000);
+  } else if (text.includes("MWH")) {
+    return Math.round(num * 1000);
+  } else {
+    return Math.round(num);
+  }
+}
+
+function findElectricityMeterRow(item) {
+  const text = ((item.target || "") + " " + (item.panel || "") + " " + (item.tag || "") + " " + (item.meterId || "") + " " + (item.anchor || "")).toUpperCase();
+  const val = extractKWhValue(item);
+
+  // --- กลุ่ม MDB-1 TR1 (แถว 3 ถึง 10) ---
+  if ((text.includes("C2-2") && text.includes("Q1-1")) || text.includes("MMC-PRO-1") || text.includes("FROZEN") || (text.includes("Q1-1") && val > 2000000 && val < 3000000)) {
+    return 3;
+  }
+  if ((text.includes("C3-2") && text.includes("Q1-2") && (val > 3000000 || text.includes("RTE") || text.includes("MMC-PRO-2"))) || text.includes("MDB1-Q1-2")) {
+    return 4;
+  }
+  if ((text.includes("C4-2") && text.includes("Q1-3")) || text.includes("MCC-ACP") || text.includes("AIR COMPRESSOR") || text.includes("ACP") || text.includes("MDB1-Q1-3")) {
+    return 5;
+  }
+  if ((text.includes("C3-2") && text.includes("Q1-4") && (val < 200000 || text.includes("WSP") || text.includes("WATER PUMP"))) || text.includes("MDB1-Q1-4")) {
+    return 6;
+  }
+  if ((text.includes("C2-2") && text.includes("Q1-5")) || text.includes("DC-AC") || text.includes("CONTROL ROOM") || text.includes("MDB1-Q1-5")) {
+    return 7;
+  }
+  if ((text.includes("C4-2") && text.includes("Q1-6")) || text.includes("DB-PRO-1") || text.includes("OFFICE") || text.includes("MDB1-Q1-6")) {
+    return 8;
+  }
+  if ((text.includes("C4-2") && text.includes("Q1-7")) || text.includes("DB-PRO-2") || text.includes("OUTSIDE") || text.includes("MDB1-Q1-7")) {
+    return 9;
+  }
+  if ((text.includes("C4-2") && text.includes("Q1-8")) || text.includes("MCC-SILO") || text.includes("SILO") || text.includes("MDB1-Q1-8")) {
+    return 10;
+  }
+
+  // --- กลุ่ม MDB-2 TR2 (แถว 12 ถึง 17) ---
+  if (text.includes("REFRIGERATION") || (text.includes("Q1-1") && val > 15000000) || text.includes("MDB2-Q1-1")) {
+    return 12;
+  }
+  if (text.includes("FIRE ALARM") || text.includes("EMCC-FP") || (text.includes("C3-2") && text.includes("Q1-2") && val < 2000000) || text.includes("MDB2-Q1-2")) {
+    return 13;
+  }
+  if (text.includes("EMERGENCY") || text.includes("ELP-PRO-1") || (text.includes("C3-2") && text.includes("Q1-3") && val < 500000) || text.includes("MDB2-Q1-3")) {
+    return 14;
+  }
+  if (text.includes("WATER TREATMENT") || text.includes("EDB-PRO") || (text.includes("C3-2") && text.includes("Q1-4") && val > 500000) || text.includes("MDB2-Q1-4")) {
+    return 15;
+  }
+  if (text.includes("SERVER") || text.includes("ELP-OFF") || (text.includes("C3-2") && text.includes("Q1-5") && val < 500000) || text.includes("MDB2-Q1-5")) {
+    return 16;
+  }
+  if (text.includes("AS/RS") || text.includes("ASRS") || text.includes("EDB-AS/RS") || (text.includes("C3-2") && text.includes("Q1-6") && val < 100000) || text.includes("MDB2-Q1-6")) {
+    return 17;
+  }
+
+  return null;
+}
+
+function findElectricityTargetCol(sheetElec, targetDay) {
+  const numCols = Math.max(sheetElec.getLastColumn(), 40);
+  const row1Values = sheetElec.getRange(1, 1, 1, numCols).getValues()[0];
+
+  const targetDayStr = targetDay.toString();
+  const targetDayPadded = targetDay < 10 ? "0" + targetDay : targetDayStr;
+
+  for (let c = 0; c < row1Values.length; c++) {
+    const cellVal = row1Values[c];
+    if (cellVal instanceof Date) {
+      if (cellVal.getDate() === targetDay) return c + 1;
+    } else if (cellVal) {
+      const s = cellVal.toString().trim();
+      if (s.endsWith("-" + targetDayPadded) || s.endsWith("-" + targetDayStr) || s.endsWith("/" + targetDayPadded) || s === targetDayStr) {
+        return c + 1;
+      }
+    }
+  }
+
+  return 5 + targetDay;
+}
+
 function saveReadingsToSheet(readings, customDay) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(30000);
 
     const ss = getTargetSpreadsheet();
-    const sheetWater = ss.getSheetByName("ค่าน้ำ");
-    const sheetElec = ss.getSheetByName("ค่าไฟฟ้า") || ss.getSheetByName("ไฟฟ้า") || ss.getSheetByName("MDB");
+    const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
+    const sheetElec = getElectricitySheet(ss);
     
     let targetDay = customDay;
 
@@ -461,42 +590,43 @@ function saveReadingsToSheet(readings, customDay) {
     }
 
     let savedCount = 0;
+    const elecCol = sheetElec ? findElectricityTargetCol(sheetElec, targetDay) : (5 + targetDay);
 
     readings.forEach(item => {
       if (item.isIgnored) return;
 
       const rawVal = parseFloat(item.rawReading || item.readingRaw || 0);
-      const convertedVal = item.convertedKWh ? parseFloat(item.convertedKWh) : rawVal;
+      const kwhVal = extractKWhValue(item);
 
-      if ((item.meterType === "WATER" || item.meterId?.startsWith("WATER")) && sheetWater) {
+      const isWater = (item.meterType === "WATER") ||
+        (item.meterId && item.meterId.startsWith("WATER")) ||
+        (item.target && item.target.includes("น้ำ")) ||
+        (item.serialNumber && (item.serialNumber.includes("193019061") || item.serialNumber.includes("000630") || item.serialNumber.includes("000648")));
+
+      if (isWater && sheetWater) {
         const row = 5 + targetDay;
-        if (item.meterId === "WATER-MAIN" || (item.serialNumber && item.serialNumber.includes("193019061"))) {
+        const targetStr = (item.target || "") + " " + (item.meterId || "") + " " + (item.serialNumber || "");
+        if (targetStr.includes("WATER-MAIN") || targetStr.includes("หลัก") || targetStr.includes("193019061")) {
           sheetWater.getRange(row, 2).setValue(rawVal);
           savedCount++;
-        } else if (item.meterId === "WATER-SOFT" || (item.serialNumber && item.serialNumber.includes("000630"))) {
+        } else if (targetStr.includes("WATER-SOFT") || targetStr.includes("Soft") || targetStr.includes("000630")) {
           sheetWater.getRange(row, 4).setValue(rawVal);
           savedCount++;
-        } else if (item.meterId === "WATER-EVAP" || (item.serialNumber && item.serialNumber.includes("000648"))) {
+        } else if (targetStr.includes("WATER-EVAP") || targetStr.includes("EVAP") || targetStr.includes("000648")) {
           sheetWater.getRange(row, 6).setValue(rawVal);
           savedCount++;
         }
         sheetWater.getRange(row, 8).setValue("AI Auto-Verified");
+        return;
       }
 
-      if ((item.meterType === "ELECTRICITY" || item.tag) && sheetElec) {
-        try {
-          const tag = item.tag || "";
-          const lastRow = sheetElec.getLastRow();
-          for (let r = 1; r <= Math.min(lastRow, 50); r++) {
-            const cellText = sheetElec.getRange(r, 2).getValue().toString();
-            if (tag && cellText.includes(tag)) {
-              sheetElec.getRange(r, 5).setValue(convertedVal);
-              savedCount++;
-              break;
-            }
-          }
-        } catch (e) {
-          console.warn("ไม่สามารถเขียนค่าไฟฟ้าแถว " + item.tag + ": " + e.message);
+      if (sheetElec && kwhVal > 0) {
+        const targetRow = findElectricityMeterRow(item);
+        if (targetRow) {
+          sheetElec.getRange(targetRow, elecCol).setValue(kwhVal);
+          savedCount++;
+        } else {
+          console.warn("ไม่พบแถวที่ตรงกับมิเตอร์ไฟ: " + item.target);
         }
       }
     });
@@ -549,12 +679,41 @@ function replyLineMessage(replyToken, text) {
   sendLineNotification({ replyToken: replyToken }, text);
 }
 
+function saveDay5Now() {
+  Logger.log("🚀 เริ่มต้นบันทึกค่าน้ำและค่าไฟฟ้า วันที่ 5 ก.ย. 2569 จากภาพล่าสุด...");
+
+  const readings = [
+    { meterType: "WATER", meterId: "WATER-EVAP", rawReading: "77811.8", unit: "m³" },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-3", target: "C4-2 Q1-3 (Air Compressor)", convertedKWh: 814280 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-6", target: "C4-2 Q1-6 (Office)", convertedKWh: 1784000 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-8", target: "C4-2 Q1-8 (Silo)", convertedKWh: 229850 },
+    { meterType: "ELECTRICITY", panel: "C4-2", tag: "Q1-7", target: "C4-2 Q1-7 (Outside)", convertedKWh: 882570 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-2", target: "C3-2 Q1-2 (RTE Line)", convertedKWh: 4272200 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-4", target: "C3-2 Q1-4 (Water Pump)", convertedKWh: 90568 },
+    { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-5", target: "C2-2 Q1-5 (Control Room)", convertedKWh: 983630 },
+    { meterType: "ELECTRICITY", panel: "C2-2", tag: "Q1-1", target: "C2-2 Q1-1 (Frozen Line)", convertedKWh: 2561400 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-3", target: "C3-2 Q1-3 (Red LP Emergency)", convertedKWh: 378850 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-4", target: "C3-2 Q1-4 (Red Water Treatment)", convertedKWh: 816970 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-5", target: "C3-2 Q1-5 (Red Server Room)", convertedKWh: 264360 },
+    { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-6", target: "C3-2 Q1-6 (Red AS/RS)", convertedKWh: 63941 }
+  ];
+
+  const res = saveReadingsToSheet(readings, 5);
+  Logger.log("✅ บันทึกข้อมูลวันที่ 5 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+}
+
 function testFullSystem() {
   Logger.log("🚀 เริ่มต้นการทดสอบระบบเชื่อมต่อทั้งหมด...");
 
   try {
     const ss = getTargetSpreadsheet();
     Logger.log("✅ 1. Google Sheets: เชื่อมต่อสำเร็จ! (พบไฟล์: " + ss.getName() + ")");
+    const sElec = getElectricitySheet(ss);
+    if (sElec) {
+      Logger.log("✅ 1.1 พบแผ่นค่าไฟฟ้า: " + sElec.getName() + " (พร้อมบันทึก 14 จุด)");
+    } else {
+      Logger.log("⚠️ 1.1 ไม่พบแผ่นค่าไฟฟ้า กรุณาตรวจสอบชื่อชีต");
+    }
   } catch (err) {
     Logger.log("❌ 1. Google Sheets ล้มเหลว: " + err.message);
   }
