@@ -17,19 +17,53 @@ import { getGasScriptCode } from '../data/gasCodeTemplate';
 export const SettingsModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
-  const [spreadsheetId, setSpreadsheetId] = useState('1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE');
-  const [lineToken, setLineToken] = useState('YOUR_LINE_CHANNEL_ACCESS_TOKEN');
-  const [geminiApiKey, setGeminiApiKey] = useState('AIzaSy...');
+  const savedSettings = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('AOB_SETTINGS') || '{}');
+    } catch (e) {
+      return {};
+    }
+  })();
+
+  const [spreadsheetId, setSpreadsheetId] = useState(savedSettings.spreadsheetId || '1a3nh3RFQ2vloRbmKECnq0VKs3yA0PL6LSPhJbsTE');
+  const [lineToken, setLineToken] = useState(savedSettings.lineToken || 'YOUR_LINE_CHANNEL_ACCESS_TOKEN');
+  const [geminiApiKey, setGeminiApiKey] = useState(savedSettings.geminiApiKey || '');
+  const [gasWebhookUrl, setGasWebhookUrl] = useState(savedSettings.gasWebhookUrl || '');
   const [activeTab, setActiveTab] = useState('config'); // 'config' | 'gas-code'
   const [isCopied, setIsCopied] = useState(false);
+  const [isTestingGas, setIsTestingGas] = useState(false);
+  const [gasStatus, setGasStatus] = useState(null);
 
-  // Full production-ready Google Apps Script Code (ครบถ้วนทุกฟังก์ชัน 295 บรรทัด)
   const gasScriptCode = getGasScriptCode(spreadsheetId, lineToken, geminiApiKey);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(gasScriptCode);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleSaveSettings = () => {
+    const config = { spreadsheetId, lineToken, geminiApiKey, gasWebhookUrl };
+    localStorage.setItem('AOB_SETTINGS', JSON.stringify(config));
+    alert("✅ บันทึกการตั้งค่าระบบและ URL เชื่อมต่อเรียบร้อยแล้ว!");
+    onClose();
+  };
+
+  const handleTestGasUrl = async () => {
+    if (!gasWebhookUrl) {
+      alert("กรุณาระบุ Google Apps Script Webhook URL ก่อนทดสอบ");
+      return;
+    }
+    setIsTestingGas(true);
+    setGasStatus(null);
+    try {
+      const res = await fetch(gasWebhookUrl, { method: 'GET', mode: 'no-cors' });
+      setGasStatus('connected');
+    } catch (err) {
+      setGasStatus('error');
+    } finally {
+      setIsTestingGas(false);
+    }
   };
 
   return (
@@ -140,12 +174,47 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
+              {/* GAS WEBHOOK URL FOR DIRECT WEB LOGGING */}
+              <div>
+                <label className="font-semibold text-slate-200 block mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Google Apps Script Web App URL (สำหรับบันทึกตรงจากเว็บ):</span>
+                  </span>
+                  {gasWebhookUrl && (
+                    <button
+                      type="button"
+                      onClick={handleTestGasUrl}
+                      disabled={isTestingGas}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                    >
+                      {isTestingGas ? 'กำลังทดสอบ...' : 'ทดสอบ URL'}
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={gasWebhookUrl}
+                  onChange={(e) => setGasWebhookUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none text-xs"
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                />
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <p className="text-slate-500">
+                    ได้จากเมนู <strong>ทำให้ใช้งานได้ &gt; รายการทำให้ใช้งานได้ใหม่ (New deployment) &gt; เว็บแอป (Web app)</strong>
+                  </p>
+                  {gasStatus === 'connected' && (
+                    <span className="text-emerald-400 font-semibold">✅ เชื่อมต่อสำเร็จ!</span>
+                  )}
+                  {gasStatus === 'error' && (
+                    <span className="text-rose-400 font-semibold">❌ เชื่อมต่อไม่สำเร็จ</span>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-3 border-t border-slate-800 flex justify-end">
                 <button
-                  onClick={() => {
-                    alert("บันทึกการตั้งค่าเรียบร้อยแล้ว!");
-                    onClose();
-                  }}
+                  onClick={handleSaveSettings}
                   className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-md cursor-pointer transition-all"
                 >
                   <Save className="w-4 h-4" />

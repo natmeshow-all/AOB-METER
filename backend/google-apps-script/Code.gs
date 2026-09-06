@@ -1,7 +1,9 @@
 /**
  * =========================================================================
  * ART OF BAKING CO., LTD. - Factory Utility & Meter Automation
- * ระบบอ่านและบันทึกมิเตอร์น้ำ-ไฟฟ้าอัตโนมัติ 100% (LINE OA + Gemini Vision)
+ * ระบบอ่านและบันทึกมิเตอร์น้ำ-ไฟฟ้าอัตโนมัติ 100% (Dual-Channel Architecture)
+ * 1. ทางที่ 1: LINE OA Batch Aggregator (ส่งหลายรูป รวมอ่านใน 1 API Call)
+ * 2. ทางที่ 2: Web Dashboard Multi-Image Scanner (สแกนและกดบันทึกลง Sheet ทันที)
  * =========================================================================
  */
 
@@ -48,7 +50,7 @@ function getTargetSpreadsheet() {
   }
 }
 
-// คืนค่าโมเดล Gemini ที่ถูกต้อง (ล็อกให้ใช้ gemini-3.6-flash ตามที่ Google API ต้องการ)
+// คืนค่าโมเดล Gemini ที่ถูกต้อง (gemini-3.6-flash ตามที่ Google API กำหนด)
 function getActiveGeminiModel() {
   if (SETTINGS.GEMINI_MODEL && !SETTINGS.GEMINI_MODEL.includes("2.5")) {
     return SETTINGS.GEMINI_MODEL;
@@ -60,12 +62,12 @@ function getActiveGeminiModel() {
 // 0. Health Check (สำหรับเปิดเช็คผ่าน Browser)
 // -------------------------------------------------------------------------
 function doGet(e) {
-  return ContentService.createTextOutput("AOB Meter Webhook Service is running OK (200)!")
+  return ContentService.createTextOutput("AOB Meter Webhook Service is running OK (200)!\nDual-Channel Ready: LINE OA + Web Dashboard")
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
 // -------------------------------------------------------------------------
-// 1. LINE Webhook Handler (รับทั้งรูปภาพ และ ข้อความแชท)
+// 1. Webhook Handler (รับทั้งจาก LINE OA และจาก Web Dashboard)
 // -------------------------------------------------------------------------
 function doPost(e) {
   try {
@@ -75,9 +77,28 @@ function doPost(e) {
     }
 
     const data = JSON.parse(e.postData.contents);
+
+    // =========================================================================
+    // ช่องทางที่ 2: คำสั่งบันทึกโดยตรงจาก Web Dashboard
+    // =========================================================================
+    if (data.action === "save_from_web") {
+      return handleSaveFromWeb(data);
+    }
+
+    // =========================================================================
+    // ช่องทางที่ 1: รับข้อความและรูปภาพจาก LINE OA Webhook
+    // =========================================================================
     const events = data.events || [];
 
     for (let event of events) {
+      // บันทึก group/user ID ล่าสุดไว้ใช้ส่งแจ้งเตือน
+      if (event.source) {
+        const sourceId = event.source.groupId || event.source.roomId || event.source.userId;
+        if (sourceId) {
+          PropertiesService.getScriptProperties().setProperty("LAST_LINE_TARGET_ID", sourceId);
+        }
+      }
+
       if (event.type === 'message') {
         if (event.message.type === 'text') {
           processIncomingTextMessage(event);
@@ -97,7 +118,69 @@ function doPost(e) {
 }
 
 // -------------------------------------------------------------------------
-// 2. จัดการข้อความตัวหนังสือ (เช่น พิมพ์ "วันที่4" หรือ "ทดสอบ")
+// ช่องทางที่ 2: บันทึกข้อมูลจาก Web Dashboard และส่งสรุปเข้า LINE
+// -------------------------------------------------------------------------
+function handleSaveFromWeb(data) {
+  try {
+    const readings = data.readings || [];
+    const targetDay = data.targetDay || null;
+    const recordedBy = data.recordedBy || "ช่างประจำวัน (ผ่าน Web Dashboard)";
+
+    if (readings.length === 0) {
+      return ContentService.createTextOutput(JSON.stringify({ success: false, message: "ไม่มีข้อมูลมิเตอร์ที่จะบันทึก" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // บันทึกลง Google Sheet
+    const saveResult = saveReadingsToSheet(readings, targetDay);
+
+    // สร้างข้อความสรุปส่งเข้ากลุ่ม LINE
+    let reportMsg = "🌐 [บันทึกข้อมูลผ่าน Web Dashboard สำเร็จ]\n";
+    reportMsg += "📅 ข้อมูลประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569\n";
+    reportMsg += "👤 ผู้บันทึก: " + recordedBy + "\n";
+    reportMsg += "-------------------------\n";
+
+    let count = 0;
+    readings.forEach(item => {
+      if (item.isIgnored) {
+        reportMsg += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\n";
+      } else {
+        count++;
+        reportMsg += "✅ " + item.target + "\n";
+        reportMsg += "🔢 ค่าที่อ่านได้: " + (item.rawReading || item.readingRaw) + " " + (item.unit || "") + "\n";
+        if (item.convertedKWh) {
+          reportMsg += "⚡ บันทึกหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\n";
+        }
+      }
+    });
+
+    reportMsg += "-------------------------\n";
+    reportMsg += "💾 บันทึกลง Google Sheet แล้ว " + saveResult.savedCount + " รายการ\n";
+    reportMsg += "✨ ข้อมูลซิงค์กับ AppSheet และ Dashboard เรียบร้อยแล้ว!";
+
+    // ส่ง Push Message เข้า LINE Group ถ้ามี Target ID
+    const props = PropertiesService.getScriptProperties();
+    const targetLineId = data.lineTargetId || props.getProperty("LAST_LINE_TARGET_ID");
+    if (targetLineId && SETTINGS.LINE_ACCESS_TOKEN && !SETTINGS.LINE_ACCESS_TOKEN.startsWith("YOUR_")) {
+      pushLineMessage(targetLineId, reportMsg);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      savedCount: saveResult.savedCount,
+      targetDay: saveResult.targetDay,
+      message: "บันทึกข้อมูลลง Google Sheet และส่งแจ้งเตือนเข้า LINE เรียบร้อย!"
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    console.error("handleSaveFromWeb Error:", err);
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// -------------------------------------------------------------------------
+// ช่องทางที่ 1: จัดการข้อความตัวหนังสือ (เช่น "วันที่ 4", "ทดสอบ")
 // -------------------------------------------------------------------------
 function processIncomingTextMessage(event) {
   const userText = (event.message.text || "").trim();
@@ -107,96 +190,127 @@ function processIncomingTextMessage(event) {
   if (dayMatch && (userText.includes("วัน") || userText.length <= 2)) {
     const selectedDay = parseInt(dayMatch[1], 10);
     PropertiesService.getScriptProperties().setProperty("TARGET_RECORD_DAY", selectedDay.toString());
-    sendLineNotification(event, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\n📸 สามารถส่งรูปมิเตอร์เข้ามาได้เลยครับ (ส่งพร้อมกันหลายรูปได้ ระบบจะเข้าคิวอ่านให้อัตโนมัติ)");
+    sendLineNotification(event, "📅 รับทราบครับ! ระบบตั้งค่าเป้าหมายเป็น [วันที่ " + selectedDay + " ก.ย.] เรียบร้อยแล้ว\n📸 ช่างสามารถส่งรูปมิเตอร์เข้ามาพร้อมกันหลายรูปได้เลยครับ (ระบบจะรวมอ่านใน 1 ครั้งทันที)");
     return;
   }
 
   // คำสั่งทดสอบระบบ
   if (userText.includes("ทดสอบ") || userText.toLowerCase().includes("test") || userText.includes("สวัสดี")) {
-    sendLineNotification(event, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\n\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาได้เลย (ส่งทีเดียวหลายรูปได้ ระบบจัดการคิวให้อัตโนมัติ)");
+    sendLineNotification(event, "🤖 สวัสดีครับ! ระบบ AI บันทึกมิเตอร์ ART OF BAKING ทำงานออนไลน์ 100% แล้วครับ\n\n📌 สามารถถ่ายรูปมิเตอร์ส่งเข้ามาพร้อมกันได้เลย (ระบบรองรับส่งทีเดียว 1-10 ภาพ รวมอ่านอัตโนมัติ)");
     return;
   }
 
-  sendLineNotification(event, "🤖 รับข้อความแล้วครับ: '" + userText + "'\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ");
+  sendLineNotification(event, "🤖 รับข้อความแล้วครับ: '" + userText + "'\n📸 หากต้องการบันทึกมิเตอร์ สามารถส่งรูปถ่ายมิเตอร์เข้ามาได้เลยครับ (ส่งพร้อมกันหลายภาพได้ครับ)");
 }
 
 // -------------------------------------------------------------------------
-// 3. ระบบหน่วงเวลาและคิวอัตโนมัติ (ป้องกัน Rate Limit 5 ครั้ง/นาที 100%)
-// -------------------------------------------------------------------------
-function throttleGeminiRateLimit() {
-  const minIntervalMs = 12500; // หน่วงเวลา 12.5 วินาทีต่อภาพ (การันตีไม่เกิน 5 ครั้ง/นาที)
-  const props = PropertiesService.getScriptProperties();
-  const lastCall = parseInt(props.getProperty("LAST_GEMINI_CALL_TIME") || "0", 10);
-  const now = Date.now();
-  const elapsed = now - lastCall;
-  if (elapsed < minIntervalMs) {
-    const waitTime = minIntervalMs - elapsed;
-    console.log("หน่วงเวลาเพื่อรอคิวโควต้า Gemini: " + waitTime + " ms");
-    Utilities.sleep(waitTime);
-  }
-  props.setProperty("LAST_GEMINI_CALL_TIME", Date.now().toString());
-}
-
-// -------------------------------------------------------------------------
-// 4. ประมวลผลรูปภาพด้วย Gemini Vision (มีระบบคิว + Rate Limiter)
+// ช่องทางที่ 1: ประมวลผลรูปภาพจาก LINE OA (Batch Multi-Image Aggregator)
 // -------------------------------------------------------------------------
 function processIncomingMeterImage(event) {
   const messageId = event.message.id;
+  const source = event.source || {};
+  const sourceId = source.groupId || source.roomId || source.userId || "default";
+  
+  const cache = CacheService.getScriptCache();
+  const cacheKey = "BATCH_IMGS_" + sourceId;
+  
+  // เพิ่ม messageId ลงในรายการบัฟเฟอร์
+  let pendingIds = [];
+  const existing = cache.get(cacheKey);
+  if (existing) {
+    try {
+      pendingIds = JSON.parse(existing);
+    } catch (e) {
+      pendingIds = [];
+    }
+  }
+  
+  if (!pendingIds.includes(messageId)) {
+    pendingIds.push(messageId);
+    cache.put(cacheKey, JSON.stringify(pendingIds), 60); // บันทึก 60 วินาที
+  }
+
+  // หน่วงเวลารอ 3.5 วินาที เพื่อให้รูปอื่นๆ ที่ช่างส่งมารอบเดียวกันเข้าบัฟเฟอร์ครบ
+  Utilities.sleep(3500);
+
+  // ดึงรายการล่าสุดหลังหน่วงเวลา
+  const latestExisting = cache.get(cacheKey);
+  let finalIds = pendingIds;
+  if (latestExisting) {
+    try {
+      finalIds = JSON.parse(latestExisting);
+    } catch (e) {}
+  }
+
+  // ใช้ LockService เพื่อให้มีเพียง 1 Worker เข้าไปประมวลผลชุดภาพนี้
   const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    // Worker ตัวอื่นกำลังประมวลผลชุดภาพนี้อยู่แล้ว ปล่อยให้ตัวนั้นทำงาน
+    return;
+  }
 
   try {
-    // 1. เข้าคิวประมวลผล (รอได้สูงสุด 60 วินาที สำหรับรูปที่ส่งพร้อมกัน)
-    lock.waitLock(60000);
+    // ล้าง Cache เมื่อเข้ามาประมวลผลแล้ว
+    cache.remove(cacheKey);
 
-    // หน่วงเวลาสั้นๆ 1.5 วินาทีเพื่อความเร็วสูงสุด และป้องกัน memory ชนกัน
-    Utilities.sleep(1500);
+    if (finalIds.length === 0) return;
 
-    // 3. ดาวน์โหลดรูปภาพจาก LINE
-    let imageBlob;
-    try {
-      imageBlob = fetchLineImageBlob(messageId);
-    } catch (err) {
-      sendLineNotification(event, "❌ ไม่สามารถดาวน์โหลดรูปจาก LINE ได้: " + err.message);
-      return;
+    // ดาวน์โหลดรูปภาพทั้งหมดในชุด
+    const imageBlobs = [];
+    for (let id of finalIds) {
+      try {
+        const blob = fetchLineImageBlob(id);
+        if (blob) imageBlobs.push(blob);
+      } catch (err) {
+        console.warn("ไม่สามารถดึงรูป ID " + id + ": " + err.message);
+      }
     }
 
-    // 4. ส่งวิเคราะห์ด้วย Gemini API (มี Auto-Retry ในตัว)
-    const aiResult = callGeminiVisionAPI(imageBlob);
+    if (imageBlobs.length === 0) return;
+
+    // 🌟 หัวใจสำคัญ: ส่งรูปภาพทั้งหมดในชุดไปให้ Gemini Vision ใน 1 API Call เดียว!
+    const aiResult = callGeminiVisionBatch(imageBlobs);
 
     if (aiResult.error) {
-      sendLineNotification(event, "⚠️ เกิดข้อผิดพลาดจาก Gemini API:\n" + aiResult.error);
+      console.error("Gemini Vision Error:", aiResult.error);
+      sendLineNotification(event, "⚠️ ระบบกำลังปรับคิวอ่านมิเตอร์ กรุณารอสักครู่แล้วส่งภาพใหม่อีกครั้งครับ");
       return;
     }
 
     if (!aiResult.readings || aiResult.readings.length === 0) {
-      sendLineNotification(event, "⚠️ ระบบตรวจไม่พบตัวเลขมิเตอร์ในภาพ กรุณาตรวจสอบว่าภาพชัดเจนและถ่ายใหม่อีกครั้ง");
+      sendLineNotification(event, "⚠️ ตรวจไม่พบตัวเลขมิเตอร์ในภาพที่ส่งมา กรุณาตรวจสอบความชัดเจนและถ่ายใหม่อีกครั้งครับ");
       return;
     }
 
-    // 5. ดึงวันเป้าหมายและบันทึกผลลง Google Sheet
+    // ดึงวันเป้าหมายและบันทึกผลลง Google Sheet
     const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
     const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
     const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
 
-    // 6. ส่งสรุปผลกลับ LINE (รองรับทั้ง Reply และ Push Message อัตโนมัติเมื่อคิวนาน)
-    let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ]\n-------------------------\n";
+    // ส่งสรุปผลรอบเดียว ไม่สแปมหลายข้อความ
+    let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ - รวม " + imageBlobs.length + " ภาพ]\n";
+    replyText += "📅 ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569\n";
+    replyText += "-------------------------\n";
+
     aiResult.readings.forEach(item => {
       if (item.isIgnored) {
-        replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามกำหนด\n";
+        replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\n";
       } else {
         replyText += "✅ " + item.target + "\n";
-        replyText += "🔢 ค่าที่อ่านได้: " + item.rawReading + " " + item.unit + "\n";
+        replyText += "🔢 อ่านได้: " + (item.rawReading || item.readingRaw) + " " + (item.unit || "") + "\n";
+        if (item.convertedKWh) {
+          replyText += "⚡ แปลงหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\n";
+        }
       }
     });
 
     replyText += "-------------------------\n";
-    replyText += "💾 บันทึกลง Google Sheet ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569 เรียบร้อย!";
+    replyText += "💾 บันทึกลง Google Sheet และ AppSheet แล้ว " + saveResult.savedCount + " จุดเรียบร้อย!";
 
     sendLineNotification(event, replyText);
 
   } catch (err) {
-    console.error("Queue Processing Error:", err);
-    sendLineNotification(event, "⚠️ คิวส่งรูปหนาแน่นเกินไป กรุณาส่งรูปนี้ใหม่อีกครั้งครับ");
+    console.error("Batch Processing Exception:", err);
   } finally {
     lock.releaseLock();
   }
@@ -211,34 +325,44 @@ function fetchLineImageBlob(messageId) {
   };
   const response = UrlFetchApp.fetch(url, options);
   if (response.getResponseCode() !== 200) {
-    throw new Error("LINE HTTP " + response.getResponseCode() + ": " + response.getContentText());
+    throw new Error("LINE HTTP " + response.getResponseCode());
   }
   return response.getBlob();
 }
 
-// ส่งภาพให้ Google Gemini API
-function callGeminiVisionAPI(imageBlob) {
-  const base64Image = Utilities.base64Encode(imageBlob.getBytes());
-  const mimeType = imageBlob.getContentType() || "image/jpeg";
-
+// -------------------------------------------------------------------------
+// 🌟 ส่งรูปหลายภาพพร้อมกันให้ Google Gemini API ใน 1 คำขอเดียว (Single Call Multi-Image)
+// -------------------------------------------------------------------------
+function callGeminiVisionBatch(imageBlobs) {
   const promptText = `
-คุณเป็นผู้เชี่ยวชาญในการอ่านมิเตอร์น้ำและไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
-ภาพอาจถูกถ่ายในแนวตั้ง แนวนอน หรือหมุนเอียง 90 องศา กรุณาอ่านตัวเลขและป้ายชื่อให้ถูกต้อง
+คุณเป็นผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
+ในคำขอนี้จะมีรูปถ่ายมิเตอร์น้ำและตู้ไฟฟ้าจำนวน 1 หรือหลายภาพ กรุณาวิเคราะห์ทุกภาพและอ่านค่าตัวเลขให้ครบถ้วนทุกจุด
 
-เกณฑ์การระบุและอ่านค่ามิเตอร์:
-1. มิเตอร์น้ำหลัก ARAD Octave ดิจิทัล (S/N: 193019061, ตัวเรือนสีฟ้า/เทา):
-   - อ่านเฉพาะตัวเลขจำนวนเต็มหลัก m³ (เช่น 000206933.155 ให้ตัดเลขทศนิยมออก อ่านเป็น "206933")
-   - ห้ามอ่านเลขทศนิยม 3 จุดหลัง
+เกณฑ์การระบุและอ่านค่ามิเตอร์ของโรงงาน:
+1. มิเตอร์น้ำหลัก ARAD Octave ดิจิทัล (S/N: 193019061, หน้าปัด LCD ดิจิทัล ตัวเรือนสีฟ้า/เทา):
+   - อ่านเฉพาะตัวเลขจำนวนเต็มหลัก m³ (เช่น 000206933.155 หรือ 206074 ให้ตัดจุดทศนิยม 3 หลักหลังออก บันทึกเป็นจำนวนเต็ม เช่น "206933" หรือ "206074")
+   - หน่วย: m³
+   - meterId: "WATER-MAIN"
 2. มิเตอร์น้ำ Soft (Itrón S/N: F19S000630):
-   - อ่านเลขลูกล้อสีดำ 5 หลัก (เช่น 12927 หรือ 12945)
+   - อ่านเลขลูกล้อสีดำ 5 หลัก (เช่น 12907 หรือ 12927)
+   - หน่วย: m³
+   - meterId: "WATER-SOFT"
 3. มิเตอร์น้ำ EVAP (Itrón S/N: F19S000648):
-   - อ่านเลขลูกล้อสีดำ 5 หลัก และสีแดงทศนิยม 1 หลัก (เช่น 77811.8)
-4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200:
-   - ตรวจจับป้ายตู้ (C2-2, C3-2, C4-2) และป้ายชื่อ (Q1-1 ถึง Q1-8)
-   - อ่านบรรทัด E Del พร้อมหน่วย (GWh หรือ MWh หรือ kWh)
-   - ข้อยกเว้น: ตู้ C3-2 แถบสีแดง ตัวแรกบนซ้าย (Q1-1) ไม่ใช้งาน ให้ตั้ง isIgnored: true
+   - อ่านเลขลูกล้อสีดำ 5 หลัก และสีแดงทศนิยม 1 หลัก (เช่น 77593.1 หรือ 77811.8)
+   - หน่วย: m³
+   - meterId: "WATER-EVAP"
+4. มิเตอร์ไฟฟ้า Schneider EasyLogic PM2200 (14 จุดในตู้ C2-2, C3-2, C4-2):
+   - สแกนหาป้ายรหัสตู้ และป้ายชื่อเบรกเกอร์ (Q1-1 ถึง Q1-8)
+   - อ่านค่าบรรทัด "E Del" พร้อมหน่วย (GWh หรือ MWh หรือ kWh)
+   - แปลงค่าเป็นหน่วย kWh เสมอ:
+     * หากเป็น GWh ให้คูณ 1,000,000 (เช่น 1.7788 GWh -> 1778800 kWh, 21.320 GWh -> 21320000 kWh)
+     * หากเป็น MWh ให้คูณ 1,000 (เช่น 812.14 MWh -> 812140 kWh)
+     * หากเป็น kWh ให้ใช้ค่านั้นได้เลย
+   - กฎพิเศษสำหรับตู้ C3-2 แถบสีแดง:
+     * ตัวแรกบนซ้าย ป้าย Q1-1 (Fire Pump / ไม่ใช้งาน) ให้ตั้ง isIgnored: true
+     * บันทึกเฉพาะตัวที่ 2 ถึง 6 (Q1-2 ถึง Q1-6)
 
-ตอบกลับในรูปแบบ JSON เท่านั้น:
+ตอบกลับในรูปแบบ JSON Array เท่านั้น:
 {
   "readings": [
     {
@@ -246,8 +370,21 @@ function callGeminiVisionAPI(imageBlob) {
       "meterId": "WATER-MAIN",
       "target": "มิเตอร์น้ำหลัก หน้าโรงงาน",
       "serialNumber": "193019061",
-      "rawReading": "206933",
+      "rawReading": "206074",
       "unit": "m³",
+      "convertedKWh": null,
+      "benchmarkStatus": "ปกติ",
+      "isIgnored": false
+    },
+    {
+      "meterType": "ELECTRICITY",
+      "meterId": "MDB1-Q1-3",
+      "panel": "C4-2",
+      "tag": "Q1-3",
+      "target": "MDB-1 Q1-3 (Air Compressor)",
+      "rawReading": "812.14 MWh",
+      "unit": "MWh",
+      "convertedKWh": 812140,
       "benchmarkStatus": "ปกติ",
       "isIgnored": false
     }
@@ -255,14 +392,27 @@ function callGeminiVisionAPI(imageBlob) {
 }
 `;
 
+  // รวมทุกภาพเข้าใน contents parts เดียวกัน
+  const parts = [{ text: promptText }];
+  imageBlobs.forEach(blob => {
+    const mimeType = blob.getContentType() || "image/jpeg";
+    const base64Data = Utilities.base64Encode(blob.getBytes());
+    parts.push({
+      inline_data: {
+        mime_type: mimeType,
+        data: base64Data
+      }
+    });
+  });
+
   const requestPayload = {
-    contents: [
-      { parts: [{ text: promptText }, { inline_data: { mime_type: mimeType, data: base64Image } }] }
-    ],
-    generationConfig: { temperature: 0.1, response_mime_type: "application/json" }
+    contents: [{ parts: parts }],
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: "application/json"
+    }
   };
 
-  // ดึงโมเดลและรายการกุญแจที่มีทั้งหมด
   const model = getActiveGeminiModel();
   const keys = getGeminiApiKeys();
 
@@ -270,12 +420,11 @@ function callGeminiVisionAPI(imageBlob) {
     return { error: "ไม่พบ Gemini API Key ในระบบ กรุณาใส่ใน SETTINGS.GEMINI_API_KEYS" };
   }
 
-  // ดึงลำดับกุญแจแบบ Round-Robin
+  // ระบบ Round-Robin และ Failover ทันที
   const props = PropertiesService.getScriptProperties();
   let startIdx = parseInt(props.getProperty("KEY_ROTATION_INDEX") || "0", 10);
   if (isNaN(startIdx) || startIdx >= keys.length) startIdx = 0;
 
-  // วนลองกุญแจทั้งหมดที่มี (ถ้า Key 1 ชน 429/503 สลับไป Key 2, 3 ทันทีในเสี้ยววินาที!)
   for (let attempt = 0; attempt < keys.length; attempt++) {
     const currentIdx = (startIdx + attempt) % keys.length;
     const currentKey = keys[currentIdx];
@@ -292,18 +441,16 @@ function callGeminiVisionAPI(imageBlob) {
       const response = UrlFetchApp.fetch(url, options);
       const json = JSON.parse(response.getContentText());
 
-      // สำเร็จ 100%! บันทึก Index ถัดไปและคืนค่าทันที
       if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
         props.setProperty("KEY_ROTATION_INDEX", ((currentIdx + 1) % keys.length).toString());
         let text = json.candidates[0].content.parts[0].text;
-        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        text = text.replace(/^```json/gm, "").replace(/^```/gm, "").replace(/```$/gm, "").trim();
         return JSON.parse(text);
       }
 
       if (json.error) {
-        console.warn("Key #" + (currentIdx + 1) + " ตอบกลับ: " + json.error.code + " (" + json.error.message + ")");
+        console.warn("Key #" + (currentIdx + 1) + " ตอบกลับ: " + json.error.code);
         if (json.error.code === 429 || json.error.code === 503) {
-          // หากยังมี Key สำรองตัวอื่น ให้สลับไปใช้ตัวถัดไปทันทีโดยไม่ต้องรอ!
           if (keys.length > 1 && attempt < keys.length - 1) {
             console.log("⚡ สลับไปใช้ Key สำรองตัวถัดไปทันที...");
             continue;
@@ -315,44 +462,24 @@ function callGeminiVisionAPI(imageBlob) {
     }
   }
 
-  // หากลองทุก Key แล้วยังติดโควต้า ให้รอ 20 วินาทีแล้วลองใหม่อีก 1 รอบ
-  console.warn("ทุก Key ติดโควต้า กำลังรอ 20 วินาทีก่อนลองรอบสุดท้าย...");
-  Utilities.sleep(20000);
-  for (let k = 0; k < keys.length; k++) {
-    try {
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + keys[k];
-      const response = UrlFetchApp.fetch(url, {
-        method: "POST",
-        contentType: "application/json",
-        payload: JSON.stringify(requestPayload),
-        muteHttpExceptions: true
-      });
-      const json = JSON.parse(response.getContentText());
-      if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts[0].text) {
-        let text = json.candidates[0].content.parts[0].text;
-        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        return JSON.parse(text);
-      }
-    } catch (err) {}
-  }
-
-  return { error: "ระบบไม่สามารถอ่านภาพได้ในขณะนี้ (โควต้าทุก Key เต็มชั่วคราว กรุณารอ 30 วินาที)" };
+  return { error: "ระบบไม่สามารถอ่านภาพได้ในขณะนี้ กรุณารอสักครู่แล้วลองใหม่" };
 }
 
 // -------------------------------------------------------------------------
-// 4. บันทึกข้อมูลลง Google Sheet (มี Lock ป้องกัน Concurrency ตีกัน)
+// 4. บันทึกข้อมูลลง Google Sheet (ทั้งค่าน้ำ และค่าไฟฟ้า)
 // -------------------------------------------------------------------------
 function saveReadingsToSheet(readings, customDay) {
   const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(30000); // รอคิวได้สูงสุด 30 วินาที
+    lock.waitLock(30000); // ป้องกัน race condition
 
     const ss = getTargetSpreadsheet();
     const sheetWater = ss.getSheetByName("ค่าน้ำ");
+    const sheetElec = ss.getSheetByName("ค่าไฟฟ้า") || ss.getSheetByName("ไฟฟ้า") || ss.getSheetByName("MDB");
     
     let targetDay = customDay;
 
-    // หากไม่ได้ระบุวันมา ให้หารอบวันที่ว่างถัดไปในชีตอัตโนมัติ
+    // หากไม่ได้ระบุวันมา ให้หารอบวันที่ยังว่างในชีตค่าน้ำ
     if (!targetDay && sheetWater) {
       for (let d = 1; d <= 31; d++) {
         const row = 5 + d;
@@ -368,8 +495,7 @@ function saveReadingsToSheet(readings, customDay) {
 
     if (!targetDay) {
       const now = new Date();
-      const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-      targetDay = yesterday.getDate();
+      targetDay = now.getDate();
     }
 
     let savedCount = 0;
@@ -377,20 +503,41 @@ function saveReadingsToSheet(readings, customDay) {
     readings.forEach(item => {
       if (item.isIgnored) return;
 
-      if (item.meterType === "WATER" && sheetWater) {
+      const rawVal = parseFloat(item.rawReading || item.readingRaw || 0);
+      const convertedVal = item.convertedKWh ? parseFloat(item.convertedKWh) : rawVal;
+
+      // 1. บันทึกลงตารางค่าน้ำ
+      if ((item.meterType === "WATER" || item.meterId?.startsWith("WATER")) && sheetWater) {
         const row = 5 + targetDay;
-        const val = parseFloat(item.rawReading);
         if (item.meterId === "WATER-MAIN" || (item.serialNumber && item.serialNumber.includes("193019061"))) {
-          sheetWater.getRange(row, 2).setValue(val);
+          sheetWater.getRange(row, 2).setValue(rawVal);
           savedCount++;
         } else if (item.meterId === "WATER-SOFT" || (item.serialNumber && item.serialNumber.includes("000630"))) {
-          sheetWater.getRange(row, 4).setValue(val);
+          sheetWater.getRange(row, 4).setValue(rawVal);
           savedCount++;
         } else if (item.meterId === "WATER-EVAP" || (item.serialNumber && item.serialNumber.includes("000648"))) {
-          sheetWater.getRange(row, 6).setValue(val);
+          sheetWater.getRange(row, 6).setValue(rawVal);
           savedCount++;
         }
-        sheetWater.getRange(row, 8).setValue("LINE Bot (AI Verified)");
+        sheetWater.getRange(row, 8).setValue("AI Auto-Verified");
+      }
+
+      // 2. บันทึกลงตารางค่าไฟฟ้า (ถ้ามีชีตไฟฟ้า)
+      if ((item.meterType === "ELECTRICITY" || item.tag) && sheetElec) {
+        try {
+          const tag = item.tag || "";
+          const lastRow = sheetElec.getLastRow();
+          for (let r = 1; r <= Math.min(lastRow, 50); r++) {
+            const cellText = sheetElec.getRange(r, 2).getValue().toString();
+            if (tag && cellText.includes(tag)) {
+              sheetElec.getRange(r, 5).setValue(convertedVal);
+              savedCount++;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn("ไม่สามารถเขียนค่าไฟฟ้าแถว " + item.tag + ": " + e.message);
+        }
       }
     });
 
@@ -401,7 +548,7 @@ function saveReadingsToSheet(readings, customDay) {
 }
 
 // -------------------------------------------------------------------------
-// 6. ฟังก์ชันส่งข้อความ LINE (รองรับทั้ง Reply Token และ Push Message อัตโนมัติ)
+// 5. ส่งข้อความ LINE (Reply และ Push Message)
 // -------------------------------------------------------------------------
 function sendLineNotification(event, text) {
   const replyToken = event.replyToken;
@@ -411,7 +558,6 @@ function sendLineNotification(event, text) {
     messages: [{ type: "text", text: text }]
   };
 
-  // 1. ลองส่งด้วย Reply Token ก่อน
   const res = UrlFetchApp.fetch(replyUrl, {
     method: "POST",
     contentType: "application/json",
@@ -420,42 +566,39 @@ function sendLineNotification(event, text) {
     muteHttpExceptions: true
   });
 
-  console.log("LINE Reply Response: " + res.getResponseCode() + " - " + res.getContentText());
-
-  // 2. ถ้า Reply Token หมดอายุ (เช่น รอนานเกิน 60 วินาทีในคิว) ให้ใช้ Push Message ทันที
+  // ถ้า Reply Token หมดอายุ ให้ Push Message ทันที
   if (res.getResponseCode() !== 200) {
     const targetId = (event.source && (event.source.groupId || event.source.userId || event.source.roomId));
     if (targetId) {
-      console.log("Reply token failed/expired, using Push fallback to " + targetId);
-      const pushUrl = "https://api.line.me/v2/bot/message/push";
-      const pushRes = UrlFetchApp.fetch(pushUrl, {
-        method: "POST",
-        contentType: "application/json",
-        headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
-        payload: JSON.stringify({
-          to: targetId,
-          messages: [{ type: "text", text: text }]
-        }),
-        muteHttpExceptions: true
-      });
-      console.log("LINE Push Response: " + pushRes.getResponseCode() + " - " + pushRes.getContentText());
+      pushLineMessage(targetId, text);
     }
   }
+}
+
+function pushLineMessage(toId, text) {
+  const pushUrl = "https://api.line.me/v2/bot/message/push";
+  UrlFetchApp.fetch(pushUrl, {
+    method: "POST",
+    contentType: "application/json",
+    headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
+    payload: JSON.stringify({
+      to: toId,
+      messages: [{ type: "text", text: text }]
+    }),
+    muteHttpExceptions: true
+  });
 }
 
 function replyLineMessage(replyToken, text) {
   sendLineNotification({ replyToken: replyToken }, text);
 }
 
-/**
- * =========================================================================
- * 6. ฟังก์ชันทดสอบระบบแบบคลิกเดียว (One-Click Diagnostic Test) ⭐
- * =========================================================================
- */
+// -------------------------------------------------------------------------
+// 6. ฟังก์ชันทดสอบระบบ (One-Click Diagnostic Test)
+// -------------------------------------------------------------------------
 function testFullSystem() {
   Logger.log("🚀 เริ่มต้นการทดสอบระบบเชื่อมต่อทั้งหมด...");
 
-  // 1. ทดสอบ Google Sheet
   try {
     const ss = getTargetSpreadsheet();
     Logger.log("✅ 1. Google Sheets: เชื่อมต่อสำเร็จ! (พบไฟล์: " + ss.getName() + ")");
@@ -463,7 +606,6 @@ function testFullSystem() {
     Logger.log("❌ 1. Google Sheets ล้มเหลว: " + err.message);
   }
 
-  // 2. ทดสอบ Gemini API (ทดสอบทุกกุญแจที่มี)
   try {
     const activeModel = getActiveGeminiModel();
     const keys = getGeminiApiKeys();
@@ -481,18 +623,17 @@ function testFullSystem() {
         });
         if (res.getResponseCode() === 200) {
           passCount++;
-          Logger.log("✅ Key [" + (idx + 1) + "]: เชื่อมต่อสำเร็จ 100%");
+          Logger.log("✅ Key [" + (idx + 1) + "]: ใช้งานได้ 100%");
         } else {
-          Logger.log("⚠️ Key [" + (idx + 1) + "] ล้มเหลว: " + res.getContentText());
+          Logger.log("⚠️ Key [" + (idx + 1) + "]: " + res.getContentText());
         }
       });
-      Logger.log("✅ 2. Gemini Vision API: พร้อมใช้งาน " + passCount + "/" + keys.length + " Keys (โมเดล: " + activeModel + ")");
+      Logger.log("✅ 2. Gemini Vision API: พร้อมใช้งาน " + passCount + "/" + keys.length + " Keys");
     }
   } catch (err) {
     Logger.log("❌ 2. Gemini API Exception: " + err.message);
   }
 
-  // 3. ทดสอบ LINE Token
   try {
     const resLine = UrlFetchApp.fetch("https://api.line.me/v2/bot/info", {
       headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },

@@ -75,6 +75,61 @@ export function App() {
     return sum;
   }, [monthlyTotals]);
 
+  const handleSaveReadings = (readings, targetDay) => {
+    setMonthlyDays(prevDays => {
+      return prevDays.map(dayRow => {
+        if (dayRow.day !== targetDay) return dayRow;
+
+        const updatedWater = { ...dayRow.water };
+        const updatedElec = { ...dayRow.electricity };
+
+        readings.forEach(item => {
+          if (item.isIgnored) return;
+
+          const numVal = parseFloat(item.rawReading || 0);
+
+          // Update Water
+          if (item.meterType === 'WATER' || item.meterId?.startsWith('WATER')) {
+            const meterId = item.meterId || 'WATER-MAIN';
+            const prevVal = dayRow.day === 1 
+              ? (WATER_METERS.find(m => m.id === meterId)?.baselineAug31 || numVal)
+              : (prevDays.find(d => d.day === dayRow.day - 1)?.water[meterId]?.current || numVal);
+            
+            const consumption = Number((numVal - prevVal).toFixed(1));
+            updatedWater[meterId] = {
+              current: numVal,
+              consumption: consumption >= 0 ? consumption : 0
+            };
+          }
+
+          // Update Electricity
+          if (item.meterType === 'ELECTRICITY' || item.tag) {
+            const elecMeter = ELECTRICITY_METERS.find(m => m.id === item.meterId || m.tag === item.tag);
+            if (elecMeter) {
+              const kwhVal = item.convertedKWh ? parseFloat(item.convertedKWh) : numVal;
+              const prevVal = dayRow.day === 1 
+                ? elecMeter.baselineAug31 
+                : (prevDays.find(d => d.day === dayRow.day - 1)?.electricity[elecMeter.id]?.current || kwhVal);
+              
+              const consumption = kwhVal - prevVal;
+              updatedElec[elecMeter.id] = {
+                current: kwhVal,
+                consumption: consumption >= 0 ? consumption : 0
+              };
+            }
+          }
+        });
+
+        return {
+          ...dayRow,
+          water: updatedWater,
+          electricity: updatedElec,
+          recordedBy: 'AI Verified (Web)',
+        };
+      });
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Top Navbar */}
@@ -181,7 +236,7 @@ export function App() {
       <MeterScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onSaveReadings={() => {}}
+        onSaveReadings={handleSaveReadings}
       />
 
       <LineBotSimulator
