@@ -569,24 +569,15 @@ function saveReadingsToSheet(readings, customDay) {
     const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
     const sheetElec = getElectricitySheet(ss);
     
-    let targetDay = customDay;
-
-    if (!targetDay && sheetWater) {
-      for (let d = 1; d <= 31; d++) {
-        const row = 5 + d;
-        const valMain = sheetWater.getRange(row, 2).getValue();
-        const valSoft = sheetWater.getRange(row, 4).getValue();
-        const valEvap = sheetWater.getRange(row, 6).getValue();
-        if (!valMain || !valSoft || !valEvap) {
-          targetDay = d;
-          break;
-        }
-      }
-    }
-
     if (!targetDay) {
-      const now = new Date();
-      targetDay = now.getDate();
+      const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
+      if (manualDayStr) {
+        targetDay = parseInt(manualDayStr, 10);
+      } else {
+        const now = new Date();
+        const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        targetDay = yesterday.getDate();
+      }
     }
 
     let savedCount = 0;
@@ -679,8 +670,49 @@ function replyLineMessage(replyToken, text) {
   sendLineNotification({ replyToken: replyToken }, text);
 }
 
-function saveDay5Now() {
-  Logger.log("🚀 เริ่มต้นบันทึกค่าน้ำและค่าไฟฟ้า วันที่ 5 ก.ย. 2569 จากภาพล่าสุด...");
+function moveDay5ToDay4() {
+  Logger.log("🚀 กำลังย้ายข้อมูลมิเตอร์จากวันที่ 5 ไปยังวันที่ 4 (วานนี้)...");
+  const ss = getTargetSpreadsheet();
+  const sheetElec = getElectricitySheet(ss);
+  const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
+
+  let movedElecCount = 0;
+
+  if (sheetElec) {
+    const colDay4 = findElectricityTargetCol(sheetElec, 4);
+    const colDay5 = findElectricityTargetCol(sheetElec, 5);
+
+    const rows = [3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17];
+    rows.forEach(r => {
+      const val = sheetElec.getRange(r, colDay5).getValue();
+      if (val !== "" && val !== null && val !== undefined) {
+        sheetElec.getRange(r, colDay4).setValue(val);
+        sheetElec.getRange(r, colDay5).clearContent();
+        movedElecCount++;
+      }
+    });
+    Logger.log("✅ ย้ายค่าไฟฟ้าเข้าวันที่ 4 (คอลัมน์ I) สำเร็จ: " + movedElecCount + " รายการ");
+  }
+
+  if (sheetWater) {
+    const rowDay4 = 5 + 4;
+    const rowDay5 = 5 + 5;
+
+    for (let c = 2; c <= 8; c++) {
+      const val = sheetWater.getRange(rowDay5, c).getValue();
+      if (val !== "" && val !== null && val !== undefined) {
+        sheetWater.getRange(rowDay4, c).setValue(val);
+        sheetWater.getRange(rowDay5, c).clearContent();
+      }
+    }
+    Logger.log("✅ ย้ายค่าน้ำเข้าวันที่ 4 (แถว 9) สำเร็จ (ล้างวันที่ 5 เรียบร้อย)");
+  }
+
+  Logger.log("🏁 ย้ายข้อมูลสำเร็จ 100%!");
+}
+
+function saveDay4Now() {
+  Logger.log("🚀 เริ่มต้นบันทึกค่าน้ำและค่าไฟฟ้า เข้าวันที่ 4 ก.ย. 2569...");
 
   const readings = [
     { meterType: "WATER", meterId: "WATER-EVAP", rawReading: "77811.8", unit: "m³" },
@@ -698,8 +730,12 @@ function saveDay5Now() {
     { meterType: "ELECTRICITY", panel: "C3-2", tag: "Q1-6", target: "C3-2 Q1-6 (Red AS/RS)", convertedKWh: 63941 }
   ];
 
-  const res = saveReadingsToSheet(readings, 5);
-  Logger.log("✅ บันทึกข้อมูลวันที่ 5 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+  const res = saveReadingsToSheet(readings, 4);
+  Logger.log("✅ บันทึกข้อมูลวันที่ 4 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
+}
+
+function saveDay5Now() {
+  saveDay4Now();
 }
 
 function testFullSystem() {
