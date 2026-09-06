@@ -55,14 +55,19 @@ export const SettingsModal = ({ isOpen, onClose }) => {
   };
 
   const handleTestGasUrl = async () => {
-    if (!gasWebhookUrl) {
+    const url = gasWebhookUrl.trim();
+    if (!url) {
       alert("กรุณาระบุ Google Apps Script Webhook URL ก่อนทดสอบ");
+      return;
+    }
+    if (url.endsWith('/dev')) {
+      setGasStatus('dev_error');
       return;
     }
     setIsTestingGas(true);
     setGasStatus(null);
     try {
-      const res = await fetch(gasWebhookUrl, { method: 'GET', mode: 'no-cors' });
+      await fetch(url, { method: 'GET', mode: 'no-cors' });
       setGasStatus('connected');
     } catch (err) {
       setGasStatus('error');
@@ -72,8 +77,16 @@ export const SettingsModal = ({ isOpen, onClose }) => {
   };
 
   const handleTestLine = async () => {
-    if (!gasWebhookUrl) {
+    const url = gasWebhookUrl.trim();
+    if (!url) {
       alert("⚠️ กรุณาระบุ Google Apps Script Web App URL ในช่องด้านล่างก่อนทดสอบส่งเข้า LINE");
+      return;
+    }
+    if (url.endsWith('/dev')) {
+      setLineTestResult({
+        success: false,
+        message: "❌ URL ของคุณลงท้ายด้วย '/dev' ซึ่งเป็นลิงก์ทดสอบภายใน Google จะบล็อกการเชื่อมต่อทั้งหมด! กรุณาเปลี่ยนเป็น URL ที่ลงท้ายด้วย '/exec' จากเมนู 'จัดการการทำให้ใช้งานได้ (Manage deployments)' ใน Apps Script ครับ"
+      });
       return;
     }
     setIsTestingLine(true);
@@ -83,7 +96,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
         action: "test_line_notification",
         lineToken: lineToken
       };
-      await fetch(gasWebhookUrl, {
+      await fetch(url, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -91,7 +104,7 @@ export const SettingsModal = ({ isOpen, onClose }) => {
       });
       setLineTestResult({
         success: true,
-        message: "📡 ส่งคำขอทดสอบไปยังระบบเรียบร้อยแล้ว! กรุณาเปิดดูในห้องแชท LINE OA (หากข้อความไม่เข้า ให้พิมพ์คำว่า 'ทดสอบ' ในห้องแชท LINE ก่อน 1 ครั้งเพื่อให้บอทจำ ID ห้องแชท)"
+        message: "📡 ส่งคำขอทดสอบไปยังระบบเรียบร้อยแล้ว! กรุณาเปิดดูในห้องแชท LINE OA ได้เลยครับ"
       });
     } catch (err) {
       setLineTestResult({
@@ -273,12 +286,35 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none text-xs"
                   placeholder="https://script.google.com/macros/s/.../exec"
                 />
+                {gasWebhookUrl.trim().endsWith('/dev') && (
+                  <div className="mt-2 p-2.5 bg-amber-950/70 border border-amber-500/60 rounded-lg text-amber-200 text-xs flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <span>⚠️ ตรวจพบ URL ลงท้ายด้วย /dev (Test Deployment)</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-200/90">
+                      ลิงก์ที่ลงท้ายด้วย <code>/dev</code> เป็นลิงก์ที่ Google บังคับล็อกอินและบล็อกการเชื่อมต่อจากหน้าเว็บภายนอกครับ ทำให้ส่งข้อมูลหรือทดสอบจากเว็บไม่สำเร็จ! กรุณาใช้ลิงก์ที่ลงท้ายด้วย <code>/exec</code>
+                    </p>
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setGasWebhookUrl(prev => prev.trim().replace(/\/dev$/, '/exec'))}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium text-[11px] transition cursor-pointer shadow"
+                      >
+                        ⚡ เปลี่ยนเป็น /exec ให้ทันที
+                      </button>
+                      <span className="text-[11px] text-amber-300/80">หรือนำ URL จากเมนู Manage deployments มาวาง</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-1 text-[11px]">
                   <p className="text-slate-500">
-                    ได้จากเมนู <strong>ทำให้ใช้งานได้ &gt; รายการทำให้ใช้งานได้ใหม่ (New deployment) &gt; เว็บแอป (Web app)</strong>
+                    ต้องเป็น URL ที่ลงท้ายด้วย <strong>/exec</strong> (ได้จากเมนู <strong>ทำให้ใช้งานได้ &gt; จัดการการทำให้ใช้งานได้</strong>)
                   </p>
                   {gasStatus === 'connected' && (
                     <span className="text-emerald-400 font-semibold">✅ เชื่อมต่อสำเร็จ!</span>
+                  )}
+                  {gasStatus === 'dev_error' && (
+                    <span className="text-amber-400 font-semibold">⚠️ ไม่อนุญาตให้ใช้ /dev</span>
                   )}
                   {gasStatus === 'error' && (
                     <span className="text-rose-400 font-semibold">❌ เชื่อมต่อไม่สำเร็จ</span>

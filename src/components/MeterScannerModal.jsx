@@ -1305,6 +1305,10 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
       alert("⚠️ กรุณาวาง Web App URL ในช่องด้านล่างก่อนทดสอบส่งเข้า LINE");
       return;
     }
+    if (activeGasUrl.endsWith('/dev')) {
+      setLineModalTestMsg("❌ URL ลงท้ายด้วย '/dev' เป็นลิงก์ที่ Google บล็อกการเรียกจากเว็บภายนอกครับ! กรุณาเปลี่ยนเป็น URL ที่ลงท้ายด้วย '/exec' ในตั้งค่า ⚙️");
+      return;
+    }
     setIsTestingLine(true);
     setLineModalTestMsg(null);
     try {
@@ -1314,7 +1318,7 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: "test_line_notification" })
       });
-      setLineModalTestMsg("📡 ส่งคำขอทดสอบเข้า LINE เรียบร้อยแล้ว! กรุณาเปิดเช็คในห้องแชท LINE (หากไม่เข้าให้พิมพ์คำว่า 'ทดสอบ' ในห้องแชทบอท 1 ครั้งเพื่อให้ระบบบันทึกห้องแชท)");
+      setLineModalTestMsg("📡 ส่งคำขอทดสอบเข้า LINE เรียบร้อยแล้ว! กรุณาเปิดเช็คในห้องแชท LINE OA ได้เลยครับ");
     } catch (e) {
       setLineModalTestMsg("❌ ส่งคำขอไม่สำเร็จ: " + e.message);
     } finally {
