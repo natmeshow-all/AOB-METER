@@ -214,8 +214,14 @@ function callGeminiVisionAPI(imageBlob) {
       if (json.error) {
         if (json.error.code === 404) continue;
         if (json.error.code === 429 || json.error.code === 503) {
-          console.warn("Gemini Rate Limit / Busy. Sleeping 15s then retry...");
-          Utilities.sleep(15000);
+          let waitMs = 20000;
+          const match = (json.error.message || "").match(/retry in ([0-9.]+)s/i);
+          if (match) {
+            waitMs = (Math.ceil(parseFloat(match[1])) + 2) * 1000;
+          }
+          console.warn("Gemini 429/503. Waiting " + waitMs + " ms before retry...");
+          Utilities.sleep(Math.min(waitMs, 65000));
+
           const retryRes = UrlFetchApp.fetch(url, options);
           const retryJson = JSON.parse(retryRes.getContentText());
           if (retryJson.candidates && retryJson.candidates[0].content && retryJson.candidates[0].content.parts[0].text) {
@@ -224,7 +230,12 @@ function callGeminiVisionAPI(imageBlob) {
             return JSON.parse(text);
           }
           if (retryJson.error && (retryJson.error.code === 429 || retryJson.error.code === 503)) {
-            Utilities.sleep(12000);
+            let waitMs2 = 25000;
+            const match2 = (retryJson.error.message || "").match(/retry in ([0-9.]+)s/i);
+            if (match2) {
+              waitMs2 = (Math.ceil(parseFloat(match2[1])) + 2) * 1000;
+            }
+            Utilities.sleep(Math.min(waitMs2, 65000));
             const retryRes2 = UrlFetchApp.fetch(url, options);
             const retryJson2 = JSON.parse(retryRes2.getContentText());
             if (retryJson2.candidates && retryJson2.candidates[0].content && retryJson2.candidates[0].content.parts[0].text) {
