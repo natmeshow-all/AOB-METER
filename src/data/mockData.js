@@ -58,8 +58,8 @@ export const WATER_METERS = [
     baselineAug31: 77550.1, // ค่า 31 ส.ค. ตามที่ระบุ
     readingSep01: 77593.1,  // ค่า 1 ก.ย. ตามที่ระบุ (ใช้ไป 43.0 m³)
     avgDailyUsage: 43.0,
-    expectedMin: 25,
-    expectedMax: 65,        // เกณฑ์ปกติ 25-65 หน่วย
+    expectedMin: 20,
+    expectedMax: 180,       // เกณฑ์ปกติรองรับช่วงโหลดทำความเย็นสูง (20-180 หน่วย)
     decimalPlaces: 1,
     storagePolicy: "ชั่วคราว 1 วัน (เก็บเฉพาะภาพล่าสุด)",
   },
@@ -300,7 +300,7 @@ export const generateMonthlyData = () => {
           d2Current = 12927; // ค่าจริงจากรูปถ่าย 12927 (ลูกล้อดำ)
           d2Prev = 12921;
         } else if (m.id === "WATER-EVAP") {
-          d2Current = 77636.1;
+          d2Current = 77720; // ค่าจริงวันที่ 2 ก.ย. ตามที่ระบุ (ใช้น้ำไป 77720 - 77593.1 = 126.9 m³)
           d2Prev = 77593.1;
         }
         waterReadings[m.id] = {
