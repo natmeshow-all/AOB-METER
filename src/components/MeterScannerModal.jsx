@@ -38,6 +38,8 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
   const [isSavedUrl, setIsSavedUrl] = useState(false);
   const [scanStepText, setScanStepText] = useState("");
   const [scanElapsedSeconds, setScanElapsedSeconds] = useState(0);
+  const [isTestingLine, setIsTestingLine] = useState(false);
+  const [lineModalTestMsg, setLineModalTestMsg] = useState(null);
 
   // Sample presets from real factory photos
   const samplePresets = [
@@ -1297,6 +1299,29 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     });
   };
 
+  const handleTestLineFromModal = async () => {
+    const activeGasUrl = (gasUrlInput || savedSettings.gasWebhookUrl || '').trim();
+    if (!activeGasUrl) {
+      alert("⚠️ กรุณาวาง Web App URL ในช่องด้านล่างก่อนทดสอบส่งเข้า LINE");
+      return;
+    }
+    setIsTestingLine(true);
+    setLineModalTestMsg(null);
+    try {
+      await fetch(activeGasUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: "test_line_notification" })
+      });
+      setLineModalTestMsg("📡 ส่งคำขอทดสอบเข้า LINE เรียบร้อยแล้ว! กรุณาเปิดเช็คในห้องแชท LINE (หากไม่เข้าให้พิมพ์คำว่า 'ทดสอบ' ในห้องแชทบอท 1 ครั้งเพื่อให้ระบบบันทึกห้องแชท)");
+    } catch (e) {
+      setLineModalTestMsg("❌ ส่งคำขอไม่สำเร็จ: " + e.message);
+    } finally {
+      setIsTestingLine(false);
+    }
+  };
+
   const currentPreview = selectedImages[activeImageIndex] || selectedImages[0];
 
   return (
@@ -1648,6 +1673,32 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
                       }
                     </span>
                   </button>
+
+                  {/* Test LINE Notification quick action */}
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={handleTestLineFromModal}
+                      disabled={isTestingLine}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 underline cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
+                    >
+                      {isTestingLine ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      <span>🔔 ทดสอบส่งข้อความเข้า LINE (เช็คการเชื่อมต่อ)</span>
+                    </button>
+                    <span className="text-[11px] text-slate-500">
+                      เช็คได้ทันทีก่อนกดยืนยันบันทึก
+                    </span>
+                  </div>
+
+                  {lineModalTestMsg && (
+                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-cyan-300 leading-relaxed">
+                      {lineModalTestMsg}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

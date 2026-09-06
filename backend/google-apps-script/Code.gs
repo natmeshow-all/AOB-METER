@@ -83,7 +83,15 @@ function getActiveGeminiModel() {
 // -------------------------------------------------------------------------
 // 0. Health Check (สำหรับเปิดเช็คผ่าน Browser)
 // -------------------------------------------------------------------------
+// 0. Health Check & Test Line Notification (สำหรับเปิดเช็คผ่าน Browser หรือ Web App)
+// -------------------------------------------------------------------------
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === "test_line_notification") {
+    return handleTestLineNotification({
+      lineToken: e.parameter.lineToken,
+      targetLineId: e.parameter.targetLineId
+    });
+  }
   return ContentService.createTextOutput("AOB Meter Webhook Service is running OK (200)!\nDual-Channel Ready: LINE OA + Web Dashboard")
     .setMimeType(ContentService.MimeType.TEXT);
 }
@@ -105,6 +113,13 @@ function doPost(e) {
     // =========================================================================
     if (data.action === "save_from_web") {
       return handleSaveFromWeb(data);
+    }
+
+    // =========================================================================
+    // ช่องทางที่ 3: ทดสอบส่งแจ้งเตือนเข้า LINE ผ่าน Web Dashboard
+    // =========================================================================
+    if (data.action === "test_line_notification") {
+      return handleTestLineNotification(data);
     }
 
     // =========================================================================
@@ -198,6 +213,105 @@ function handleSaveFromWeb(data) {
     console.error("handleSaveFromWeb Error:", err);
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// -------------------------------------------------------------------------
+// ช่องทางที่ 3: ฟังก์ชันทดสอบการเชื่อมต่อ LINE Notification จาก Web Dashboard
+// -------------------------------------------------------------------------
+function handleTestLineNotification(data) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const token = (data && data.lineToken) || SETTINGS.LINE_ACCESS_TOKEN;
+    const targetId = (data && data.targetLineId) || props.getProperty("LAST_LINE_TARGET_ID");
+
+    if (!token || token.startsWith("YOUR_")) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        reason: "NO_TOKEN",
+        message: "❌ ยังไม่ได้ระบุ LINE Channel Access Token ในระบบ"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 1. ตรวจสอบ Token กับ LINE Bot Info API
+    const botInfoUrl = "https://api.line.me/v2/bot/info";
+    const botRes = UrlFetchApp.fetch(botInfoUrl, {
+      method: "GET",
+      headers: { "Authorization": "Bearer " + token },
+      muteHttpExceptions: true
+    });
+
+    if (botRes.getResponseCode() !== 200) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        reason: "INVALID_TOKEN",
+        httpCode: botRes.getResponseCode(),
+        message: "❌ LINE Token ไม่ถูกต้อง หรือหมดอายุ (LINE ตอบกลับ HTTP " + botRes.getResponseCode() + ")"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const botData = JSON.parse(botRes.getContentText());
+    const botName = botData.displayName || "AOB Meter LINE Bot";
+
+    // 2. ถ้ายังไม่พบ Target ID ในระบบ
+    if (!targetId) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        connected: true,
+        delivered: false,
+        reason: "NO_TARGET_ID",
+        botName: botName,
+        message: "✅ LINE Token ของบอท '" + botName + "' ถูกต้องและเชื่อมต่อสำเร็จแล้ว! (แต่ยังไม่พบห้องแชทเป้าหมาย กรุณาเปิด LINE OA แล้วพิมพ์ข้อความ 'ทดสอบ' หรือสติกเกอร์ในห้องแชท 1 ครั้ง เพื่อให้ระบบบันทึก ID ห้องแชท)"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const nowStr = Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss");
+    const testMsg = "🔔 [ทดสอบการแจ้งเตือน LINE สำเร็จ 100%!]\n" +
+      "-------------------------\n" +
+      "🤖 ชื่อบอท: " + botName + "\n" +
+      "📅 วันที่/เวลา: " + nowStr + " น.\n" +
+      "🏭 โรงงาน: ART OF BAKING CO., LTD.\n" +
+      "✨ ระบบเชื่อมต่อ Google Sheet และ Dashboard ทำงานออนไลน์ปกติ 100% ครับ!";
+
+    const pushUrl = "https://api.line.me/v2/bot/message/push";
+    const pushRes = UrlFetchApp.fetch(pushUrl, {
+      method: "POST",
+      contentType: "application/json",
+      headers: { "Authorization": "Bearer " + token },
+      payload: JSON.stringify({
+        to: targetId,
+        messages: [{ type: "text", text: testMsg }]
+      }),
+      muteHttpExceptions: true
+    });
+
+    if (pushRes.getResponseCode() === 200) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        connected: true,
+        delivered: true,
+        botName: botName,
+        targetId: targetId,
+        message: "✅ เชื่อมต่อและส่งข้อความทดสอบเข้า LINE บอท '" + botName + "' เรียบร้อยแล้ว!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        connected: true,
+        delivered: false,
+        reason: "PUSH_FAILED",
+        httpCode: pushRes.getResponseCode(),
+        rawResponse: pushRes.getContentText(),
+        message: "⚠️ เชื่อมต่อบอท '" + botName + "' ได้ แต่ส่งข้อความเข้าห้องแชทไม่สำเร็จ (HTTP " + pushRes.getResponseCode() + ")"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      reason: "EXCEPTION",
+      message: "❌ เกิดข้อผิดพลาด: " + err.message
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -1101,3 +1215,64 @@ function testFullSystem() {
 
   Logger.log("🏁 จบการทดสอบระบบ!");
 }
+
+// -------------------------------------------------------------------------
+// 8. ฟังก์ชันทดสอบส่งข้อความแจ้งเตือนเข้า LINE ทันที (Run ใน Apps Script) ⭐
+// -------------------------------------------------------------------------
+function testLineNotificationNow() {
+  Logger.log("🔔 กำลังทดสอบส่งข้อความแจ้งเตือนเข้า LINE...");
+  const props = PropertiesService.getScriptProperties();
+  const token = SETTINGS.LINE_ACCESS_TOKEN;
+  const targetId = props.getProperty("LAST_LINE_TARGET_ID");
+
+  if (!token || token.startsWith("YOUR_")) {
+    Logger.log("❌ ยังไม่ได้ใส่ LINE_ACCESS_TOKEN ใน SETTINGS");
+    return;
+  }
+
+  const botRes = UrlFetchApp.fetch("https://api.line.me/v2/bot/info", {
+    headers: { "Authorization": "Bearer " + token },
+    muteHttpExceptions: true
+  });
+
+  if (botRes.getResponseCode() !== 200) {
+    Logger.log("❌ LINE Token ไม่ถูกต้อง: HTTP " + botRes.getResponseCode() + " " + botRes.getContentText());
+    return;
+  }
+
+  const botData = JSON.parse(botRes.getContentText());
+  Logger.log("✅ เชื่อมต่อ LINE บอทสำเร็จ: '" + botData.displayName + "'");
+
+  if (!targetId) {
+    Logger.log("⚠️ ยังไม่พบ LAST_LINE_TARGET_ID ในระบบ!");
+    Logger.log("👉 คำแนะนำ: ให้เปิด LINE แล้วส่งข้อความ 'ทดสอบ' หรือส่งสติกเกอร์เข้าไปในห้องแชทของบอท 1 ครั้ง เพื่อให้ระบบบันทึก ID ห้องแชทเป้าหมายครับ");
+    return;
+  }
+
+  const nowStr = Utilities.formatDate(new Date(), "Asia/Bangkok", "dd/MM/yyyy HH:mm:ss");
+  const testMsg = "🔔 [ทดสอบการเชื่อมต่อ LINE สำเร็จ 100%!]\n" +
+    "-------------------------\n" +
+    "🤖 ชื่อบอท: " + botData.displayName + "\n" +
+    "📅 วันที่/เวลา: " + nowStr + " น.\n" +
+    "🏭 โรงงาน: ART OF BAKING CO., LTD.\n" +
+    "✨ ระบบเชื่อมต่อ Google Sheet และ Dashboard ทำงานปกติ 100% ครับ!";
+
+  const pushUrl = "https://api.line.me/v2/bot/message/push";
+  const pushRes = UrlFetchApp.fetch(pushUrl, {
+    method: "POST",
+    contentType: "application/json",
+    headers: { "Authorization": "Bearer " + token },
+    payload: JSON.stringify({
+      to: targetId,
+      messages: [{ type: "text", text: testMsg }]
+    }),
+    muteHttpExceptions: true
+  });
+
+  if (pushRes.getResponseCode() === 200) {
+    Logger.log("✅ ส่งข้อความทดสอบเข้า LINE เรียบร้อย 100%! (ห้องแชทเป้าหมาย: " + targetId + ")");
+  } else {
+    Logger.log("❌ ส่ง Push Message ไม่สำเร็จ: HTTP " + pushRes.getResponseCode() + " " + pushRes.getContentText());
+  }
+}
+

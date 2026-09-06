@@ -9,7 +9,10 @@ import {
   X, 
   Save, 
   Code2, 
-  ExternalLink 
+  ExternalLink,
+  Send,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 import { getGasScriptCode } from '../data/gasCodeTemplate';
@@ -33,6 +36,8 @@ export const SettingsModal = ({ isOpen, onClose }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isTestingGas, setIsTestingGas] = useState(false);
   const [gasStatus, setGasStatus] = useState(null);
+  const [isTestingLine, setIsTestingLine] = useState(false);
+  const [lineTestResult, setLineTestResult] = useState(null);
 
   const gasScriptCode = getGasScriptCode(spreadsheetId, lineToken, geminiApiKey);
 
@@ -63,6 +68,38 @@ export const SettingsModal = ({ isOpen, onClose }) => {
       setGasStatus('error');
     } finally {
       setIsTestingGas(false);
+    }
+  };
+
+  const handleTestLine = async () => {
+    if (!gasWebhookUrl) {
+      alert("⚠️ กรุณาระบุ Google Apps Script Web App URL ในช่องด้านล่างก่อนทดสอบส่งเข้า LINE");
+      return;
+    }
+    setIsTestingLine(true);
+    setLineTestResult(null);
+    try {
+      const payload = {
+        action: "test_line_notification",
+        lineToken: lineToken
+      };
+      await fetch(gasWebhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      setLineTestResult({
+        success: true,
+        message: "📡 ส่งคำขอทดสอบไปยังระบบเรียบร้อยแล้ว! กรุณาเปิดดูในห้องแชท LINE OA (หากข้อความไม่เข้า ให้พิมพ์คำว่า 'ทดสอบ' ในห้องแชท LINE ก่อน 1 ครั้งเพื่อให้บอทจำ ID ห้องแชท)"
+      });
+    } catch (err) {
+      setLineTestResult({
+        success: false,
+        message: "❌ เกิดข้อผิดพลาดในการส่งคำขอ: " + err.message
+      });
+    } finally {
+      setIsTestingLine(false);
     }
   };
 
@@ -143,10 +180,30 @@ export const SettingsModal = ({ isOpen, onClose }) => {
 
               {/* LINE CHANNEL ACCESS TOKEN */}
               <div>
-                <label className="font-semibold text-slate-200 block mb-1 flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>LINE Channel Access Token (Long-lived):</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>LINE Channel Access Token (Long-lived):</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleTestLine}
+                    disabled={isTestingLine}
+                    className="text-[11px] px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 rounded-lg border border-emerald-500/40 font-semibold cursor-pointer transition-all flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {isTestingLine ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                        <span>กำลังทดสอบ...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3 h-3 text-emerald-400" />
+                        <span>🔔 ทดสอบส่งเข้า LINE</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <textarea
                   rows={3}
                   value={lineToken}
@@ -154,6 +211,23 @@ export const SettingsModal = ({ isOpen, onClose }) => {
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
                   placeholder="ใส่ Channel Access Token จาก LINE Developers Console"
                 />
+
+                {lineTestResult && (
+                  <div className={`mt-2 p-2.5 rounded-lg border text-xs leading-relaxed ${
+                    lineTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-600 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-600 text-rose-300'
+                  }`}>
+                    {lineTestResult.message}
+                  </div>
+                )}
+
+                <div className="mt-2 p-2 bg-slate-950/60 rounded-lg border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                  <p className="font-semibold text-slate-300">💡 วิธีทดสอบการเชื่อมต่อทาง LINE โดยตรง:</p>
+                  <p>1. เปิดแอป LINE แล้วเข้าห้องแชทของบอท หรือกลุ่มโรงงานที่มีบอทอยู่</p>
+                  <p>2. พิมพ์ส่งคำว่า <strong className="text-amber-400">"ทดสอบ"</strong> แล้วกดส่ง</p>
+                  <p>3. หากเชื่อมต่อสำเร็จ บอทจะตอบกลับอัตโนมัติทันที 100%</p>
+                </div>
               </div>
 
               {/* GEMINI API KEY */}
