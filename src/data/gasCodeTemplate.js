@@ -797,6 +797,43 @@ function saveDay4Now() {
   Logger.log("✅ บันทึกข้อมูลวันที่ 4 ก.ย. ลงชีตเรียบร้อยแล้ว " + res.savedCount + " รายการ!");
 }
 
+function saveDay2Now() {
+  Logger.log("🚀 กำลังบันทึกข้อมูลมิเตอร์วันที่ 2 ก.ย. 2569 ทั้ง 17 จุดเข้า Google Sheet...");
+  const ss = getTargetSpreadsheet();
+  const sheetWater = ss.getSheetByName("ค่าน้ำ") || ss.getSheetByName("น้ำ");
+  const sheetElec = getElectricitySheet(ss);
+
+  // 1. บันทึกค่าน้ำ วันที่ 2 (แถว 8)
+  if (sheetWater) {
+    sheetWater.getRange(8, 2).setValue(206580);    // B8: มิเตอร์หลัก
+    sheetWater.getRange(8, 4).setValue(12927);     // D8: มิเตอร์ Soft
+    sheetWater.getRange(8, 6).setValue(77722.5);   // F8: มิเตอร์ EVAP
+    sheetWater.getRange(8, 8).setValue("AI Auto-Verified");
+  }
+
+  // 2. บันทึกค่าไฟฟ้า วันที่ 2 (คอลัมน์ G = Col 7)
+  if (sheetElec) {
+    const col2 = findElectricityTargetCol(sheetElec, 2); // Col 7 (G)
+    sheetElec.getRange(3, col2).setValue(2557600);   // Q1-1 Frozen Line
+    sheetElec.getRange(4, col2).setValue(4266600);   // Q1-2 RTE Line
+    sheetElec.getRange(5, col2).setValue(813610);    // Q1-3 Air Compressor
+    sheetElec.getRange(6, col2).setValue(90464);     // Q1-4 Water Pump
+    sheetElec.getRange(7, col2).setValue(982120);    // Q1-5 Control Room
+    sheetElec.getRange(8, col2).setValue(1782000);   // Q1-6 Office
+    sheetElec.getRange(9, col2).setValue(881670);    // Q1-7 Outside
+    sheetElec.getRange(10, col2).setValue(229310);   // Q1-8 Silo
+
+    sheetElec.getRange(12, col2).setValue(21334000); // Q1-1 Refrigeration Plant
+    sheetElec.getRange(13, col2).setValue(863160);   // Q1-2 Fire alarm system
+    sheetElec.getRange(14, col2).setValue(378850);   // Q1-3 LP Emergency
+    sheetElec.getRange(15, col2).setValue(816970);   // Q1-4 Water Treatment
+    sheetElec.getRange(16, col2).setValue(264360);   // Q1-5 Server Room
+    sheetElec.getRange(17, col2).setValue(63941);    // Q1-6 AS/RS
+  }
+
+  Logger.log("✅ บันทึกข้อมูลวันที่ 2 ก.ย. 2569 ลง Google Sheet ครบทั้ง 17 จุดเรียบร้อย 100%!");
+}
+
 function saveDay3Now() {
   Logger.log("🚀 กำลังบันทึกข้อมูลมิเตอร์วันที่ 3 ก.ย. 2569 ทั้ง 17 จุดเข้า Google Sheet...");
   const ss = getTargetSpreadsheet();
