@@ -29,26 +29,15 @@ function getTargetSpreadsheet() {
 }
 
 function getActiveGeminiModel() {
-  try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + SETTINGS.GEMINI_API_KEY;
-    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (res.getResponseCode() === 200) {
-      const data = JSON.parse(res.getContentText());
-      if (data.models && data.models.length > 0) {
-        const flashModel = data.models.find(m => 
-          m.supportedGenerationMethods && 
-          m.supportedGenerationMethods.includes("generateContent") && 
-          m.name.includes("flash")
-        );
-        if (flashModel) {
-          return flashModel.name.replace("models/", "");
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Auto model detection error:", e.message);
+  if (SETTINGS.GEMINI_MODEL && !SETTINGS.GEMINI_MODEL.includes("2.5")) {
+    return SETTINGS.GEMINI_MODEL;
   }
-  return SETTINGS.GEMINI_MODEL || "gemini-2.5-flash";
+  return "gemini-3.6-flash";
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("AOB Meter Webhook Service is running OK (200)!")
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doPost(e) {
@@ -200,6 +189,27 @@ function callGeminiVisionAPI(imageBlob) {
 
       if (json.error) {
         if (json.error.code === 404) continue;
+        if (json.error.code === 429 || json.error.code === 503) {
+          console.warn("Gemini Rate Limit / Busy. Sleeping 15s then retry...");
+          Utilities.sleep(15000);
+          const retryRes = UrlFetchApp.fetch(url, options);
+          const retryJson = JSON.parse(retryRes.getContentText());
+          if (retryJson.candidates && retryJson.candidates[0].content && retryJson.candidates[0].content.parts[0].text) {
+            let text = retryJson.candidates[0].content.parts[0].text;
+            text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+            return JSON.parse(text);
+          }
+          if (retryJson.error && (retryJson.error.code === 429 || retryJson.error.code === 503)) {
+            Utilities.sleep(12000);
+            const retryRes2 = UrlFetchApp.fetch(url, options);
+            const retryJson2 = JSON.parse(retryRes2.getContentText());
+            if (retryJson2.candidates && retryJson2.candidates[0].content && retryJson2.candidates[0].content.parts[0].text) {
+              let text = retryJson2.candidates[0].content.parts[0].text;
+              text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+              return JSON.parse(text);
+            }
+          }
+        }
         return { error: json.error.message + " (Code: " + json.error.code + ")" };
       }
 
@@ -279,12 +289,14 @@ function replyLineMessage(replyToken, text) {
     replyToken: replyToken,
     messages: [{ type: "text", text: text }]
   };
-  UrlFetchApp.fetch(url, {
+  const res = UrlFetchApp.fetch(url, {
     method: "POST",
     contentType: "application/json",
     headers: { "Authorization": "Bearer " + SETTINGS.LINE_ACCESS_TOKEN },
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
+  console.log("LINE Reply Response: " + res.getResponseCode() + " - " + res.getContentText());
 }
 
 function testFullSystem() {
