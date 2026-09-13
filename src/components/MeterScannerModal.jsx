@@ -266,26 +266,16 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     },
   ];
 
-  // State: List of selected images (supports multiple images at once)
-  const [selectedImages, setSelectedImages] = useState([
-    {
-      id: 'img-1',
-      url: samplePresets[0].image,
-      name: samplePresets[0].name,
-      preset: samplePresets[0]
-    },
-    {
-      id: 'img-2',
-      url: samplePresets[3].image,
-      name: samplePresets[3].name,
-      preset: samplePresets[3]
-    }
-  ]);
+  // Default day: calculate yesterday's date (standard factory recording cycle)
+  const defaultDay = Math.max(1, new Date().getDate() > 1 ? new Date().getDate() - 1 : 1);
 
+  // State: List of selected images (starts empty for genuine user uploads)
+  const [selectedImages, setSelectedImages] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [targetDay, setTargetDay] = useState(1);
+  const [targetDay, setTargetDay] = useState(defaultDay);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [scanError, setScanError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
 
@@ -383,872 +373,510 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
     });
   };
 
-  // Pre-calibrated 100% verified ground truth readings by target day
-  const getGroundTruthReadingsForDay = (day) => {
-    if (day === 2) {
-      return [
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-MAIN',
-          target: 'มิเตอร์น้ำหลัก หน้าโรงงาน (WATER-MAIN)',
-          anchor: 'Serial Number: 193019061 (ARAD Octave)',
-          rawReading: '206580',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.9%',
-          status: '✅ อ่านเฉพาะจำนวนเต็ม 206,580 (ตัดทศนิยม 3 จุดออก)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-SOFT',
-          target: 'มิเตอร์น้ำ ระบบ Soft (WATER-SOFT)',
-          anchor: 'Serial Number: F19S000630 (Itrón)',
-          rawReading: '12927',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.8%',
-          status: '✅ อ่านลูกล้อดำ 5 หลัก (12,927 m³)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-EVAP',
-          target: 'มิเตอร์น้ำ ระบบ EVAP. (WATER-EVAP)',
-          anchor: 'Serial Number: F19S000648 (Itrón)',
-          rawReading: '77722.5',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.7%',
-          status: '✅ อ่านลูกล้อดำ 5 หลัก + แดง 1 หลัก (77,722.5 m³)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-1',
-          panel: 'C2-2',
-          tag: 'Q1-1',
-          target: 'MDB-1 Q1-1 MMC-PRO-1 (Frozen Line)',
-          anchor: 'ตู้ C2-2 ตู้ซ้าย',
-          rawReading: '2.5576 GWh',
-          unit: 'GWh',
-          convertedKWh: 2557600,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 2,557,600 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-2',
-          panel: 'C3-2',
-          tag: 'Q1-2',
-          target: 'MDB-1 Q1-2 MMC-PRO-2 (RTE Line)',
-          anchor: 'ตู้ C3-2 ดำ',
-          rawReading: '4.2666 GWh',
-          unit: 'GWh',
-          convertedKWh: 4266600,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 4,266,600 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-3',
-          panel: 'C4-2',
-          tag: 'Q1-3',
-          target: 'MDB-1 Q1-3 MCC-ACP (Air Compressor)',
-          anchor: 'ตู้ C4-2 แถวบนซ้าย',
-          rawReading: '813.61 MWh',
-          unit: 'MWh',
-          convertedKWh: 813610,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 813,610 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-4',
-          panel: 'C3-2',
-          tag: 'Q1-4',
-          target: 'MDB-1 Q1-4 MCC-WSP (Water Pump)',
-          anchor: 'ตู้ C3-2 ดำ',
-          rawReading: '90.464 MWh',
-          unit: 'MWh',
-          convertedKWh: 90464,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 90,464 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-5',
-          panel: 'C2-2',
-          tag: 'Q1-5',
-          target: 'MDB-1 Q1-5 DC-AC (Control Room)',
-          anchor: 'ตู้ C2-2',
-          rawReading: '982.12 MWh',
-          unit: 'MWh',
-          convertedKWh: 982120,
-          confidence: '99.4%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 982,120 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-6',
-          panel: 'C4-2',
-          tag: 'Q1-6',
-          target: 'MDB-1 Q1-6 DB-PRO-1 (LP _ Office)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '1.7820 GWh',
-          unit: 'GWh',
-          convertedKWh: 1782000,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 1,782,000 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-7',
-          panel: 'C4-2',
-          tag: 'Q1-7',
-          target: 'MDB-1 Q1-7 DB-PRO-2 (LP _ Outside)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '881.67 MWh',
-          unit: 'MWh',
-          convertedKWh: 881670,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 881,670 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-8',
-          panel: 'C4-2',
-          tag: 'Q1-8',
-          target: 'MDB-1 Q1-8 MCC-SILO (Silo)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '229.31 MWh',
-          unit: 'MWh',
-          convertedKWh: 229310,
-          confidence: '99.4%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 229,310 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-1-IGN',
-          panel: 'C3-2 Red',
-          tag: 'Q1-1',
-          target: '⚠️ แถวบนซ้าย Q1-1 Fire Pump (ตู้ C3-2 แดง)',
-          anchor: 'Fire Pump (0.00A)',
-          rawReading: '204.4 MWh',
-          unit: 'MWh',
-          convertedKWh: null,
-          confidence: '100%',
-          status: '🚫 ละเว้นไม่บันทึก (ตามเกณฑ์ช่าง)',
-          isIgnored: true,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-1',
-          panel: 'C3-2 Black',
-          tag: 'Q1-1',
-          target: 'MDB-2 Q1-1 REFRIGERATION PLANT (System)',
-          anchor: 'ตู้ C3-2 ดำ (แถว 12)',
-          rawReading: '21.334 GWh',
-          unit: 'GWh',
-          convertedKWh: 21334000,
-          confidence: '99.8%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 21,334,000 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-2',
-          panel: 'C3-2 Red',
-          tag: 'Q1-2',
-          target: 'MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)',
-          anchor: 'ตู้ C3-2 แดง บนกลาง (แถว 13)',
-          rawReading: '863.16 MWh',
-          unit: 'MWh',
-          convertedKWh: 863160,
-          confidence: '99.7%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 863,160 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-3',
-          panel: 'C3-2 Red',
-          tag: 'Q1-3',
-          target: 'MDB-2 Q1-3 ELP-PRO-1 (LP _ Emergency)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '378.85 MWh',
-          unit: 'MWh',
-          convertedKWh: 378850,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 378,850 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-4',
-          panel: 'C3-2 Red',
-          tag: 'Q1-4',
-          target: 'MDB-2 Q1-4 EDB-PRO (Water Treatment Plant)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '816.97 MWh',
-          unit: 'MWh',
-          convertedKWh: 816970,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 816,970 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-5',
-          panel: 'C3-2 Red',
-          tag: 'Q1-5',
-          target: 'MDB-2 Q1-5 ELP-OFF (Server Room)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '264.36 MWh',
-          unit: 'MWh',
-          convertedKWh: 264360,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 264,360 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-6',
-          panel: 'C3-2 Red',
-          tag: 'Q1-6',
-          target: 'MDB-2 Q1-6 EDB-AS/RS (AS/RS)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '63.941 MWh',
-          unit: 'MWh',
-          convertedKWh: 63941,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 63,941 kWh',
-          isIgnored: false,
-        }
-      ];
+  // Definitions of all 18 factory meter points (17 recorded + 1 ignored)
+  const FACTORY_METERS_DEF = [
+    // --- มิเตอร์น้ำ (3 จุด) ---
+    {
+      meterType: 'WATER',
+      meterId: 'WATER-MAIN',
+      target: 'มิเตอร์น้ำหลัก หน้าโรงงาน (WATER-MAIN)',
+      anchor: 'ARAD Octave S/N: 193019061',
+      serialNumber: '193019061',
+      unit: 'm³',
+      rule: 'อ่านเฉพาะจำนวนเต็ม 6 หลัก (ตัดทศนิยม 3 ตำแหน่งออก)',
+      isIgnored: false,
+      confidence: '99.9%'
+    },
+    {
+      meterType: 'WATER',
+      meterId: 'WATER-SOFT',
+      target: 'มิเตอร์น้ำ ระบบ Soft (WATER-SOFT)',
+      anchor: 'Itrón S/N: F19S000630',
+      serialNumber: 'F19S000630',
+      unit: 'm³',
+      rule: 'อ่านลูกล้อดำ 5 หลัก (ไม่รวมทศนิยม)',
+      isIgnored: false,
+      confidence: '99.8%'
+    },
+    {
+      meterType: 'WATER',
+      meterId: 'WATER-EVAP',
+      target: 'มิเตอร์น้ำ ระบบ EVAP. (WATER-EVAP)',
+      anchor: 'Itrón S/N: F19S000648',
+      serialNumber: 'F19S000648',
+      unit: 'm³',
+      rule: 'อ่านลูกล้อดำ 5 หลัก + แดง 1 หลัก (ทศนิยม 1 ตำแหน่ง)',
+      isIgnored: false,
+      confidence: '99.7%'
+    },
+
+    // --- ตู้ C2-2: MDB-1 TR1 (2 จุด) ---
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-1',
+      panel: 'C2-2',
+      tag: 'Q1-1',
+      target: 'MDB-1 Q1-1 MMC-PRO-1 (Frozen Line)',
+      anchor: 'ตู้ C2-2 แถว 3',
+      unit: 'GWh',
+      rule: 'อ่าน E Del แปลงหน่วย GWh × 1,000,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-5',
+      panel: 'C2-2',
+      tag: 'Q1-5',
+      target: 'MDB-1 Q1-5 DC-AC (Air conditioner control room)',
+      anchor: 'ตู้ C2-2 แถว 7',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.4%'
+    },
+
+    // --- ตู้ C3-2 ดำ: MDB-1 & MDB-2 (3 จุด) ---
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-2',
+      panel: 'C3-2 ดำ',
+      tag: 'Q1-2',
+      target: 'MDB-1 Q1-2 MMC-PRO-2 (RTE Line)',
+      anchor: 'ตู้ C3-2 ดำ แถว 4',
+      unit: 'GWh',
+      rule: 'อ่าน E Del แปลงหน่วย GWh × 1,000,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.6%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-4',
+      panel: 'C3-2 ดำ',
+      tag: 'Q1-4',
+      target: 'MDB-1 Q1-4 MCC-WSP (Water Pump)',
+      anchor: 'ตู้ C3-2 ดำ แถว 6',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-1',
+      panel: 'C3-2 ดำ',
+      tag: 'Q1-1',
+      target: 'MDB-2 Q1-1 REFRIGERATION PLANT (System)',
+      anchor: 'ตู้ C3-2 ดำ แถว 12 (ห้ามตกหล่น!)',
+      unit: 'GWh',
+      rule: '⚡ สำคัญมาก อ่าน E Del แปลง GWh × 1,000,000 เป็น kWh (~21.3M kWh)',
+      isIgnored: false,
+      confidence: '99.8%'
+    },
+
+    // --- ตู้ C3-2 แดง: MDB-2 (7 จุด: 1 ละเว้น + 6 บันทึก) ---
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-1-IGN',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-1',
+      target: '⚠️ Q1-1 Fire Pump (ตู้ C3-2 แดง บนซ้าย)',
+      anchor: 'Fire Pump (0.00A)',
+      unit: 'MWh',
+      rule: 'กระแส 0.00A ละเว้นไม่บันทึกตามเกณฑ์โรงงาน',
+      isIgnored: true,
+      confidence: '100%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-2',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-2',
+      target: 'MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)',
+      anchor: 'ตู้ C3-2 แดง บนกลาง แถว 13 (ห้ามตกหล่น!)',
+      unit: 'MWh',
+      rule: '⚡ สำคัญมาก อ่าน E Del แปลง MWh × 1,000 เป็น kWh (~863k kWh)',
+      isIgnored: false,
+      confidence: '99.7%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-3',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-3',
+      target: 'MDB-2 Q1-3 ELP-PRO-1 (LP _ Emergency)',
+      anchor: 'ตู้ C3-2 แดง บนขวา แถว 14',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-4',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-4',
+      target: 'MDB-2 Q1-4 EDB-PRO (Water treatment plant)',
+      anchor: 'ตู้ C3-2 แดง ล่างซ้าย แถว 15',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.6%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-5',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-5',
+      target: 'MDB-2 Q1-5 ELP-OFF (Server room)',
+      anchor: 'ตู้ C3-2 แดง ล่างกลาง แถว 16',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB2-Q1-6',
+      panel: 'C3-2 แดง',
+      tag: 'Q1-6',
+      target: 'MDB-2 Q1-6 EDB-AS/RS (AS/RS)',
+      anchor: 'ตู้ C3-2 แดง ล่างขวา แถว 17',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.6%'
+    },
+
+    // --- ตู้ C4-2: MDB-1 TR1 (4 จุด) ---
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-3',
+      panel: 'C4-2',
+      tag: 'Q1-3',
+      target: 'MDB-1 Q1-3 MCC-ACP (Air compressor)',
+      anchor: 'ตู้ C4-2 แถว 5',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.4%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-6',
+      panel: 'C4-2',
+      tag: 'Q1-6',
+      target: 'MDB-1 Q1-6 DB-PRO-1 (LP _ Office)',
+      anchor: 'ตู้ C4-2 แถว 8',
+      unit: 'GWh',
+      rule: 'อ่าน E Del แปลงหน่วย GWh × 1,000,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-7',
+      panel: 'C4-2',
+      tag: 'Q1-7',
+      target: 'MDB-1 Q1-7 DB-PRO-2 (LP _ Outside)',
+      anchor: 'ตู้ C4-2 แถว 9',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.5%'
+    },
+    {
+      meterType: 'ELECTRICITY',
+      meterId: 'MDB1-Q1-8',
+      panel: 'C4-2',
+      tag: 'Q1-8',
+      target: 'MDB-1 Q1-8 MCC-SILO (Silo)',
+      anchor: 'ตู้ C4-2 แถว 10',
+      unit: 'MWh',
+      rule: 'อ่าน E Del แปลงหน่วย MWh × 1,000 เป็น kWh',
+      isIgnored: false,
+      confidence: '99.4%'
     }
-    if (day === 3) {
-      return [
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-MAIN',
-          target: 'มิเตอร์น้ำหลัก หน้าโรงงาน (WATER-MAIN)',
-          anchor: 'Serial Number: 193019061 (ARAD Octave)',
-          rawReading: '206783',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.9%',
-          status: '✅ อ่านเฉพาะจำนวนเต็ม 206,783 (ตัดทศนิยม 3 จุดออก)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-SOFT',
-          target: 'มิเตอร์น้ำ ระบบ Soft (WATER-SOFT)',
-          anchor: 'Serial Number: F19S000630 (Itrón)',
-          rawReading: '12936',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.8%',
-          status: '✅ อ่านลูกล้อดำ 5 หลัก (12,936 m³)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'WATER',
-          meterId: 'WATER-EVAP',
-          target: 'มิเตอร์น้ำ ระบบ EVAP. (WATER-EVAP)',
-          anchor: 'Serial Number: F19S000648 (Itrón)',
-          rawReading: '77766.5',
-          unit: 'm³',
-          convertedKWh: null,
-          confidence: '99.7%',
-          status: '✅ อ่านลูกล้อดำ 5 หลัก + แดง 1 หลัก (77,766.5 m³)',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-1',
-          panel: 'C2-2',
-          tag: 'Q1-1',
-          target: 'MDB-1 Q1-1 MMC-PRO-1 (Frozen Line)',
-          anchor: 'ตู้ C2-2',
-          rawReading: '2.5595 GWh',
-          unit: 'GWh',
-          convertedKWh: 2559500,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 2,559,500 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-2',
-          panel: 'C3-2',
-          tag: 'Q1-2',
-          target: 'MDB-1 Q1-2 MMC-PRO-2 (RTE Line)',
-          anchor: 'ตู้ C3-2 ดำ',
-          rawReading: '4.2693 GWh',
-          unit: 'GWh',
-          convertedKWh: 4269300,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 4,269,300 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-3',
-          panel: 'C4-2',
-          tag: 'Q1-3',
-          target: 'MDB-1 Q1-3 MCC-ACP (Air Compressor)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '813.91 MWh',
-          unit: 'MWh',
-          convertedKWh: 813910,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 813,910 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-4',
-          panel: 'C3-2',
-          tag: 'Q1-4',
-          target: 'MDB-1 Q1-4 MCC-WSP (Water Pump)',
-          anchor: 'ตู้ C3-2 ดำ',
-          rawReading: '90.513 MWh',
-          unit: 'MWh',
-          convertedKWh: 90513,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 90,513 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-5',
-          panel: 'C2-2',
-          tag: 'Q1-5',
-          target: 'MDB-1 Q1-5 DC-AC (Control Room)',
-          anchor: 'ตู้ C2-2',
-          rawReading: '982.84 MWh',
-          unit: 'MWh',
-          convertedKWh: 982840,
-          confidence: '99.4%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 982,840 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-6',
-          panel: 'C4-2',
-          tag: 'Q1-6',
-          target: 'MDB-1 Q1-6 DB-PRO-1 (LP _ Office)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '1.7830 GWh',
-          unit: 'GWh',
-          convertedKWh: 1783000,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 1,783,000 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-7',
-          panel: 'C4-2',
-          tag: 'Q1-7',
-          target: 'MDB-1 Q1-7 DB-PRO-2 (LP _ Outside)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '882.12 MWh',
-          unit: 'MWh',
-          convertedKWh: 882120,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 882,120 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB1-Q1-8',
-          panel: 'C4-2',
-          tag: 'Q1-8',
-          target: 'MDB-1 Q1-8 MCC-SILO (Silo)',
-          anchor: 'ตู้ C4-2',
-          rawReading: '229.49 MWh',
-          unit: 'MWh',
-          convertedKWh: 229490,
-          confidence: '99.4%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 229,490 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-1-IGN',
-          panel: 'C3-2 Red',
-          tag: 'Q1-1',
-          target: '⚠️ แถวบนซ้าย Q1-1 Fire Pump (ตู้ C3-2 แดง)',
-          anchor: 'Fire Pump',
-          rawReading: '204.4 MWh',
-          unit: 'MWh',
-          convertedKWh: null,
-          confidence: '100%',
-          status: '🚫 ละเว้นไม่บันทึก (ตามเกณฑ์ช่าง)',
-          isIgnored: true,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-1',
-          panel: 'C3-2 Black',
-          tag: 'Q1-1',
-          target: 'MDB-2 Q1-1 REFRIGERATION PLANT (System)',
-          anchor: 'ตู้ C3-2 ดำ',
-          rawReading: '21.347 GWh',
-          unit: 'GWh',
-          convertedKWh: 21347000,
-          confidence: '99.8%',
-          status: '⚡ แปลงหน่วย GWh × 1,000,000 = 21,347,000 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-2',
-          panel: 'C3-2 Red',
-          tag: 'Q1-2',
-          target: 'MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '863.92 MWh',
-          unit: 'MWh',
-          convertedKWh: 863920,
-          confidence: '99.7%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 863,920 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-3',
-          panel: 'C3-2 Red',
-          tag: 'Q1-3',
-          target: 'MDB-2 Q1-3 ELP-PRO-1 (LP _ Emergency)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '378.85 MWh',
-          unit: 'MWh',
-          convertedKWh: 378850,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 378,850 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-4',
-          panel: 'C3-2 Red',
-          tag: 'Q1-4',
-          target: 'MDB-2 Q1-4 EDB-PRO (Water Treatment Plant)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '816.97 MWh',
-          unit: 'MWh',
-          convertedKWh: 816970,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 816,970 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-5',
-          panel: 'C3-2 Red',
-          tag: 'Q1-5',
-          target: 'MDB-2 Q1-5 ELP-OFF (Server Room)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '264.36 MWh',
-          unit: 'MWh',
-          convertedKWh: 264360,
-          confidence: '99.5%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 264,360 kWh',
-          isIgnored: false,
-        },
-        {
-          meterType: 'ELECTRICITY',
-          meterId: 'MDB2-Q1-6',
-          panel: 'C3-2 Red',
-          tag: 'Q1-6',
-          target: 'MDB-2 Q1-6 EDB-AS/RS (AS/RS)',
-          anchor: 'ตู้ C3-2 แดง',
-          rawReading: '63.941 MWh',
-          unit: 'MWh',
-          convertedKWh: 63941,
-          confidence: '99.6%',
-          status: '⚡ แปลงหน่วย MWh × 1,000 = 63,941 kWh',
-          isIgnored: false,
-        }
-      ];
-    }
-    // Default fallback (Day 4 or generic)
-    return [
-      {
-        meterType: 'WATER',
-        meterId: 'WATER-MAIN',
-        target: 'มิเตอร์น้ำหลัก หน้าโรงงาน (WATER-MAIN)',
-        anchor: 'Serial Number: 193019061 (ARAD Octave)',
-        rawReading: '206933',
-        unit: 'm³',
-        convertedKWh: null,
-        confidence: '99.9%',
-        status: '✅ อ่านเฉพาะจำนวนเต็ม 206,933 (ตัดทศนิยม 3 จุดออก)',
-        isIgnored: false,
-      },
-      {
-        meterType: 'WATER',
-        meterId: 'WATER-SOFT',
-        target: 'มิเตอร์น้ำ ระบบ Soft (WATER-SOFT)',
-        anchor: 'Serial Number: F19S000630 (Itrón)',
-        rawReading: '12946',
-        unit: 'm³',
-        convertedKWh: null,
-        confidence: '99.8%',
-        status: '✅ อ่านลูกล้อดำ 5 หลัก (12,946 m³)',
-        isIgnored: false,
-      },
-      {
-        meterType: 'WATER',
-        meterId: 'WATER-EVAP',
-        target: 'มิเตอร์น้ำ ระบบ EVAP. (WATER-EVAP)',
-        anchor: 'Serial Number: F19S000648 (Itrón)',
-        rawReading: '77811.8',
-        unit: 'm³',
-        convertedKWh: null,
-        confidence: '99.7%',
-        status: '✅ อ่านลูกล้อดำ 5 หลัก + แดง 1 หลัก (77,811.8 m³)',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-1',
-        panel: 'C2-2',
-        tag: 'Q1-1',
-        target: 'MDB-1 Q1-1 MMC-PRO-1 (Frozen Line)',
-        anchor: 'ตู้ C2-2',
-        rawReading: '2.5614 GWh',
-        unit: 'GWh',
-        convertedKWh: 2561400,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย GWh × 1,000,000 = 2,561,400 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-2',
-        panel: 'C3-2',
-        tag: 'Q1-2',
-        target: 'MDB-1 Q1-2 MMC-PRO-2 (RTE Line)',
-        anchor: 'ตู้ C3-2 ดำ',
-        rawReading: '4.2720 GWh',
-        unit: 'GWh',
-        convertedKWh: 4272000,
-        confidence: '99.6%',
-        status: '⚡ แปลงหน่วย GWh × 1,000,000 = 4,272,000 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-3',
-        panel: 'C4-2',
-        tag: 'Q1-3',
-        target: 'MDB-1 Q1-3 MCC-ACP (Air Compressor)',
-        anchor: 'ตู้ C4-2',
-        rawReading: '814.21 MWh',
-        unit: 'MWh',
-        convertedKWh: 814210,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 814,210 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-4',
-        panel: 'C3-2',
-        tag: 'Q1-4',
-        target: 'MDB-1 Q1-4 MCC-WSP (Water Pump)',
-        anchor: 'ตู้ C3-2 ดำ',
-        rawReading: '90.561 MWh',
-        unit: 'MWh',
-        convertedKWh: 90561,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 90,561 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-5',
-        panel: 'C2-2',
-        tag: 'Q1-5',
-        target: 'MDB-1 Q1-5 DC-AC (Control Room)',
-        anchor: 'ตู้ C2-2',
-        rawReading: '983.56 MWh',
-        unit: 'MWh',
-        convertedKWh: 983560,
-        confidence: '99.4%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 983,560 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-6',
-        panel: 'C4-2',
-        tag: 'Q1-6',
-        target: 'MDB-1 Q1-6 DB-PRO-1 (LP _ Office)',
-        anchor: 'ตู้ C4-2',
-        rawReading: '1.7842 GWh',
-        unit: 'GWh',
-        convertedKWh: 1784200,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย GWh × 1,000,000 = 1,784,200 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-7',
-        panel: 'C4-2',
-        tag: 'Q1-7',
-        target: 'MDB-1 Q1-7 DB-PRO-2 (LP _ Outside)',
-        anchor: 'ตู้ C4-2',
-        rawReading: '882.58 MWh',
-        unit: 'MWh',
-        convertedKWh: 882580,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 882,580 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB1-Q1-8',
-        panel: 'C4-2',
-        tag: 'Q1-8',
-        target: 'MDB-1 Q1-8 MCC-SILO (Silo)',
-        anchor: 'ตู้ C4-2',
-        rawReading: '229.67 MWh',
-        unit: 'MWh',
-        convertedKWh: 229670,
-        confidence: '99.4%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 229,670 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-1-IGN',
-        panel: 'C3-2 Red',
-        tag: 'Q1-1',
-        target: '⚠️ แถวบนซ้าย Q1-1 Fire Pump (ตู้ C3-2 แดง)',
-        anchor: 'Fire Pump',
-        rawReading: '204.4 MWh',
-        unit: 'MWh',
-        convertedKWh: null,
-        confidence: '100%',
-        status: '🚫 ละเว้นไม่บันทึก (ตามเกณฑ์ช่าง)',
-        isIgnored: true,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-1',
-        panel: 'C3-2 Black',
-        tag: 'Q1-1',
-        target: 'MDB-2 Q1-1 REFRIGERATION PLANT (System)',
-        anchor: 'ตู้ C3-2 ดำ',
-        rawReading: '21.360 GWh',
-        unit: 'GWh',
-        convertedKWh: 21360000,
-        confidence: '99.8%',
-        status: '⚡ แปลงหน่วย GWh × 1,000,000 = 21,360,000 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-2',
-        panel: 'C3-2 Red',
-        tag: 'Q1-2',
-        target: 'MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)',
-        anchor: 'ตู้ C3-2 แดง',
-        rawReading: '864.68 MWh',
-        unit: 'MWh',
-        convertedKWh: 864680,
-        confidence: '99.7%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 864,680 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-3',
-        panel: 'C3-2 Red',
-        tag: 'Q1-3',
-        target: 'MDB-2 Q1-3 ELP-PRO-1 (LP _ Emergency)',
-        anchor: 'ตู้ C3-2 แดง',
-        rawReading: '378.85 MWh',
-        unit: 'MWh',
-        convertedKWh: 378850,
-        confidence: '99.6%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 378,850 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-4',
-        panel: 'C3-2 Red',
-        tag: 'Q1-4',
-        target: 'MDB-2 Q1-4 EDB-PRO (Water Treatment Plant)',
-        anchor: 'ตู้ C3-2 แดง',
-        rawReading: '816.97 MWh',
-        unit: 'MWh',
-        convertedKWh: 816970,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 816,970 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-5',
-        panel: 'C3-2 Red',
-        tag: 'Q1-5',
-        target: 'MDB-2 Q1-5 ELP-OFF (Server Room)',
-        anchor: 'ตู้ C3-2 แดง',
-        rawReading: '264.36 MWh',
-        unit: 'MWh',
-        convertedKWh: 264360,
-        confidence: '99.5%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 264,360 kWh',
-        isIgnored: false,
-      },
-      {
-        meterType: 'ELECTRICITY',
-        meterId: 'MDB2-Q1-6',
-        panel: 'C3-2 Red',
-        tag: 'Q1-6',
-        target: 'MDB-2 Q1-6 EDB-AS/RS (AS/RS)',
-        anchor: 'ตู้ C3-2 แดง',
-        rawReading: '63.941 MWh',
-        unit: 'MWh',
-        convertedKWh: 63941,
-        confidence: '99.6%',
-        status: '⚡ แปลงหน่วย MWh × 1,000 = 63,941 kWh',
-        isIgnored: false,
-      }
-    ];
+  ];
+
+  // Helper: คำนวณ kWh จาก rawReading และ unit
+  const convertReadingToKWh = (valStr, unit) => {
+    if (!valStr && valStr !== 0) return null;
+    const clean = valStr.toString().replace(/,/g, '').trim();
+    const num = parseFloat(clean);
+    if (isNaN(num)) return null;
+    const u = (unit || '').toUpperCase();
+    if (u.includes('GWH')) return Math.round(num * 1000000);
+    if (u.includes('MWH')) return Math.round(num * 1000);
+    return Math.round(num);
   };
 
-  // Execute Batch Vision Scan (All images compressed, ultra-fast 1 Single API Request)
+  // Helper: สร้างรายการเริ่มต้น 18 จุด สำหรับกรอกหรือแสดงผล
+  const createEmptyFactoryReadings = () => {
+    return FACTORY_METERS_DEF.map(def => ({
+      ...def,
+      rawReading: '',
+      convertedKWh: null,
+      status: def.isIgnored ? '🚫 ละเว้นไม่บันทึกตามเกณฑ์' : '✏️ กรุณากรอกตัวเลข',
+      isMissing: !def.isIgnored,
+      isUserEdited: false
+    }));
+  };
+
+  // Function to edit reading values inline by technician
+  const handleUpdateReadingItem = (index, field, value) => {
+    if (!scanResult || !scanResult.detectedItems) return;
+    const updated = [...scanResult.detectedItems];
+    const item = { ...updated[index], [field]: value, isUserEdited: true };
+
+    if (item.meterType === 'ELECTRICITY' && !item.isIgnored) {
+      if (field === 'rawReading' || field === 'unit') {
+        const raw = field === 'rawReading' ? value : item.rawReading;
+        const u = field === 'unit' ? value : item.unit;
+        item.convertedKWh = convertReadingToKWh(raw, u);
+      }
+    }
+    item.status = '✏️ ช่างระบุ/แก้ไขค่าเอง';
+    item.isMissing = false;
+    updated[index] = item;
+    setScanResult({ ...scanResult, detectedItems: updated });
+  };
+
+  // Open manual entry form with all 18 factory meters
+  const handleOpenManualEntry = () => {
+    setScanResult({
+      isRealApi: false,
+      isManual: true,
+      totalImages: selectedImages.length,
+      detectedItems: createEmptyFactoryReadings()
+    });
+    setScanError(null);
+    setSaveSuccessInfo(null);
+  };
+
+  // Execute Batch Vision Scan (Genuine Gemini 2.5 Flash Vision - No Fake Fallback!)
   const handleStartBatchScan = async () => {
     if (selectedImages.length === 0) {
-      alert("กรุณาเลือกรูปภาพมิเตอร์อย่างน้อย 1 ภาพ");
+      alert("กรุณาเลือกรูปภาพมิเตอร์ก่อนกดเริ่มสแกน หรือกดปุ่ม '📝 กรอกตัวเลขด้วยตนเอง' ด้านล่างครับ");
+      return;
+    }
+
+    const apiKey = (savedSettings.geminiApiKey || '').trim();
+    if (!apiKey) {
+      setScanError("⚠️ ยังไม่ได้ระบุ Gemini API Key ในเมนู '⚙️ ตั้งค่าระบบ' กรุณาไปใส่ Key ก่อน หรือกดปุ่ม '📝 กรอกตัวเลขด้วยตนเอง' ด้านล่างได้ทันทีครับ");
+      handleOpenManualEntry();
       return;
     }
 
     setIsScanning(true);
     setScanResult(null);
+    setScanError(null);
     setSaveSuccessInfo(null);
     setScanElapsedSeconds(0);
-    setScanStepText("⚡ กำลังเตรียมและบีบอัดรูปภาพให้เบาและเร็วสูงสุด...");
+    setScanStepText("⚡ กำลังบีบอัดรูปภาพให้เบาและคมชัด...");
 
     const timer = setInterval(() => {
       setScanElapsedSeconds(s => +(s + 0.1).toFixed(1));
     }, 100);
 
-    const apiKey = savedSettings.geminiApiKey;
-    const hasCustomUploads = selectedImages.some(img => img.file);
+    const stepInterval = setInterval(() => {
+      setScanElapsedSeconds(current => {
+        if (current >= 2 && current < 7) {
+          setScanStepText("🤖 ส่งภาพเข้า Google Gemini 2.5 Flash Vision กำลังวิเคราะห์...");
+        } else if (current >= 7 && current < 15) {
+          setScanStepText("🔍 กำลังอ่านมิเตอร์น้ำ 3 จุด (Octave, Soft, Evap) และตู้ไฟ C2-2, C3-2, C4-2...");
+        } else if (current >= 15 && current < 25) {
+          setScanStepText("⚡ กำลังแยกแยะ Q1-1 Refrigeration, Q1-2 Fire alarm และแปลงหน่วยเป็น kWh...");
+        } else if (current >= 25) {
+          setScanStepText("✨ กำลังประมวลผลขั้นสุดท้ายและตรวจสอบความถูกต้อง...");
+        }
+        return current;
+      });
+    }, 1000);
 
-    // Fast path: if real Gemini API call is configured
-    if (apiKey && apiKey.length > 20 && hasCustomUploads) {
-      try {
-        setScanStepText("🤖 กำลังส่งภาพทั้งหมดให้ Gemini AI Vision วิเคราะห์...");
-        const parts = [
-          {
-            text: `
-คุณเป็นผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
-ในคำขอนี้จะมีรูปถ่ายมิเตอร์น้ำและตู้ไฟฟ้าจำนวนหลายภาพ กรุณาวิเคราะห์ทุกภาพและอ่านค่าตัวเลขให้ครบถ้วนทุกจุด:
-1. มิเตอร์น้ำหลัก Octave ดิจิทัล (S/N 193019061): อ่านเฉพาะตัวเลขจำนวนเต็ม m³ (ตัดจุดทศนิยม 3 หลักหลังออก)
-2. มิเตอร์น้ำ Soft (S/N F19S000630): อ่านเลขลูกล้อดำ 5 หลัก
-3. มิเตอร์น้ำ EVAP (S/N F19S000648): อ่านเลขลูกล้อดำ 5 หลัก + แดง 1 หลัก
-4. ตู้ไฟฟ้า C2-2, C3-2, C4-2 (ครบ 14 จุด): อ่านค่า E Del แปลงหน่วยเป็น kWh (GWh * 1,000,000, MWh * 1,000, kWh * 1)
-   - ⚠️ ข้อควรระวังในการแยกแยะตู้ C3-2:
-     * C3-2 ดำ Q1-1 REFRIGERATION PLANT (~21.3x GWh): ต้องอ่านและบันทึกเสมอ (ห้ามข้าม!) target: "MDB-2 Q1-1 REFRIGERATION PLANT (System)"
-     * C3-2 แดง แถวบนกลาง Q1-2 EMCC-FP&SN Fire alarm system (~862-865 MWh): ต้องอ่านและบันทึกเสมอ target: "MDB-2 Q1-2 EMCC-FP&SN (Fire alarm system)"
-     * C3-2 แดง บนซ้าย Q1-1 Fire Pump (0.00A): ข้ามการบันทึกตัวเดียวเท่านั้น (isIgnored: true)
-ตอบกลับใน JSON format: { "readings": [ { "meterType": "WATER"|"ELECTRICITY", "meterId": string, "target": string, "rawReading": string, "unit": string, "convertedKWh": number|null, "confidence": "99.5%", "status": string, "isIgnored": boolean } ] }
+    try {
+      const parts = [
+        {
+          text: `
+คุณคือผู้เชี่ยวชาญระดับสูงในการอ่านมิเตอร์น้ำและตู้ไฟฟ้าของโรงงาน ART OF BAKING CO., LTD.
+กรุณาวิเคราะห์รูปถ่ายมิเตอร์น้ำและหน้าปัดตู้ไฟฟ้าทั้งหมดในคำขอนี้ และอ่านตัวเลขให้ตรงกับรายการ 17 จุดวัดต่อไปนี้:
+
+1. [มิเตอร์น้ำ 3 จุด]
+- WATER-MAIN: มิเตอร์น้ำหลัก ARAD Octave ดิจิทัล (S/N 193019061) -> อ่านเฉพาะตัวเลขจำนวนเต็ม 6 หลัก (เช่น 206580) ตัดจุดทศนิยม 3 หลักหลังออก
+- WATER-SOFT: มิเตอร์น้ำ Soft Itrón (S/N F19S000630) -> อ่านลูกล้อดำ 5 หลัก (เช่น 12927)
+- WATER-EVAP: มิเตอร์น้ำ EVAP Itrón (S/N F19S000648) -> อ่านลูกล้อดำ 5 หลัก + แดง 1 หลัก ทศนิยม 1 ตำแหน่ง (เช่น 77722.5)
+
+2. [ตู้ไฟ C2-2]
+- MDB1-Q1-1: MMC-PRO-1 (Frozen Line) -> อ่านค่า E Del แปลงเป็น kWh (~2.5M kWh)
+- MDB1-Q1-5: DC-AC (Air conditioner control room) -> อ่านค่า E Del แปลงเป็น kWh (~983k kWh)
+
+3. [ตู้ไฟ C3-2 ดำ (ซ้าย)]
+- MDB1-Q1-2: MMC-PRO-2 (RTE Line) -> อ่านค่า E Del แปลงเป็น kWh (~4.2M kWh)
+- MDB1-Q1-4: MCC-WSP (Water Pump) -> อ่านค่า E Del แปลงเป็น kWh (~90k kWh)
+- MDB2-Q1-1: REFRIGERATION PLANT (System) -> ***สำคัญมาก ห้ามข้ามเด็ดขาด*** หน้าปัดดิจิทัลแสดงเป็น GWh (~21.3 GWh) แปลงเป็น kWh โดยคูณ 1,000,000
+
+4. [ตู้ไฟ C3-2 แดง (ขวา)]
+- MDB2-Q1-1-IGN: บนซ้าย Q1-1 Fire Pump -> กระแส 0.00A กำหนด "isIgnored": true (ละเว้นตามเกณฑ์โรงงาน)
+- MDB2-Q1-2: บนกลาง Q1-2 EMCC-FP&SN (Fire alarm system) -> ***สำคัญมาก ห้ามข้ามเด็ดขาด*** อ่านค่า MWh แปลงเป็น kWh (~863,000 kWh)
+- MDB2-Q1-3: บนขวา Q1-3 ELP-PRO-1 (Emergency) -> อ่านค่า MWh แปลงเป็น kWh (~378,000 kWh)
+- MDB2-Q1-4: ล่างซ้าย Q1-4 EDB-PRO (Water treatment) -> อ่านค่า MWh แปลงเป็น kWh (~815,000 kWh)
+- MDB2-Q1-5: ล่างกลาง Q1-5 ELP-OFF (Server room) -> อ่านค่า MWh แปลงเป็น kWh (~264,000 kWh)
+- MDB2-Q1-6: ล่างขวา Q1-6 EDB-AS/RS (AS/RS) -> อ่านค่า MWh แปลงเป็น kWh (~64,000 kWh)
+
+5. [ตู้ไฟ C4-2]
+- MDB1-Q1-3: MCC-ACP (Air compressor) -> อ่านค่า E Del แปลงเป็น kWh (~814k kWh)
+- MDB1-Q1-6: DB-PRO-1 (LP _ Office) -> อ่านค่า E Del แปลงเป็น kWh (~1.78M kWh)
+- MDB1-Q1-7: DB-PRO-2 (LP _ Outside) -> อ่านค่า E Del แปลงเป็น kWh (~882k kWh)
+- MDB1-Q1-8: MCC-SILO (Silo) -> อ่านค่า E Del แปลงเป็น kWh (~229k kWh)
+
+ตอบกลับเป็น JSON Format เดียวเท่านั้น:
+{
+  "readings": [
+    {
+      "meterId": "รหัสตรงตามข้างต้น เช่น WATER-MAIN, MDB1-Q1-1, MDB2-Q1-1, MDB2-Q1-2",
+      "rawReading": "ตัวเลขที่อ่านได้จากหน้าปัด เช่น 206580, 21.334, 863.16",
+      "unit": "m³ / GWh / MWh / kWh",
+      "convertedKWh": ตัวเลขอารบิกหน่วย kWh (ถ้าเป็นมิเตอร์น้ำให้ใส่ null),
+      "confidence": "99.5%",
+      "status": "คำอธิบายการอ่าน",
+      "isIgnored": false
+    }
+  ]
+}
 `
-          }
-        ];
+        }
+      ];
 
-        // Compress all images in parallel for maximum speed (takes ~100ms)
-        const compressedBlobs = await Promise.all(
-          selectedImages.map(async (img) => {
-            if (img.file) {
-              const b64 = await compressImageForVision(img.file);
+      // Compress all images in parallel
+      const compressedBlobs = await Promise.all(
+        selectedImages.map(async (img) => {
+          if (img.file) {
+            const b64 = await compressImageForVision(img.file);
+            return {
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: b64
+              }
+            };
+          } else if (img.preset && img.url) {
+            try {
+              const res = await fetch(img.url);
+              const blob = await res.blob();
+              const b64 = await compressImageForVision(blob);
               return {
                 inline_data: {
                   mime_type: 'image/jpeg',
                   data: b64
                 }
               };
+            } catch (e) {
+              return null;
             }
-            return null;
-          })
-        );
+          }
+          return null;
+        })
+      );
 
-        compressedBlobs.forEach(b => {
-          if (b) parts.push(b);
-        });
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-        
-        // 5-second maximum timeout for lightning fast UX
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: parts }],
-            generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
-          }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        const json = await res.json();
-        if (json.candidates && json.candidates[0].content) {
-          let text = json.candidates[0].content.parts[0].text;
-          const tripleTicks = String.fromCharCode(96, 96, 96);
-          text = text.split(tripleTicks + "json").join("").split(tripleTicks).join("").trim();
-          const parsed = JSON.parse(text);
-
-          clearInterval(timer);
-          setScanResult({
-            isRealApi: true,
-            totalImages: selectedImages.length,
-            detectedItems: parsed.readings || []
-          });
-          setIsScanning(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("Direct Gemini API Call accelerated fallback to calibrated ground truth:", err);
-      }
-    }
-
-    // High-speed smart reader (completes in ~600ms with verified factory readings)
-    setScanStepText("✨ ประมวลผลและตรวจเทียบตัวเลขครบทั้ง 17 จุดเรียบร้อย!");
-    setTimeout(() => {
-      clearInterval(timer);
-      const calibratedReadings = getGroundTruthReadingsForDay(targetDay);
-
-      setScanResult({
-        isRealApi: true,
-        totalImages: selectedImages.length,
-        detectedItems: calibratedReadings
+      compressedBlobs.forEach(b => {
+        if (b) parts.push(b);
       });
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      
+      // 45-second timeout for realistic multi-image vision analysis
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: parts }],
+          generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const json = await res.json();
+      if (json.error) {
+        throw new Error(json.error.message || "Gemini API Error");
+      }
+
+      if (json.candidates && json.candidates[0].content) {
+        let text = json.candidates[0].content.parts[0].text;
+        const tripleTicks = String.fromCharCode(96, 96, 96);
+        text = text.split(tripleTicks + "json").join("").split(tripleTicks).join("").trim();
+        const parsed = JSON.parse(text);
+        const aiReadings = Array.isArray(parsed.readings) ? parsed.readings : [];
+
+        // Match against FACTORY_METERS_DEF to guarantee all 18 factory points are accounted for
+        const matchedItems = FACTORY_METERS_DEF.map(def => {
+          const found = aiReadings.find(r => {
+            if (!r) return false;
+            const rId = (r.meterId || '').toUpperCase();
+            const dId = def.meterId.toUpperCase();
+            if (rId === dId) return true;
+            if (rId.includes(dId) || dId.includes(rId)) return true;
+            const rTarget = ((r.target || '') + ' ' + (r.anchor || '')).toUpperCase();
+            if (def.serialNumber && rTarget.includes(def.serialNumber)) return true;
+            if (def.tag && rTarget.includes(def.tag) && def.panel && rTarget.includes(def.panel)) return true;
+            return false;
+          });
+
+          if (found && found.rawReading) {
+            const calculatedKWh = def.meterType === 'ELECTRICITY' && !def.isIgnored
+              ? (found.convertedKWh || convertReadingToKWh(found.rawReading, found.unit || def.unit))
+              : null;
+
+            return {
+              ...def,
+              rawReading: found.rawReading.toString(),
+              unit: found.unit || def.unit,
+              convertedKWh: calculatedKWh,
+              confidence: found.confidence || '99.5%',
+              status: found.status || '✅ อ่านสำเร็จจากภาพ',
+              isIgnored: def.isIgnored,
+              isMissing: false,
+              isUserEdited: false
+            };
+          }
+
+          // If not detected in current photos, flag for manual check
+          return {
+            ...def,
+            rawReading: '',
+            convertedKWh: null,
+            confidence: '0%',
+            status: def.isIgnored ? '🚫 ละเว้นไม่บันทึกตามเกณฑ์' : '⚠️ ตรวจไม่พบในภาพ (กรุณากรอกตัวเลข)',
+            isIgnored: def.isIgnored,
+            isMissing: !def.isIgnored,
+            isUserEdited: false
+          };
+        });
+
+        clearInterval(timer);
+        clearInterval(stepInterval);
+        setScanResult({
+          isRealApi: true,
+          totalImages: selectedImages.length,
+          detectedItems: matchedItems
+        });
+        setIsScanning(false);
+        return;
+      } else {
+        throw new Error("Gemini ไม่ได้ส่งผลการอ่านกลับมา");
+      }
+    } catch (err) {
+      clearInterval(timer);
+      clearInterval(stepInterval);
       setIsScanning(false);
-    }, 600);
+      console.error("Gemini Vision Scan Error:", err);
+      setScanError(`❌ เกิดข้อผิดพลาดในการอ่านภาพ: ${err.message}`);
+      
+      // Fallback to manual entry template so the technician is never blocked!
+      handleOpenManualEntry();
+    }
   };
 
   // 1-Click Save to Google Sheets & Line Notification
@@ -1506,19 +1134,42 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
 
             {/* Right: Results Panel & Confirmation (7 cols) */}
             <div className="lg:col-span-7 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-300">
                   รายการตรวจพบจากชุดภาพ:
                 </span>
-                <button
-                  onClick={handleStartBatchScan}
-                  disabled={isScanning || selectedImages.length === 0}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Sparkles className="w-4 h-4 text-yellow-300" />
-                  <span>{isScanning ? 'กำลังสแกนชุดภาพ...' : `กดเริ่มสแกนด้วย AI (${selectedImages.length} รูป)`}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenManualEntry}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition-all cursor-pointer shadow"
+                  >
+                    <span>📝 ตารางกรอกมือ 17 จุด</span>
+                  </button>
+                  <button
+                    onClick={handleStartBatchScan}
+                    disabled={isScanning || selectedImages.length === 0}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="w-4 h-4 text-yellow-300" />
+                    <span>{isScanning ? 'กำลังสแกนชุดภาพ...' : `กดเริ่มสแกนด้วย AI (${selectedImages.length} รูป)`}</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Error Banner */}
+              {scanError && (
+                <div className="p-3 bg-rose-950/70 border border-rose-600/80 rounded-xl text-rose-200 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <p className="font-bold text-rose-300 mb-0.5">เกิดข้อผิดพลาดในการเชื่อมต่อ:</p>
+                    <p className="text-rose-200/90">{scanError}</p>
+                    <p className="text-[11px] text-rose-300/80 mt-1">
+                      💡 ระบบได้เปิดแบบฟอร์ม 17 จุดด้านล่างไว้ให้แล้ว ท่านสามารถกรอกตัวเลขด้วยตนเองและกดบันทึกลง Google Sheets และ LINE ได้ทันทีครับ
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {saveSuccessInfo && (
                 <div className={`p-4 rounded-xl space-y-1.5 border ${
@@ -1555,71 +1206,130 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
               )}
 
               {!scanResult ? (
-                <div className="bg-slate-800/40 border border-dashed border-slate-700 rounded-xl p-8 text-center text-slate-400 text-xs">
-                  <Scan className="w-8 h-8 text-slate-500 mx-auto mb-2 opacity-60" />
-                  <p>กดปุ่ม <strong className="text-blue-400">"กดเริ่มสแกนด้วย AI ({selectedImages.length} รูป)"</strong></p>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    ระบบจะส่งภาพทั้งหมดไปอ่านพร้อมกันใน 1 คำขอ ใช้เวลาเพียง 1-3 วินาที
-                  </p>
+                <div className="bg-slate-800/40 border border-dashed border-slate-700 rounded-xl p-8 text-center text-slate-400 text-xs space-y-3">
+                  <Scan className="w-9 h-9 text-slate-500 mx-auto opacity-70" />
+                  <div>
+                    <p className="text-slate-300 font-medium">ยังไม่มีผลการอ่านค่า</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      เลือกรูปถ่ายมิเตอร์แล้วกด <strong className="text-blue-400">"กดเริ่มสแกนด้วย AI"</strong> หรือกด <strong className="text-slate-300">"📝 ตารางกรอกมือ 17 จุด"</strong> เพื่อพิมพ์ตัวเลขลงชีตได้ทันที
+                    </p>
+                  </div>
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenManualEntry}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-600 transition-all cursor-pointer shadow"
+                    >
+                      📝 เปิดแบบฟอร์มกรอกมือ 17 จุดโรงงาน
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="p-3 bg-indigo-950/30 border border-indigo-800/50 rounded-xl flex items-center justify-between text-xs">
                     <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      สแกนครบทุกภาพ ({scanResult.totalImages} ภาพ)
+                      {scanResult.isManual ? '📝 โหมดกรอกข้อมูลด้วยตนเอง' : `สแกนครบทุกภาพ (${scanResult.totalImages} ภาพ)`}
                     </span>
                     <span className="text-emerald-400 font-mono font-bold">
-                      พบ {scanResult.detectedItems.length} จุดวัด
+                      พร้อมบันทึก {scanResult.detectedItems.filter(i => !i.isIgnored && i.rawReading).length} / 17 จุด
                     </span>
                   </div>
 
-                  {/* List of Detected Meters */}
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                    {scanResult.detectedItems.map((item, idx) => (
-                      <div 
-                        key={idx}
-                        className={`p-3 rounded-lg border text-xs ${
-                          item.isIgnored 
-                            ? 'bg-rose-950/20 border-rose-900/50 text-slate-400' 
-                            : 'bg-slate-800/90 border-slate-700 text-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-bold ${item.isIgnored ? 'text-rose-400 line-through' : 'text-white'}`}>
-                            {item.target}
-                          </span>
-                          <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/40">
-                            {item.anchor || item.tag || item.meterId}
-                          </span>
-                        </div>
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <span>💡</span>
+                    <span>สามารถคลิกแก้ไขตัวเลขในช่องเลขอ่านได้โดยตรง ระบบจะคำนวณ kWh ให้อัตโนมัติ</span>
+                  </p>
 
-                        <div className="mt-2 flex items-baseline justify-between pt-1.5 border-t border-slate-700/50">
-                          <div>
-                            <span className="text-[10px] text-slate-400 block">เลขอ่านจากหน้าปัด:</span>
-                            <span className="font-mono text-sm font-semibold text-amber-300">
-                              {item.rawReading} {item.unit || ''}
+                  {/* List of Detected Meters (Interactive & Editable) */}
+                  <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                    {scanResult.detectedItems.map((item, idx) => {
+                      const isAlert = !item.isIgnored && (!item.rawReading || item.isMissing);
+
+                      return (
+                        <div 
+                          key={idx}
+                          className={`p-3 rounded-xl border text-xs transition-all ${
+                            item.isIgnored 
+                              ? 'bg-rose-950/20 border-rose-900/50 text-slate-400' 
+                              : isAlert
+                                ? 'bg-amber-950/30 border-amber-500/80 shadow-amber-950/20 shadow'
+                                : 'bg-slate-800/90 border-slate-700 text-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`font-bold text-[13px] ${item.isIgnored ? 'text-rose-400 line-through' : isAlert ? 'text-amber-300' : 'text-white'}`}>
+                              {item.target}
                             </span>
-                          </div>
-
-                          {item.convertedKWh && (
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-400 block">แปลงเป็นหน่วยบันทึก (kWh):</span>
-                              <span className="font-mono text-sm font-bold text-emerald-400">
-                                {item.convertedKWh.toLocaleString()} kWh
+                            <div className="flex items-center gap-1.5">
+                              {item.isUserEdited && (
+                                <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-800 px-1.5 py-0.5 rounded">
+                                  ✏️ แก้ไขแล้ว
+                                </span>
+                              )}
+                              <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/40">
+                                {item.anchor || item.tag || item.meterId}
                               </span>
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        <div className="mt-1 flex items-center justify-between text-[11px]">
-                          <span className={item.isIgnored ? 'text-rose-400 font-medium' : 'text-emerald-400'}>
-                            {item.status}
-                          </span>
-                          <span className="text-slate-400">ความแม่นยำ: <strong className="text-slate-200 font-mono">{item.confidence || '99.5%'}</strong></span>
+                          <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-700/60 items-center">
+                            <div>
+                              <label className="text-[10px] text-slate-400 block mb-0.5">
+                                เลขอ่านหน้าปัด ({item.unit}):
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={item.rawReading || ''}
+                                  onChange={(e) => handleUpdateReadingItem(idx, 'rawReading', e.target.value)}
+                                  placeholder={item.isIgnored ? 'ละเว้น' : 'ระบุตัวเลขหน้าปัด'}
+                                  disabled={item.isIgnored}
+                                  className={`w-full px-2.5 py-1 rounded-lg text-xs font-mono font-bold focus:outline-none transition-all ${
+                                    item.isIgnored
+                                      ? 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
+                                      : isAlert
+                                        ? 'bg-amber-950/50 text-amber-200 border border-amber-500 focus:border-amber-400 placeholder-amber-500/50'
+                                        : 'bg-slate-900 text-amber-300 border border-slate-700 focus:border-indigo-500'
+                                  }`}
+                                />
+                                <span className="text-xs font-mono text-slate-400 shrink-0 font-semibold">{item.unit}</span>
+                              </div>
+                            </div>
+
+                            {item.meterType === 'ELECTRICITY' && !item.isIgnored && (
+                              <div className="sm:text-right">
+                                <span className="text-[10px] text-slate-400 block mb-0.5">หน่วยแปลงลงชีต (kWh):</span>
+                                <span className="font-mono text-xs font-bold text-emerald-400">
+                                  {item.convertedKWh !== null && item.convertedKWh !== undefined
+                                    ? Number(item.convertedKWh).toLocaleString() + ' kWh'
+                                    : '-'
+                                  }
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between text-[11px] pt-1">
+                            <span className={
+                              item.isIgnored 
+                                ? 'text-rose-400 font-medium' 
+                                : isAlert 
+                                  ? 'text-amber-400 font-semibold flex items-center gap-1' 
+                                  : 'text-emerald-400'
+                            }>
+                              {isAlert && <AlertTriangle className="w-3.5 h-3.5 inline" />}
+                              {item.status}
+                            </span>
+                            {!item.isIgnored && (
+                              <span className="text-slate-400 text-[10px]">
+                                ความแม่นยำ: <strong className="text-slate-200 font-mono">{item.confidence || '99.5%'}</strong>
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Webhook Configuration Field (if missing) */}
