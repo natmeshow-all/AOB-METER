@@ -145,13 +145,115 @@ function doPost(e) {
 }
 
 // -------------------------------------------------------------------------
+// ฟังก์ชันจัดรูปแบบข้อความสรุปส่งเข้า LINE (Mobile-Optimized Executive Summary)
+// -------------------------------------------------------------------------
+function formatMobileLineSummary(readings, targetDay, recordedBy) {
+  let waterItems = [];
+  let mdb1Items = [];
+  let mdb2Items = [];
+  let ignoredCount = 0;
+
+  readings.forEach(item => {
+    if (item.isIgnored) {
+      ignoredCount++;
+      return;
+    }
+    const isWater = (item.meterType === "WATER") ||
+      (item.meterId && item.meterId.startsWith("WATER")) ||
+      (item.target && item.target.includes("น้ำ")) ||
+      (item.serialNumber && (item.serialNumber.includes("193019061") || item.serialNumber.includes("000630") || item.serialNumber.includes("000648")));
+
+    if (isWater) {
+      waterItems.push(item);
+    } else {
+      const text = ((item.target || "") + " " + (item.panel || "") + " " + (item.tag || "") + " " + (item.meterId || "")).toUpperCase();
+      if (text.includes("MDB-2") || text.includes("MDB2") || text.includes("TR2") || text.includes("REFRIGERATION") || text.includes("FIRE ALARM") || text.includes("C3-2 แดง")) {
+        mdb2Items.push(item);
+      } else {
+        mdb1Items.push(item);
+      }
+    }
+  });
+
+  let msg = "🏭 [สรุปมิเตอร์ประจำวัน - ART OF BAKING]\\n";
+  msg += "📅 วันที่: " + targetDay + " ก.ย. 2569\\n";
+  msg += "👤 บันทึกโดย: " + recordedBy + "\\n";
+  msg += "━━━━━━━━━━━━━━━━━━━━\\n";
+
+  // 1. ค่าน้ำ 3 จุด
+  msg += "💧 [มิเตอร์น้ำ 3 จุด]\\n";
+  if (waterItems.length === 0) {
+    msg += "• ไม่มีรายการค่าน้ำ\\n";
+  } else {
+    waterItems.forEach(item => {
+      let name = "น้ำทั่วไป";
+      const t = (item.target || item.meterId || "").toUpperCase();
+      if (t.includes("MAIN") || t.includes("หลัก") || t.includes("193019061")) name = "น้ำหลัก (ARAD)";
+      else if (t.includes("SOFT") || t.includes("ซอฟ") || t.includes("000630")) name = "น้ำ Soft (Itrón)";
+      else if (t.includes("EVAP") || t.includes("000648")) name = "น้ำ EVAP (Itrón)";
+
+      const raw = parseFloat(item.rawReading || 0).toLocaleString();
+      msg += "• " + name + ": " + raw + " m³\\n";
+    });
+  }
+
+  msg += "━━━━━━━━━━━━━━━━━━━━\\n";
+
+  // 2. ค่าไฟ MDB-1 TR1 (8 จุด)
+  msg += "⚡ [ค่าไฟฟ้า MDB-1 TR1 (8 จุด)]\\n";
+  if (mdb1Items.length === 0) {
+    msg += "• ไม่มีรายการ\\n";
+  } else {
+    mdb1Items.forEach(item => {
+      let shortName = item.target ? item.target.replace("MDB-1", "").replace("MDB1", "").trim() : (item.meterId || "");
+      const kwh = extractKWhValue(item);
+      const raw = (item.rawReading || "").toString().trim();
+      const u = item.unit || "";
+      msg += "• " + shortName + "\\n";
+      msg += "  └ " + (kwh ? kwh.toLocaleString() + " kWh" : "-") + (raw ? " (" + raw + " " + u + ")" : "") + "\\n";
+    });
+  }
+
+  msg += "━━━━━━━━━━━━━━━━━━━━\\n";
+
+  // 3. ค่าไฟ MDB-2 TR2 (6 จุด)
+  msg += "❄️ [ค่าไฟฟ้า MDB-2 TR2 (6 จุด)]\\n";
+  if (mdb2Items.length === 0) {
+    msg += "• ไม่มีรายการ\\n";
+  } else {
+    mdb2Items.forEach(item => {
+      let shortName = item.target ? item.target.replace("MDB-2", "").replace("MDB2", "").trim() : (item.meterId || "");
+      const isRefrig = shortName.toUpperCase().includes("REFRIGERATION");
+      const star = isRefrig ? " ⭐" : "";
+      const kwh = extractKWhValue(item);
+      const raw = (item.rawReading || "").toString().trim();
+      const u = item.unit || "";
+      msg += "• " + shortName + star + "\\n";
+      msg += "  └ " + (kwh ? kwh.toLocaleString() + " kWh" : "-") + (raw ? " (" + raw + " " + u + ")" : "") + "\\n";
+    });
+  }
+
+  msg += "━━━━━━━━━━━━━━━━━━━━\\n";
+  const recordedCount = waterItems.length + mdb1Items.length + mdb2Items.length;
+  msg += "📊 บันทึกสำเร็จ: " + recordedCount + " / 17 จุดวัด";
+  if (ignoredCount > 0) {
+    msg += " (ละเว้น Fire Pump " + ignoredCount + " จุด)\\n";
+  } else {
+    msg += "\\n";
+  }
+  msg += "💾 ซิงค์ Google Sheet & AppSheet เรียบร้อยครับ!";
+
+  return msg;
+}
+
+// -------------------------------------------------------------------------
 // ช่องทางที่ 2: บันทึกข้อมูลจาก Web Dashboard และส่งสรุปเข้า LINE
 // -------------------------------------------------------------------------
 function handleSaveFromWeb(data) {
   try {
     const readings = data.readings || [];
     const targetDay = data.targetDay || null;
-    const recordedBy = data.recordedBy || "ช่างประจำวัน (ผ่าน Web Dashboard)";
+    const recordedBy = data.recordedBy || "ช่างประจำวัน (ผ่านมือถือ Web App)";
 
     if (readings.length === 0) {
       return ContentService.createTextOutput(JSON.stringify({ success: false, message: "ไม่มีข้อมูลมิเตอร์ที่จะบันทึก" }))
@@ -160,30 +262,7 @@ function handleSaveFromWeb(data) {
 
     const saveResult = saveReadingsToSheet(readings, targetDay);
 
-    let reportMsg = "🌐 [บันทึกข้อมูลผ่าน Web Dashboard สำเร็จ]\\n";
-    reportMsg += "📅 ข้อมูลประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569\\n";
-    reportMsg += "👤 ผู้บันทึก: " + recordedBy + "\\n";
-    reportMsg += "-------------------------\\n";
-
-    readings.forEach(item => {
-      if (item.isIgnored) {
-        reportMsg += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\\n";
-      } else {
-        const rawStr = (item.rawReading || item.readingRaw || "").toString();
-        const unit = (item.unit || "").toString();
-        const readingDisplay = rawStr.includes(unit) ? rawStr : (rawStr + " " + unit);
-
-        reportMsg += "✅ " + item.target + "\\n";
-        reportMsg += "🔢 ค่าที่อ่านได้: " + readingDisplay.trim() + "\\n";
-        if (item.convertedKWh) {
-          reportMsg += "⚡ บันทึกหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\\n";
-        }
-      }
-    });
-
-    reportMsg += "-------------------------\\n";
-    reportMsg += "💾 บันทึกลง Google Sheet แล้ว " + saveResult.savedCount + " รายการ\\n";
-    reportMsg += "✨ ข้อมูลซิงค์กับ AppSheet และ Dashboard เรียบร้อยแล้ว!";
+    const reportMsg = formatMobileLineSummary(readings, saveResult.targetDay, recordedBy);
 
     const props = PropertiesService.getScriptProperties();
     const targetLineId = data.lineTargetId || props.getProperty("LAST_LINE_TARGET_ID");
@@ -398,31 +477,7 @@ function processIncomingMeterImage(event) {
 
     const manualDayStr = PropertiesService.getScriptProperties().getProperty("TARGET_RECORD_DAY");
     const manualDay = manualDayStr ? parseInt(manualDayStr, 10) : null;
-    const saveResult = saveReadingsToSheet(aiResult.readings, manualDay);
-
-    let replyText = "📋 [บันทึกผลมิเตอร์สำเร็จ - รวม " + imageBlobs.length + " ภาพ]\\n";
-    replyText += "📅 ประจำวันที่ " + saveResult.targetDay + " ก.ย. 2569\\n";
-    replyText += "-------------------------\\n";
-
-    aiResult.readings.forEach(item => {
-      if (item.isIgnored) {
-        replyText += "🚫 " + item.target + ": ข้ามการบันทึกตามเกณฑ์\\n";
-      } else {
-        const rawStr = (item.rawReading || item.readingRaw || "").toString();
-        const unit = (item.unit || "").toString();
-        const readingDisplay = rawStr.includes(unit) ? rawStr : (rawStr + " " + unit);
-
-        replyText += "✅ " + item.target + "\\n";
-        replyText += "🔢 อ่านได้: " + readingDisplay.trim() + "\\n";
-        if (item.convertedKWh) {
-          replyText += "⚡ แปลงหน่วย: " + Number(item.convertedKWh).toLocaleString() + " kWh\\n";
-        }
-      }
-    });
-
-    replyText += "-------------------------\\n";
-    replyText += "💾 บันทึกลง Google Sheet และ AppSheet แล้ว " + saveResult.savedCount + " จุดเรียบร้อย!";
-
+    const replyText = formatMobileLineSummary(aiResult.readings, saveResult.targetDay, "ช่างประจำวัน (ส่งภาพผ่าน LINE)");
     sendLineNotification(event, replyText);
 
   } catch (err) {

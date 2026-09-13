@@ -24,6 +24,8 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
   if (!isOpen) return null;
 
   const fileInputRef = useRef(null);
+  const mobileCameraInputRef = useRef(null);
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
 
   // Load saved system settings
   const savedSettings = (() => {
@@ -957,43 +959,63 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
   const currentPreview = selectedImages[activeImageIndex] || selectedImages[0];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl max-w-5xl w-full h-[95dvh] sm:h-auto sm:max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/95">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white shadow-lg shadow-blue-500/20">
-              <Scan className="w-5 h-5" />
+        <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white shadow-lg shadow-blue-500/20">
+              <Scan className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-white">
-                  ระบบสแกนรูปมิเตอร์รวมชุด (Multi-Image Batch Scanner)
+                <h3 className="text-sm sm:text-base font-bold text-white">
+                  สแกนรูปมิเตอร์ (AI Multi-Scanner)
                 </h3>
-                <span className="text-[11px] px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 font-semibold">
-                  1 คำขอ อ่านได้ทุกรูป 100%
+                <span className="hidden sm:inline-block text-[11px] px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 font-semibold">
+                  1 คำขอ อ่านครบ 17 จุด
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                เลือกหลายรูปพร้อมกัน (1-10 รูป) &gt; รวมส่งให้ AI ใน 1 Call &gt; ตรวจสอบและกดบันทึกลง Google Sheet + ส่ง LINE ทันที
+              <p className="text-[11px] sm:text-xs text-slate-400">
+                ถ่ายรูปตู้ไฟ &gt; AI วิเคราะห์ 17 จุด &gt; ส่งสรุปเข้า LINE ทันที
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 cursor-pointer"
+            className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800/80 active:bg-slate-700 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-3.5 sm:p-5 overflow-y-auto space-y-3.5 flex-1">
           {/* Top Control Bar: Upload Multiple Files & Target Day */}
-          <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/70 flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-slate-800/90 p-3 sm:p-3.5 rounded-2xl border border-slate-700/70 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             {/* Multi-file Upload Controls */}
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+              {/* Direct Camera Capture for Mobile */}
+              <input
+                ref={mobileCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => mobileCameraInputRef.current?.click()}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl shadow cursor-pointer transition-all active:scale-95"
+              >
+                <Camera className="w-4 h-4 text-yellow-300 shrink-0" />
+                <span>📸 เปิดกล้องถ่าย</span>
+              </button>
+
+              {/* Gallery Picker */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1003,32 +1025,29 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
                 className="hidden"
               />
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow cursor-pointer transition-all"
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 transition-all cursor-pointer active:scale-95"
               >
-                <Upload className="w-4 h-4" />
-                <span>+ เลือกรูปจากเครื่อง / ถ่ายรูป (เลือกได้หลายรูป)</span>
+                <Upload className="w-4 h-4 text-blue-400 shrink-0" />
+                <span>📁 เลือกจากเครื่อง</span>
               </button>
-
-              <span className="text-xs text-slate-400 font-mono">
-                เลือกแล้ว <strong className="text-white">{selectedImages.length}</strong> ภาพ
-              </span>
             </div>
 
             {/* Target Day Selector */}
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-300 font-medium flex items-center gap-1.5">
+            <div className="flex items-center justify-between sm:justify-end gap-2 text-xs bg-slate-900/60 p-2 rounded-xl border border-slate-700/60">
+              <span className="text-slate-300 font-medium flex items-center gap-1 text-[11px] sm:text-xs shrink-0">
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                <span>บันทึกลงประจำวันที่:</span>
+                <span>บันทึกลงวันที่:</span>
               </span>
               <select
                 value={targetDay}
                 onChange={(e) => setTargetDay(parseInt(e.target.value, 10))}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-amber-300 font-bold font-mono focus:border-amber-500 focus:outline-none cursor-pointer"
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-amber-300 font-bold font-mono focus:border-amber-500 focus:outline-none cursor-pointer text-xs"
               >
                 {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                   <option key={day} value={day}>
-                    วันที่ {day} ก.ย. 2569 {day === 1 ? '(วานนี้)' : ''}
+                    {day} ก.ย. 2569 {day === defaultDay ? '(รอบวานนี้)' : ''}
                   </option>
                 ))}
               </select>
@@ -1236,100 +1255,200 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
                     </span>
                   </div>
 
+                  {/* Category Filter Pills for Quick Mobile Navigation */}
+                  {(() => {
+                    const allItems = scanResult.detectedItems || [];
+                    const missingCount = allItems.filter(i => !i.isIgnored && (!i.rawReading || i.isMissing)).length;
+                    return (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter('ALL')}
+                          className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                            categoryFilter === 'ALL'
+                              ? 'bg-blue-600 text-white font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          ทั้งหมด ({allItems.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter('WATER')}
+                          className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                            categoryFilter === 'WATER'
+                              ? 'bg-blue-600 text-white font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          💧 น้ำ (3)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter('C2-2')}
+                          className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                            categoryFilter === 'C2-2'
+                              ? 'bg-blue-600 text-white font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          ⚡ C2-2 (2)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter('C3-2')}
+                          className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                            categoryFilter === 'C3-2'
+                              ? 'bg-blue-600 text-white font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          ⚡ C3-2 (9)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter('C4-2')}
+                          className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                            categoryFilter === 'C4-2'
+                              ? 'bg-blue-600 text-white font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          ⚡ C4-2 (4)
+                        </button>
+                        {missingCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setCategoryFilter('MISSING')}
+                            className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 ${
+                              categoryFilter === 'MISSING'
+                                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                                : 'bg-amber-950/60 text-amber-300 border border-amber-500/50 hover:bg-amber-900/60'
+                            }`}
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>ยังไม่ครบ ({missingCount})</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <p className="text-[11px] text-slate-400 flex items-center gap-1">
                     <span>💡</span>
-                    <span>สามารถคลิกแก้ไขตัวเลขในช่องเลขอ่านได้โดยตรง ระบบจะคำนวณ kWh ให้อัตโนมัติ</span>
+                    <span>แตะแก้ไขตัวเลขในช่องเลขอ่านได้ทันที ระบบจะคำนวณ kWh ให้อัตโนมัติ</span>
                   </p>
 
                   {/* List of Detected Meters (Interactive & Editable) */}
                   <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-                    {scanResult.detectedItems.map((item, idx) => {
-                      const isAlert = !item.isIgnored && (!item.rawReading || item.isMissing);
+                    {scanResult.detectedItems
+                      .map((item, originalIndex) => ({ item, originalIndex }))
+                      .filter(({ item }) => {
+                        if (categoryFilter === 'WATER') {
+                          return item.meterType === 'WATER' || (item.meterId && item.meterId.startsWith('WATER'));
+                        }
+                        if (categoryFilter === 'C2-2') {
+                          return (item.panel && item.panel.includes('C2-2')) || (item.anchor && item.anchor.includes('C2-2')) || item.meterId === 'MDB1-Q1-1' || item.meterId === 'MDB1-Q1-5';
+                        }
+                        if (categoryFilter === 'C3-2') {
+                          return (item.panel && item.panel.includes('C3-2')) || (item.anchor && item.anchor.includes('C3-2')) || (item.meterId && item.meterId.startsWith('MDB2-')) || item.meterId === 'MDB1-Q1-2' || item.meterId === 'MDB1-Q1-4';
+                        }
+                        if (categoryFilter === 'C4-2') {
+                          return (item.panel && item.panel.includes('C4-2')) || (item.anchor && item.anchor.includes('C4-2')) || ['MDB1-Q1-3', 'MDB1-Q1-6', 'MDB1-Q1-7', 'MDB1-Q1-8'].includes(item.meterId);
+                        }
+                        if (categoryFilter === 'MISSING') {
+                          return !item.isIgnored && (!item.rawReading || item.isMissing);
+                        }
+                        return true;
+                      })
+                      .map(({ item, originalIndex }) => {
+                        const isAlert = !item.isIgnored && (!item.rawReading || item.isMissing);
 
-                      return (
-                        <div 
-                          key={idx}
-                          className={`p-3 rounded-xl border text-xs transition-all ${
-                            item.isIgnored 
-                              ? 'bg-rose-950/20 border-rose-900/50 text-slate-400' 
-                              : isAlert
-                                ? 'bg-amber-950/30 border-amber-500/80 shadow-amber-950/20 shadow'
-                                : 'bg-slate-800/90 border-slate-700 text-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={`font-bold text-[13px] ${item.isIgnored ? 'text-rose-400 line-through' : isAlert ? 'text-amber-300' : 'text-white'}`}>
-                              {item.target}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              {item.isUserEdited && (
-                                <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-800 px-1.5 py-0.5 rounded">
-                                  ✏️ แก้ไขแล้ว
+                        return (
+                          <div 
+                            key={originalIndex}
+                            className={`p-3 rounded-xl border text-xs transition-all ${
+                              item.isIgnored 
+                                ? 'bg-rose-950/20 border-rose-900/50 text-slate-400' 
+                                : isAlert
+                                  ? 'bg-amber-950/30 border-amber-500/80 shadow-amber-950/20 shadow'
+                                  : 'bg-slate-800/90 border-slate-700 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`font-bold text-[13px] ${item.isIgnored ? 'text-rose-400 line-through' : isAlert ? 'text-amber-300' : 'text-white'}`}>
+                                {item.target}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {item.isUserEdited && (
+                                  <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-800 px-1.5 py-0.5 rounded">
+                                    ✏️ แก้ไขแล้ว
+                                  </span>
+                                )}
+                                <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/40">
+                                  {item.anchor || item.tag || item.meterId}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-700/60 items-center">
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-0.5">
+                                  เลขอ่านหน้าปัด ({item.unit}):
+                                </label>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={item.rawReading || ''}
+                                    onChange={(e) => handleUpdateReadingItem(originalIndex, 'rawReading', e.target.value)}
+                                    placeholder={item.isIgnored ? 'ละเว้น' : 'ระบุตัวเลขหน้าปัด'}
+                                    disabled={item.isIgnored}
+                                    className={`w-full px-3 py-2 sm:py-1 rounded-lg text-base sm:text-xs font-mono font-bold focus:outline-none transition-all ${
+                                      item.isIgnored
+                                        ? 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
+                                        : isAlert
+                                          ? 'bg-amber-950/50 text-amber-200 border border-amber-500 focus:border-amber-400 placeholder-amber-500/50'
+                                          : 'bg-slate-900 text-amber-300 border border-slate-700 focus:border-indigo-500'
+                                    }`}
+                                  />
+                                  <span className="text-xs font-mono text-slate-400 shrink-0 font-semibold">{item.unit}</span>
+                                </div>
+                              </div>
+
+                              {item.meterType === 'ELECTRICITY' && !item.isIgnored && (
+                                <div className="sm:text-right">
+                                  <span className="text-[10px] text-slate-400 block mb-0.5">หน่วยแปลงลงชีต (kWh):</span>
+                                  <span className="font-mono text-xs font-bold text-emerald-400">
+                                    {item.convertedKWh !== null && item.convertedKWh !== undefined
+                                      ? Number(item.convertedKWh).toLocaleString() + ' kWh'
+                                      : '-'
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between text-[11px] pt-1">
+                              <span className={
+                                item.isIgnored 
+                                  ? 'text-rose-400 font-medium' 
+                                  : isAlert 
+                                    ? 'text-amber-400 font-semibold flex items-center gap-1' 
+                                    : 'text-emerald-400'
+                              }>
+                                {isAlert && <AlertTriangle className="w-3.5 h-3.5 inline" />}
+                                {item.status}
+                              </span>
+                              {!item.isIgnored && (
+                                <span className="text-slate-400 text-[10px]">
+                                  ความแม่นยำ: <strong className="text-slate-200 font-mono">{item.confidence || '99.5%'}</strong>
                                 </span>
                               )}
-                              <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/40">
-                                {item.anchor || item.tag || item.meterId}
-                              </span>
                             </div>
                           </div>
-
-                          <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-700/60 items-center">
-                            <div>
-                              <label className="text-[10px] text-slate-400 block mb-0.5">
-                                เลขอ่านหน้าปัด ({item.unit}):
-                              </label>
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  type="text"
-                                  value={item.rawReading || ''}
-                                  onChange={(e) => handleUpdateReadingItem(idx, 'rawReading', e.target.value)}
-                                  placeholder={item.isIgnored ? 'ละเว้น' : 'ระบุตัวเลขหน้าปัด'}
-                                  disabled={item.isIgnored}
-                                  className={`w-full px-2.5 py-1 rounded-lg text-xs font-mono font-bold focus:outline-none transition-all ${
-                                    item.isIgnored
-                                      ? 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
-                                      : isAlert
-                                        ? 'bg-amber-950/50 text-amber-200 border border-amber-500 focus:border-amber-400 placeholder-amber-500/50'
-                                        : 'bg-slate-900 text-amber-300 border border-slate-700 focus:border-indigo-500'
-                                  }`}
-                                />
-                                <span className="text-xs font-mono text-slate-400 shrink-0 font-semibold">{item.unit}</span>
-                              </div>
-                            </div>
-
-                            {item.meterType === 'ELECTRICITY' && !item.isIgnored && (
-                              <div className="sm:text-right">
-                                <span className="text-[10px] text-slate-400 block mb-0.5">หน่วยแปลงลงชีต (kWh):</span>
-                                <span className="font-mono text-xs font-bold text-emerald-400">
-                                  {item.convertedKWh !== null && item.convertedKWh !== undefined
-                                    ? Number(item.convertedKWh).toLocaleString() + ' kWh'
-                                    : '-'
-                                  }
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mt-2 flex items-center justify-between text-[11px] pt-1">
-                            <span className={
-                              item.isIgnored 
-                                ? 'text-rose-400 font-medium' 
-                                : isAlert 
-                                  ? 'text-amber-400 font-semibold flex items-center gap-1' 
-                                  : 'text-emerald-400'
-                            }>
-                              {isAlert && <AlertTriangle className="w-3.5 h-3.5 inline" />}
-                              {item.status}
-                            </span>
-                            {!item.isIgnored && (
-                              <span className="text-slate-400 text-[10px]">
-                                ความแม่นยำ: <strong className="text-slate-200 font-mono">{item.confidence || '99.5%'}</strong>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
 
                   {/* Webhook Configuration Field (if missing) */}
@@ -1369,24 +1488,26 @@ export const MeterScannerModal = ({ isOpen, onClose, onSaveReadings }) => {
                     </div>
                   )}
 
-                  {/* Action Confirm Button */}
-                  <button
-                    onClick={handleConfirmSave}
-                    disabled={isSaving}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isSaving ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4" />
-                    )}
-                    <span>
-                      {isSaving 
-                        ? 'กำลังบันทึกลงชีตและส่ง LINE...' 
-                        : `💾 ยืนยันบันทึกลง Google Sheet ประจำวันที่ ${targetDay} ก.ย. และส่งแจ้งเตือน LINE`
-                      }
-                    </span>
-                  </button>
+                  {/* Sticky Mobile & Desktop Action Confirm Button */}
+                  <div className="sticky bottom-0 bg-slate-900/95 backdrop-blur-md pt-2.5 pb-1 -mx-3.5 sm:mx-0 px-3.5 sm:px-0 border-t border-slate-800 sm:border-0 z-20 shadow-2xl">
+                    <button
+                      onClick={handleConfirmSave}
+                      disabled={isSaving}
+                      className="w-full py-3.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-sm sm:text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isSaving 
+                          ? 'กำลังบันทึกลงชีตและส่ง LINE...' 
+                          : `💾 ยืนยันบันทึก (${scanResult.detectedItems.filter(i => !i.isIgnored && i.rawReading).length}/17 จุด) วันที่ ${targetDay} ก.ย. และส่ง LINE`
+                        }
+                      </span>
+                    </button>
+                  </div>
 
                   {/* Test LINE Notification quick action */}
                   <div className="flex items-center justify-between pt-1">

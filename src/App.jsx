@@ -16,6 +16,7 @@ import {
   ELECTRICITY_METERS,
   COMPANY_INFO 
 } from './data/mockData';
+import { Camera } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('water'); // 'water' | 'electricity' | 'solar' | 'monthly-sheet'
@@ -231,6 +232,16 @@ export function App() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile Floating Action Button (FAB) for 1-Tap Meter Scan */}
+      <button
+        onClick={() => setIsScannerOpen(true)}
+        className="sm:hidden fixed bottom-6 right-5 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 active:scale-95 text-white font-bold text-xs rounded-full shadow-2xl shadow-blue-600/50 border border-blue-400/40 cursor-pointer backdrop-blur transition-transform"
+        aria-label="ถ่ายรูปสแกนมิเตอร์"
+      >
+        <Camera className="w-4 h-4 text-yellow-300" />
+        <span>📸 สแกนมิเตอร์</span>
+      </button>
 
       {/* Modals */}
       <MeterScannerModal
