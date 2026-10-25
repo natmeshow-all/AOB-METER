@@ -9,7 +9,8 @@ import {
   Settings, 
   FileSpreadsheet, 
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  Activity
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/mockData';
 
@@ -94,6 +95,18 @@ export const Navbar = ({
             >
               <Droplet className="w-4 h-4 text-blue-400 shrink-0" />
               <span><span className="hidden sm:inline">มิเตอร์</span>น้ำ (3)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('realtime')}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'realtime'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+              <span>⚡ ออนไลน์ (IoT)</span>
             </button>
 
             <button

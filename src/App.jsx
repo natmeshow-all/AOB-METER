@@ -5,6 +5,7 @@ import { WaterMeterView } from './components/WaterMeterView';
 import { ElectricityMeterView } from './components/ElectricityMeterView';
 import { SolarView } from './components/SolarView';
 import { MonthlySummaryTable } from './components/MonthlySummaryTable';
+import { RealtimePowerView } from './components/RealtimePowerView';
 import { MeterScannerModal } from './components/MeterScannerModal';
 import { LineBotSimulator } from './components/LineBotSimulator';
 import { SettingsModal } from './components/SettingsModal';
@@ -175,6 +176,11 @@ export function App() {
               monthlyDays={monthlyDays}
             />
           </div>
+        )}
+
+        {/* Tab 1.5: Realtime Power & IoT Telemetry */}
+        {activeTab === 'realtime' && (
+          <RealtimePowerView />
         )}
 
         {/* Tab 2: Electricity Meters (14 Points) */}
