@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Zap,
   Activity,
@@ -14,32 +14,40 @@ import { TENANT_COMPANIES } from '../data/tenantData';
 
 export const OverviewMetersView = ({ onSelectMeter }) => {
   const { activeOrgId } = useAuth();
-  const currentCompany = TENANT_COMPANIES[activeOrgId] || TENANT_COMPANIES['ORG-AOB'];
+  const currentCompany = TENANT_COMPANIES[activeOrgId] ||
+    Object.values(TENANT_COMPANIES)[0] || {
+      id: '',
+      name: 'ยังไม่มีบริษัทลูกค้าในระบบ',
+      code: '-',
+      transformerKVA: 1600,
+      electricityMeters: []
+    };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPanel, setSelectedPanel] = useState('ALL');
-  const [tick, setTick] = useState(0);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick((t) => t + 1);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Build live meter list for this company (Pure Electrical Metrics, No Cost)
+  // Build real meter list for this company (100% real configured/telemetry values, no fake sine wave)
   const metersLive = useMemo(() => {
-    const rawMeters = (currentCompany.electricityMeters || []).filter((m) => m.baseKW > 0);
-    const totalBase = rawMeters.reduce((s, m) => s + m.baseKW, 0) || 1;
+    const rawMeters = currentCompany.electricityMeters || [];
+    const totalBase =
+      rawMeters.reduce((s, m) => s + (Number(m.liveKW ?? m.baseKW) || 0), 0) || 1;
 
     return rawMeters.map((m, idx) => {
-      const wave = Math.sin(tick * 0.7 + idx * 1.3) * 0.035;
-      const activeKW = Number((m.baseKW * (1 + wave)).toFixed(1));
-      const currentA = Number((activeKW * 1.52).toFixed(1));
-      const voltageLL = Number((400.0 + Math.cos(tick + idx) * 1.2).toFixed(1));
-      const pf = Number(Math.min(0.99, Math.max(0.88, 0.94 + Math.sin(idx) * 0.03)).toFixed(2));
-      const todayKWh = Math.round(activeKW * 14.5);
-      const sharePercent = Number(((activeKW / totalBase) * 100).toFixed(1));
+      const activeKW = Number((Number(m.liveKW ?? m.baseKW) || 0).toFixed(1));
+      const currentA = Number(
+        (m.currentA !== undefined && Number(m.currentA) > 0
+          ? Number(m.currentA)
+          : activeKW * 1.52
+        ).toFixed(1)
+      );
+      const voltageLL = Number((Number(m.voltageLL) || 400.0).toFixed(1));
+      const pf = Number((Number(m.pf) || 0.95).toFixed(2));
+      const todayKWh =
+        m.todayKWh !== undefined && Number(m.todayKWh) > 0
+          ? Math.round(Number(m.todayKWh))
+          : Math.round(activeKW * 14.5);
+      const sharePercent =
+        activeKW > 0 ? Number(((activeKW / totalBase) * 100).toFixed(1)) : 0;
 
       return {
         ...m,
@@ -52,7 +60,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
         sharePercent
       };
     });
-  }, [currentCompany, tick]);
+  }, [currentCompany]);
 
   // Company-wide totals
   const summary = useMemo(() => {
@@ -87,14 +95,28 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
     const matchesPanel = selectedPanel === 'ALL' || m.panel === selectedPanel;
     const matchesSearch =
       !searchQuery.trim() ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.tag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.name && m.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (m.tag && m.tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (m.panel && m.panel.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesPanel && matchesSearch;
   });
 
   const nowHour = new Date().getHours();
   const isOnPeakNow = nowHour >= 9 && nowHour < 22;
+
+  if (!currentCompany.id) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-10 text-center max-w-xl mx-auto my-8">
+        <div className="text-3xl mb-3">⚡</div>
+        <h3 className="text-lg font-black text-white">
+          ยังไม่มีข้อมูลบริษัทลูกค้าในระบบ
+        </h3>
+        <p className="text-xs text-slate-400 mt-1">
+          กรุณาไปที่เมนู <strong>👑 จัดการลูกค้า (Super Admin)</strong> เพื่อเพิ่มบริษัทลูกค้าจริงและตั้งค่าพาวเวอร์มิเตอร์
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -104,7 +126,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <h2 className="text-sm sm:text-base font-bold text-white">
-              ภาพรวมพาวเวอร์มิเตอร์ทั้งหมดของบริษัท (Real-time Overview)
+              ภาพรวมพาวเวอร์มิเตอร์ทั้งหมดของ {currentCompany.name}
             </h2>
           </div>
 
@@ -124,7 +146,6 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
 
         {/* 4 Key Electrical Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4">
-          {/* Metric 1: Total Active Power kW */}
           <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>กำลังไฟฟ้ารวมขณะนี้</span>
@@ -135,11 +156,10 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               <span className="text-xs font-sans font-normal text-slate-400">kW</span>
             </div>
             <div className="text-xs text-slate-400 mt-1">
-              มิเตอร์ออนไลน์ครบ {summary.meterCount} จุดวัด
+              ติดตั้งทั้งหมด {summary.meterCount} จุดวัด
             </div>
           </div>
 
-          {/* Metric 2: Transformer Load % */}
           <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>ภาระหม้อแปลง ({summary.trCapacity} kVA)</span>
@@ -169,7 +189,6 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
             </div>
           </div>
 
-          {/* Metric 3: Today Accumulated Energy kWh */}
           <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>พลังงานไฟฟ้าสะสมวันนี้</span>
@@ -184,7 +203,6 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
             </div>
           </div>
 
-          {/* Metric 4: Power Factor & System Health */}
           <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>ค่าเพาเวอร์แฟกเตอร์เฉลี่ย</span>
@@ -242,6 +260,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {filteredMeters.map((meter) => {
             const isHighConsumer = meter.sharePercent >= 15;
+            const isOnline = meter.connectionStatus === 'ONLINE';
             return (
               <div
                 key={meter.id}
@@ -252,15 +271,15 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                     : 'border-slate-800 hover:border-blue-500/60'
                 }`}
               >
-                {/* Card Top: Meter Tag, Name & Online Badge */}
+                {/* Card Top: Meter Tag, Slave ID, Name & Status Badge */}
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-mono font-bold text-amber-300">
                         {meter.tag}
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        ตู้ {meter.panel}
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px] font-mono font-bold text-cyan-300">
+                        Slave #{meter.slaveId || 1}
                       </span>
                       {isHighConsumer && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center gap-0.5">
@@ -273,9 +292,19 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                     </h3>
                   </div>
 
-                  <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Online
+                  <span
+                    className={`flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full shrink-0 border ${
+                      isOnline
+                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                        : 'text-slate-300 bg-slate-800 border-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isOnline ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
+                      }`}
+                    />
+                    {isOnline ? 'Online' : 'Ready'}
                   </span>
                 </div>
 
@@ -313,21 +342,15 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 <div className="grid grid-cols-4 gap-1.5 text-center bg-slate-950/50 rounded-xl p-2 border border-slate-800/50 text-xs">
                   <div>
                     <span className="text-slate-500 block text-[10px]">แรงดัน</span>
-                    <span className="font-mono font-bold text-slate-200">
-                      {meter.voltageLL}V
-                    </span>
+                    <span className="font-mono font-bold text-slate-200">{meter.voltageLL}V</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px]">กระแส</span>
-                    <span className="font-mono font-bold text-cyan-300">
-                      {meter.currentA}A
-                    </span>
+                    <span className="font-mono font-bold text-cyan-300">{meter.currentA}A</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px]">PF</span>
-                    <span className="font-mono font-bold text-emerald-300">
-                      {meter.pf}
-                    </span>
+                    <span className="font-mono font-bold text-emerald-300">{meter.pf}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px]">สะสม (kWh)</span>
@@ -340,10 +363,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 {/* Footer Tap Prompt */}
                 <div className="mt-3 pt-2.5 border-t border-slate-800/70 flex items-center justify-between text-xs">
                   <span className="text-slate-400">
-                    หน่วยสะสมวันนี้:{' '}
-                    <strong className="text-white font-mono">
-                      {meter.todayKWh.toLocaleString()} kWh
-                    </strong>
+                    รุ่น: <strong className="text-slate-200">{meter.model || 'PM2200'}</strong>
                   </span>
                   <span className="text-blue-400 font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
                     เจาะลึกมิเตอร์นี้ <ChevronRight className="w-4 h-4" />

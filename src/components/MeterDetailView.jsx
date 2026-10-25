@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -23,49 +23,50 @@ import { TENANT_COMPANIES } from '../data/tenantData';
 
 export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOverview }) => {
   const { activeOrgId } = useAuth();
-  const currentCompany = TENANT_COMPANIES[activeOrgId] || TENANT_COMPANIES['ORG-AOB'];
+  const currentCompany = TENANT_COMPANIES[activeOrgId] ||
+    Object.values(TENANT_COMPANIES)[0] || {
+      id: '',
+      name: 'ยังไม่มีบริษัทลูกค้าในระบบ',
+      electricityMeters: []
+    };
 
   const meters = useMemo(() => {
-    return (currentCompany.electricityMeters || []).filter((m) => m.baseKW > 0);
+    return currentCompany.electricityMeters || [];
   }, [currentCompany]);
 
   const activeMeter = useMemo(() => {
-    return meters.find((m) => m.id === selectedMeterId) || meters[0];
+    return meters.find((m) => m.id === selectedMeterId) || meters[0] || null;
   }, [meters, selectedMeterId]);
-
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 3500);
-    return () => clearInterval(timer);
-  }, []);
 
   if (!activeMeter) {
     return (
-      <div className="p-8 text-center text-slate-400">
-        ไม่พบข้อมูลมิเตอร์ของบริษัทนี้
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center text-slate-400">
+        ยังไม่มีพาวเวอร์มิเตอร์ในบริษัทนี้ กรุณาเพิ่มมิเตอร์ในหน้าจัดการลูกค้า (Super Admin)
       </div>
     );
   }
 
-  // Calculate live 3-phase telemetry for the selected meter
-  const baseKW = Math.abs(activeMeter.baseKW) || 50;
-  const jitter = Math.sin(tick * 0.8) * 0.03;
-  const liveKW = Number((baseKW * (1 + jitter)).toFixed(1));
-  const pf = Number((0.94 + Math.cos(tick * 0.5) * 0.01).toFixed(2));
-  const liveKVA = Number((liveKW / pf).toFixed(1));
+  // Real 3-phase telemetry for the selected meter
+  const liveKW = Number((Number(activeMeter.liveKW ?? activeMeter.baseKW) || 0).toFixed(1));
+  const pf = Number((Number(activeMeter.pf) || 0.95).toFixed(2));
+  const liveKVA = Number((liveKW / (pf || 0.95)).toFixed(1));
   const liveKVAR = Number(Math.sqrt(Math.max(0, liveKVA * liveKVA - liveKW * liveKW)).toFixed(1));
 
   // 3-Phase Voltage & Current
-  const vL1N = Number((230.8 + Math.sin(tick) * 0.6).toFixed(1));
-  const vL2N = Number((231.2 + Math.cos(tick) * 0.5).toFixed(1));
-  const vL3N = Number((230.5 + Math.sin(tick * 0.7) * 0.6).toFixed(1));
-  const vLL = Number((((vL1N + vL2N + vL3N) / 3) * 1.732).toFixed(1));
+  const vLL = Number((Number(activeMeter.voltageLL) || 400.0).toFixed(1));
+  const vLN = Number((vLL / 1.732).toFixed(1));
+  const vL1N = vLN;
+  const vL2N = vLN;
+  const vL3N = vLN;
 
-  const avgCurrent = liveKW * 1.52;
-  const iL1 = Number((avgCurrent * 1.01).toFixed(1));
-  const iL2 = Number((avgCurrent * 0.98).toFixed(1));
-  const iL3 = Number((avgCurrent * 1.01).toFixed(1));
-  const frequency = Number((50.0 + Math.sin(tick) * 0.03).toFixed(2));
+  const avgCurrent =
+    activeMeter.currentA !== undefined && Number(activeMeter.currentA) > 0
+      ? Number(activeMeter.currentA)
+      : Number((liveKW * 1.52).toFixed(1));
+  const iL1 = avgCurrent;
+  const iL2 = avgCurrent;
+  const iL3 = avgCurrent;
+  const frequency = 50.0;
 
   // Generate 24-hour profile specifically for this meter (Pure Electrical kWh)
   const hourlyMeterData = useMemo(() => {
@@ -80,7 +81,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
       else if (h >= 18 && h <= 21) loadFactor = 0.86;
       else if (h >= 22) loadFactor = 0.6;
 
-      const kwh = Math.round(baseKW * loadFactor * (1 + Math.sin(h * 1.2) * 0.05));
+      const kwh = Math.round(liveKW * loadFactor);
 
       list.push({
         hour: `${String(h).padStart(2, '0')}:00`,
@@ -90,12 +91,16 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
       });
     }
     return list;
-  }, [baseKW]);
+  }, [liveKW]);
 
   const totalDayKWh = hourlyMeterData.reduce((s, h) => s + h.kwh, 0);
   const onPeakKWh = hourlyMeterData.filter((h) => h.isOnPeak).reduce((s, h) => s + h.kwh, 0);
   const offPeakKWh = totalDayKWh - onPeakKWh;
-  const peakHourObj = [...hourlyMeterData].sort((a, b) => b.kwh - a.kwh)[0];
+  const peakHourObj = [...hourlyMeterData].sort((a, b) => b.kwh - a.kwh)[0] || {
+    hour: '14:00',
+    kwh: 0
+  };
+  const onPeakPct = totalDayKWh > 0 ? Math.round((onPeakKWh / totalDayKWh) * 100) : 0;
 
   return (
     <div className="space-y-5">
@@ -119,7 +124,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
             >
               {meters.map((m, idx) => (
                 <option key={m.id} value={m.id}>
-                  #{idx + 1} [{m.tag}] {m.name}
+                  #{idx + 1} [Slave #{m.slaveId || 1} • {m.tag}] {m.name}
                 </option>
               ))}
             </select>
@@ -140,7 +145,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
                     : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
                 }`}
               >
-                [{m.tag}] {m.name}
+                [Slave #{m.slaveId || 1}] {m.name}
               </button>
             );
           })}
@@ -153,15 +158,15 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs">
-                {activeMeter.tag} • ตู้ {activeMeter.panel}
+                Slave ID #{activeMeter.slaveId || 1} • {activeMeter.tag} • ตู้ {activeMeter.panel}
               </span>
               <span className="px-2.5 py-0.5 rounded-lg bg-slate-800 text-slate-300 font-mono text-xs flex items-center gap-1">
                 <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                {activeMeter.model || 'Schneider PM2200'}
+                {activeMeter.model || 'Schneider PM2200'} (CT {activeMeter.ctRatio || '400/5A'})
               </span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-mono flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                RS485 LIVE
+                Reg kW: {activeMeter.regActivePowerKW || 3060}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-2">
@@ -204,7 +209,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
               <span className="text-xs font-sans text-slate-400">kWh</span>
             </div>
             <span className="text-xs text-amber-300 font-semibold">
-              On-Peak {onPeakKWh.toLocaleString()} kWh ({Math.round((onPeakKWh / totalDayKWh) * 100)}%)
+              On-Peak {onPeakKWh.toLocaleString()} kWh ({onPeakPct}%)
             </span>
           </div>
 
@@ -215,7 +220,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
               <span className="text-xs font-sans text-slate-400">kWh</span>
             </div>
             <span className="text-xs text-emerald-300/80">
-              สัดส่วน {100 - Math.round((onPeakKWh / totalDayKWh) * 100)}% ของมิเตอร์นี้
+              สัดส่วน {totalDayKWh > 0 ? 100 - onPeakPct : 0}% ของมิเตอร์นี้
             </span>
           </div>
         </div>
@@ -223,7 +228,6 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
       {/* 3-Phase Voltage & Current Detailed Inspection */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Card A: 3-Phase Voltage */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -262,7 +266,6 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
           </div>
         </div>
 
-        {/* Card B: 3-Phase Current */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">

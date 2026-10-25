@@ -1,10 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabase } from '../services/supabaseClient';
-import { TENANT_COMPANIES, saveTenantCompany, deleteTenantCompany } from '../data/tenantData';
+import {
+  TENANT_COMPANIES,
+  METER_MODEL_PRESETS,
+  saveTenantCompany,
+  deleteTenantCompany,
+  clearAllTenantCompanies
+} from '../data/tenantData';
 
-const STORAGE_KEY_ACCOUNTS = 'POWERVIEW_ACCOUNTS_V1';
+const STORAGE_KEY_ACCOUNTS = 'POWERVIEW_PROD_ACCOUNTS_V2';
 
-// Build organization summary from TENANT_COMPANIES object
+// Build organization summary list from TENANT_COMPANIES
 const buildOrgListFromCompanies = () => {
   return Object.values(TENANT_COMPANIES).map((comp) => ({
     id: comp.id,
@@ -12,23 +18,29 @@ const buildOrgListFromCompanies = () => {
     name: comp.name,
     shortName: comp.shortName || `${comp.name} (${comp.code})`,
     industry: comp.industry || 'โรงงานอุตสาหกรรม',
-    location: comp.location || 'ประเทศไทย',
+    location: comp.location || '',
     transformerKVA: Number(comp.transformerKVA) || 1600,
-    rateKWh: Number(comp.rateKWh) || 4.20,
-    meterCount: (comp.electricityMeters?.length || 0) + (comp.waterMeters?.length || 0),
+    meterCount: comp.electricityMeters?.length || 0,
     elecMeterCount: comp.electricityMeters?.length || 0,
-    waterMeterCount: comp.waterMeters?.length || 0,
     gatewayModel: comp.gatewayModel || 'Waveshare RS485 to Ethernet PoE',
-    gatewaySerial: comp.gatewaySerial || `GW-${comp.code}-01`,
-    gatewayIp: comp.gatewayIp || '192.168.1.200',
-    installedDate: comp.installedDate || '2026-10-25',
-    status: comp.status || 'ONLINE'
+    gatewaySerial: comp.gatewaySerial || '',
+    gatewayIp: comp.gatewayIp || '',
+    gatewayPort: comp.gatewayPort || '502',
+    gatewayEndpointUrl: comp.gatewayEndpointUrl || '',
+    gatewayApiKey: comp.gatewayApiKey || '',
+    baudRate: comp.baudRate || '9600',
+    parity: comp.parity || 'None (8N1)',
+    pollingIntervalSec: comp.pollingIntervalSec || 5,
+    installedDate: comp.installedDate || new Date().toISOString().split('T')[0],
+    status: comp.status || 'UNVERIFIED',
+    lastTestedAt: comp.lastTestedAt || null,
+    lastLatencyMs: comp.lastLatencyMs || null
   }));
 };
 
 export const DEFAULT_ORGANIZATIONS = buildOrgListFromCompanies();
 
-// Initial Preset Accounts (Super Admin + Existing Installed Clients)
+// Only the System Owner / Super Admin exists by default (All demo accounts removed)
 export const DEMO_USERS = [
   {
     id: 'user-super-admin',
@@ -37,46 +49,12 @@ export const DEMO_USERS = [
     password: 'admin',
     fullName: 'คุณณัฐพงษ์ (Super Admin)',
     role: 'SUPER_ADMIN',
-    orgId: 'ORG-AOB',
-    companyName: 'ศูนย์ควบคุมกลาง PowerView (All Clients)',
-    createdAt: '2026-08-01'
-  },
-  {
-    id: 'user-aob-manager',
-    username: 'aob',
-    email: 'manager@artofbaking.com',
-    password: 'aob1234',
-    fullName: 'คุณสุชาติ (ผู้จัดการโรงงาน AOB)',
-    role: 'PLANT_MANAGER',
-    orgId: 'ORG-AOB',
-    companyName: 'บริษัท เอโอเบสต์ จำกัด (ART OF BAKING CO., LTD.)',
-    createdAt: '2026-08-15'
-  },
-  {
-    id: 'user-grand-manager',
-    username: 'gdb',
-    email: 'manager@grandbakery.com',
-    password: 'gdb1234',
-    fullName: 'คุณวิชัย (ผู้จัดการโรงงาน Grand Bakery)',
-    role: 'PLANT_MANAGER',
-    orgId: 'ORG-GRAND',
-    companyName: 'บริษัท แกรนด์ เบเกอรี่ อินดัสทรี จำกัด',
-    createdAt: '2026-09-02'
-  },
-  {
-    id: 'user-scs-manager',
-    username: 'scs',
-    email: 'manager@siamcold.com',
-    password: 'scs1234',
-    fullName: 'คุณกิตติศักดิ์ (ผู้จัดการ Siam Cold Storage)',
-    role: 'PLANT_MANAGER',
-    orgId: 'ORG-SIAMCOLD',
-    companyName: 'บริษัท สยาม โคลด์ สตอเรจ จำกัด (คลังสินค้าห้องเย็น)',
-    createdAt: '2026-09-18'
+    orgId: '',
+    companyName: 'ศูนย์ควบคุมกลาง PowerView (Super Admin)',
+    createdAt: '2026-10-25'
   }
 ];
 
-// Helper to determine if an email/username belongs to Super Admin
 export const isSuperAdminEmail = (identifier) => {
   if (!identifier) return false;
   const lower = identifier.toLowerCase().trim();
@@ -95,7 +73,6 @@ const loadInitialAccounts = () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Ensure Super Admin is always present
         const hasSuper = parsed.some((u) => u.email === 'natshownolimit@gmail.com');
         if (!hasSuper) {
           return [DEMO_USERS[0], ...parsed];
@@ -118,7 +95,6 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('AOB_ACTIVE_USER');
-      // Must return null if no saved user or if logged out, so LoginPortal is shown
       return savedUser ? JSON.parse(savedUser) : null;
     } catch {
       return null;
@@ -126,14 +102,24 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [activeOrgId, setActiveOrgId] = useState(() => {
-    return currentUser?.orgId || 'ORG-AOB';
+    const orgs = buildOrgListFromCompanies();
+    return currentUser?.orgId || orgs[0]?.id || '';
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
 
-  // Persist accounts list
+  const refreshOrgsState = () => {
+    const updated = buildOrgListFromCompanies();
+    setAllOrganizations(updated);
+    if (!activeOrgId && updated.length > 0) {
+      setActiveOrgId(updated[0].id);
+    } else if (activeOrgId && !TENANT_COMPANIES[activeOrgId]) {
+      setActiveOrgId(updated[0]?.id || '');
+    }
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(allAccounts));
@@ -142,23 +128,21 @@ export const AuthProvider = ({ children }) => {
     }
   }, [allAccounts]);
 
-  // Get active organization object
   const activeOrganization =
-    allOrganizations.find((org) => org.id === activeOrgId) || allOrganizations[0];
+    allOrganizations.find((org) => org.id === activeOrgId) || allOrganizations[0] || null;
 
-  // Save active user in localStorage on change
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('AOB_ACTIVE_USER', JSON.stringify(currentUser));
-      if (currentUser.role !== 'SUPER_ADMIN') {
-        setActiveOrgId(currentUser.orgId || 'ORG-AOB');
+      if (currentUser.role !== 'SUPER_ADMIN' && currentUser.orgId) {
+        setActiveOrgId(currentUser.orgId);
       }
     } else {
       localStorage.removeItem('AOB_ACTIVE_USER');
     }
   }, [currentUser]);
 
-  // Check Supabase real session on mount if configured
+  // Check Supabase real session on mount
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -181,10 +165,10 @@ export const AuthProvider = ({ children }) => {
                 profile?.full_name ||
                 (isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : session.user.email.split('@')[0]),
               role: finalRole,
-              orgId: profile?.org_id || 'ORG-AOB',
+              orgId: profile?.org_id || '',
               companyName:
                 profile?.organizations?.company_name ||
-                (isSuper ? 'ศูนย์ควบคุมกลาง PowerView (All Clients)' : 'โรงงานลูกค้า'),
+                (isSuper ? 'ศูนย์ควบคุมกลาง PowerView' : 'บริษัทลูกค้า'),
               isRealSupabaseUser: true
             });
           })
@@ -194,15 +178,15 @@ export const AuthProvider = ({ children }) => {
               email: session.user.email,
               fullName: isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : session.user.email.split('@')[0],
               role: isSuper ? 'SUPER_ADMIN' : 'PLANT_MANAGER',
-              orgId: 'ORG-AOB',
-              companyName: isSuper ? 'ศูนย์ควบคุมกลาง PowerView (All Clients)' : 'โรงงานลูกค้า',
+              orgId: '',
+              companyName: isSuper ? 'ศูนย์ควบคุมกลาง PowerView' : 'บริษัทลูกค้า',
               isRealSupabaseUser: true
             });
           });
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
         localStorage.removeItem('AOB_ACTIVE_USER');
@@ -212,28 +196,11 @@ export const AuthProvider = ({ children }) => {
     return () => subscription?.unsubscribe();
   }, []);
 
-  // Switch Organization (Available for SUPER_ADMIN)
   const switchOrganization = (orgId) => {
-    const target = allOrganizations.find((o) => o.id === orgId);
-    if (target) {
-      setActiveOrgId(orgId);
-    }
+    setActiveOrgId(orgId);
   };
 
-  // Direct login helper
-  const loginWithDemo = (demoUser) => {
-    const isSuper = isSuperAdminEmail(demoUser.email || demoUser.username) || demoUser.role === 'SUPER_ADMIN';
-    const finalUser = {
-      ...demoUser,
-      role: isSuper ? 'SUPER_ADMIN' : demoUser.role
-    };
-    setCurrentUser(finalUser);
-    setActiveOrgId(finalUser.orgId || 'ORG-AOB');
-    setAuthError(null);
-    setIsAuthModalOpen(false);
-  };
-
-  // Unified Enterprise Login (Supports Username OR Email + Password across Local Registry & Supabase)
+  // Unified Enterprise Login
   const loginWithCredentials = async (identifier, password) => {
     setIsLoadingAuth(true);
     setAuthError(null);
@@ -243,14 +210,13 @@ export const AuthProvider = ({ children }) => {
 
     if (!cleanId || !cleanPass) {
       setIsLoadingAuth(false);
-      setAuthError('กรุณากรอกทั้งชื่อผู้ใช้งาน (Login) และรหัสผ่าน');
+      setAuthError('กรุณากรอกทั้งชื่อผู้ใช้งาน (Login ID) และรหัสผ่าน');
       return false;
     }
 
-    // 1. Check Super Admin fast-track (natshownolimit@gmail.com or superadmin)
+    // 1. Super Admin verification
     if (cleanId === 'natshownolimit@gmail.com' || cleanId === 'superadmin' || cleanId === 'admin') {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
-      // Accept stored password, 'admin', 'admin1234', '123456', or authenticate via Supabase if configured
       const supabase = getSupabase();
       if (supabase && cleanId.includes('@')) {
         try {
@@ -265,25 +231,21 @@ export const AuthProvider = ({ children }) => {
               email: 'natshownolimit@gmail.com',
               fullName: 'คุณณัฐพงษ์ (Super Admin)',
               role: 'SUPER_ADMIN',
-              orgId: activeOrgId || 'ORG-AOB',
-              companyName: 'ศูนย์ควบคุมกลาง PowerView (All Clients)',
+              orgId: activeOrgId || '',
+              companyName: 'ศูนย์ควบคุมกลาง PowerView (Super Admin)',
               isRealSupabaseUser: true
             });
             setIsLoadingAuth(false);
-            setIsAuthModalOpen(false);
             return true;
           }
-        } catch {
-          // Fall through to local Super Admin verification so Super Admin is never locked out
-        }
+        } catch {}
       }
 
       if (
         cleanPass === superAccount.password ||
         cleanPass === 'admin' ||
         cleanPass === 'admin1234' ||
-        cleanPass === '123456' ||
-        cleanPass.length >= 4
+        cleanPass === '123456'
       ) {
         const superUser = {
           ...superAccount,
@@ -291,14 +253,12 @@ export const AuthProvider = ({ children }) => {
           role: 'SUPER_ADMIN'
         };
         setCurrentUser(superUser);
-        setActiveOrgId(superUser.orgId || 'ORG-AOB');
         setIsLoadingAuth(false);
-        setIsAuthModalOpen(false);
         return true;
       }
     }
 
-    // 2. Check Managed Client Accounts in allAccounts (created by Super Admin or Preset)
+    // 2. Check Customer Accounts created by Super Admin
     const matchedAccount = allAccounts.find(
       (acc) =>
         (acc.username && acc.username.toLowerCase() === cleanId) ||
@@ -306,25 +266,26 @@ export const AuthProvider = ({ children }) => {
     );
 
     if (matchedAccount) {
-      if (matchedAccount.password === cleanPass || cleanPass === '123456') {
+      if (matchedAccount.password === cleanPass) {
         const isSuper = isSuperAdminEmail(matchedAccount.email) || matchedAccount.role === 'SUPER_ADMIN';
         const userToLogin = {
           ...matchedAccount,
           role: isSuper ? 'SUPER_ADMIN' : matchedAccount.role
         };
         setCurrentUser(userToLogin);
-        setActiveOrgId(userToLogin.orgId || 'ORG-AOB');
+        if (userToLogin.orgId) {
+          setActiveOrgId(userToLogin.orgId);
+        }
         setIsLoadingAuth(false);
-        setIsAuthModalOpen(false);
         return true;
       } else {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านอีกครั้ง');
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
     }
 
-    // 3. If not found in local registry, try Supabase Auth directly
+    // 3. Try Supabase Auth if configured
     const supabase = getSupabase();
     if (supabase && cleanId.includes('@')) {
       try {
@@ -354,127 +315,95 @@ export const AuthProvider = ({ children }) => {
               profile?.full_name ||
               (isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : data.user.email.split('@')[0]),
             role: finalRole,
-            orgId: profile?.org_id || 'ORG-AOB',
+            orgId: profile?.org_id || '',
             companyName:
               profile?.organizations?.company_name ||
-              (isSuper ? 'ศูนย์ควบคุมกลาง PowerView (All Clients)' : 'โรงงานลูกค้า'),
+              (isSuper ? 'ศูนย์ควบคุมกลาง PowerView' : 'บริษัทลูกค้า'),
             isRealSupabaseUser: true
           };
           setCurrentUser(loggedInUser);
-          setActiveOrgId(loggedInUser.orgId);
-          setIsAuthModalOpen(false);
+          if (loggedInUser.orgId) setActiveOrgId(loggedInUser.orgId);
           setIsLoadingAuth(false);
           return true;
         }
-      } catch {
-        // Fall through to error message
-      }
+      } catch {}
     }
 
     setIsLoadingAuth(false);
-    setAuthError('ไม่พบชื่อผู้ใช้งานนี้ หรือรหัสผ่านไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ (Super Admin)');
+    setAuthError('ไม่พบบัญชีผู้ใช้งานนี้ หรือรหัสผ่านไม่ถูกต้อง');
     return false;
   };
 
-  // Alias for backward compatibility
-  const loginWithSupabase = loginWithCredentials;
-
-  // Super Admin Action: Onboard a brand new client organization + hardware meters + login credentials
+  // Super Admin Action: Onboard a new client company + meters + user credentials
   const onboardNewClient = async (clientData) => {
-    const cleanCode = (clientData.companyCode || 'NEW')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
-      .slice(0, 8) || 'CLIENT';
+    const cleanCode =
+      (clientData.companyCode || 'SITE')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 8) || 'SITE01';
     const orgId = `ORG-${cleanCode}`;
+    const presetModel =
+      METER_MODEL_PRESETS[clientData.defaultMeterModel] ||
+      METER_MODEL_PRESETS['Schneider PM2200'];
 
-    // Build electricity meters list
     const elecMeters =
       Array.isArray(clientData.electricityMeters) && clientData.electricityMeters.length > 0
         ? clientData.electricityMeters.map((m, idx) => ({
             id: `${cleanCode}-E${String(idx + 1).padStart(2, '0')}`,
+            slaveId: Number(m.slaveId) || idx + 1,
             tag: m.tag || `MDB-${idx + 1}`,
             panel: m.panel || 'Main MDB',
-            name: m.name || `ชุดวัดกำลังไฟฟ้าจุดที่ ${idx + 1}`,
-            baseKW: Number(m.baseKW) || 65,
-            model: m.model || clientData.defaultMeterModel || 'Schneider PM2200',
-            unit: m.unit || 'MWh'
+            name: m.name || `พาวเวอร์มิเตอร์จุดที่ ${idx + 1}`,
+            baseKW: Number(m.baseKW) || 0,
+            liveKW: Number(m.liveKW ?? m.baseKW) || 0,
+            voltageLL: Number(m.voltageLL) || 0,
+            currentA: Number(m.currentA) || 0,
+            pf: Number(m.pf) || 0.95,
+            todayKWh: Number(m.todayKWh) || 0,
+            ctRatio: m.ctRatio || '400/5A',
+            model: m.model || presetModel.model,
+            regActivePowerKW: m.regActivePowerKW || presetModel.regActivePowerKW,
+            regEnergyKWh: m.regEnergyKWh || presetModel.regEnergyKWh,
+            regVoltageLL: m.regVoltageLL || presetModel.regVoltageLL,
+            regCurrentAvg: m.regCurrentAvg || presetModel.regCurrentAvg,
+            connectionStatus: 'WAITING'
           }))
-        : [
-            {
-              id: `${cleanCode}-E01`,
-              tag: 'MDB-01',
-              panel: 'Main Incoming',
-              name: 'เมนเบรกเกอร์หลัก (Main Incoming Feeder)',
-              baseKW: 140,
-              model: clientData.defaultMeterModel || 'Schneider PM2200',
-              unit: 'MWh'
-            },
-            {
-              id: `${cleanCode}-E02`,
-              tag: 'MDB-02',
-              panel: 'Production 1',
-              name: 'สายการผลิตหลัก 1 (Production Line 1)',
-              baseKW: 95,
-              model: clientData.defaultMeterModel || 'Schneider PM2200',
-              unit: 'MWh'
-            },
-            {
-              id: `${cleanCode}-E03`,
-              tag: 'MDB-03',
-              panel: 'Utility & Chiller',
-              name: 'ระบบทำความเย็นและปั๊มลม (Chiller & Air Comp)',
-              baseKW: 110,
-              model: clientData.defaultMeterModel || 'Schneider PM2200',
-              unit: 'MWh'
-            }
-          ];
-
-    const waterMeters =
-      Array.isArray(clientData.waterMeters) && clientData.waterMeters.length > 0
-        ? clientData.waterMeters
-        : [
-            {
-              id: `${cleanCode}-W01`,
-              name: 'มิเตอร์น้ำหลัก หน้าโรงงาน',
-              tag: 'WATER-MAIN',
-              baseM3: 120
-            }
-          ];
+        : [];
 
     const newCompanyObj = {
       id: orgId,
       code: cleanCode,
       name: clientData.companyName.trim(),
-      shortName: `${clientData.shortName || clientData.companyName.trim()} (${cleanCode})`,
+      shortName: `${clientData.companyName.trim()} (${cleanCode})`,
       industry: clientData.industry || 'โรงงานอุตสาหกรรม',
-      location: clientData.location || 'ประเทศไทย',
+      location: clientData.location || '',
       transformerKVA: Number(clientData.transformerKVA) || 1600,
-      contractPeakKW: Math.round((Number(clientData.transformerKVA) || 1600) * 0.78),
-      rateKWh: Number(clientData.rateKWh) || 4.20,
-      peakRate: 5.10,
-      offPeakRate: 2.60,
-      waterRate: Number(clientData.waterRate) || 18.50,
-      formCode: `FM-EN-${cleanCode}/2026`,
+      contractPeakKW: Math.round((Number(clientData.transformerKVA) || 1600) * 0.85),
+      formCode: `FM-EN-${cleanCode}`,
       gatewayModel: clientData.gatewayModel || 'Waveshare RS485 to Ethernet PoE',
       gatewaySerial: clientData.gatewaySerial || `GW-${cleanCode}-01`,
       gatewayIp: clientData.gatewayIp || '192.168.1.200',
+      gatewayPort: clientData.gatewayPort || '502',
+      gatewayEndpointUrl: clientData.gatewayEndpointUrl || '',
+      gatewayApiKey: clientData.gatewayApiKey || '',
+      baudRate: clientData.baudRate || '9600',
+      parity: clientData.parity || 'None (8N1)',
+      pollingIntervalSec: Number(clientData.pollingIntervalSec) || 5,
       installedDate: new Date().toISOString().split('T')[0],
-      status: 'ONLINE',
-      electricityMeters: elecMeters,
-      waterMeters: waterMeters
+      status: 'UNVERIFIED',
+      electricityMeters: elecMeters
     };
 
-    // Save into tenantData engine & localStorage
     saveTenantCompany(newCompanyObj);
-    setAllOrganizations(buildOrgListFromCompanies());
+    refreshOrgsState();
+    setActiveOrgId(orgId);
 
-    // Create the primary client login account
     const newAccount = {
       id: `user-${cleanCode.toLowerCase()}-${Date.now()}`,
       username: (clientData.username || cleanCode.toLowerCase()).trim(),
-      email: (clientData.email || `${cleanCode.toLowerCase()}@powerview.io`).trim(),
+      email: (clientData.email || `${cleanCode.toLowerCase()}@client.com`).trim(),
       password: (clientData.password || `${cleanCode.toLowerCase()}1234`).trim(),
-      fullName: clientData.contactName || `ผู้จัดการโรงงาน (${cleanCode})`,
+      fullName: clientData.contactName || `ผู้ดูแลประจำโรงงาน (${cleanCode})`,
       role: clientData.role || 'PLANT_MANAGER',
       orgId: orgId,
       companyName: newCompanyObj.name,
@@ -488,7 +417,6 @@ export const AuthProvider = ({ children }) => {
       return [...filtered, newAccount];
     });
 
-    // Optional: Sync to Supabase if connected
     const supabase = getSupabase();
     if (supabase) {
       try {
@@ -496,8 +424,7 @@ export const AuthProvider = ({ children }) => {
           id: orgId,
           company_name: newCompanyObj.name,
           company_code: cleanCode,
-          transformer_capacity_kva: newCompanyObj.transformerKVA,
-          electricity_rate_kwh: newCompanyObj.rateKWh
+          transformer_capacity_kva: newCompanyObj.transformerKVA
         });
       } catch {}
     }
@@ -505,7 +432,249 @@ export const AuthProvider = ({ children }) => {
     return { organization: newCompanyObj, account: newAccount };
   };
 
-  // Super Admin Action: Add additional user account to an existing organization
+  // Super Admin Action: Update an existing client company's information & gateway settings
+  const updateOrganization = (orgId, updates) => {
+    const existing = TENANT_COMPANIES[orgId];
+    if (!existing) return false;
+
+    const updated = {
+      ...existing,
+      ...updates,
+      shortName: `${updates.name || existing.name} (${updates.code || existing.code})`
+    };
+
+    saveTenantCompany(updated);
+    refreshOrgsState();
+
+    // Update companyName on linked accounts
+    if (updates.name) {
+      setAllAccounts((prev) =>
+        prev.map((acc) => (acc.orgId === orgId ? { ...acc, companyName: updates.name } : acc))
+      );
+    }
+    return true;
+  };
+
+  // Super Admin Action: Add a new meter to an organization
+  const addMeterToOrganization = (orgId, meterData) => {
+    const comp = TENANT_COMPANIES[orgId];
+    if (!comp) return null;
+
+    const nextIdx = (comp.electricityMeters?.length || 0) + 1;
+    const preset =
+      METER_MODEL_PRESETS[meterData.model] || METER_MODEL_PRESETS['Schneider PM2200'];
+
+    const newMeter = {
+      id: `${comp.code}-E${String(nextIdx).padStart(2, '0')}-${Date.now().toString().slice(-3)}`,
+      slaveId: Number(meterData.slaveId) || nextIdx,
+      tag: meterData.tag || `MDB-${nextIdx}`,
+      panel: meterData.panel || 'Main MDB',
+      name: meterData.name || `พาวเวอร์มิเตอร์ #${nextIdx}`,
+      baseKW: Number(meterData.baseKW) || 0,
+      liveKW: Number(meterData.liveKW ?? meterData.baseKW) || 0,
+      voltageLL: Number(meterData.voltageLL) || 400.0,
+      currentA: Number(meterData.currentA) || 0,
+      pf: Number(meterData.pf) || 0.95,
+      todayKWh: Number(meterData.todayKWh) || 0,
+      ctRatio: meterData.ctRatio || '400/5A',
+      model: meterData.model || 'Schneider PM2200',
+      regActivePowerKW: Number(meterData.regActivePowerKW) || preset.regActivePowerKW,
+      regEnergyKWh: Number(meterData.regEnergyKWh) || preset.regEnergyKWh,
+      regVoltageLL: Number(meterData.regVoltageLL) || preset.regVoltageLL,
+      regCurrentAvg: Number(meterData.regCurrentAvg) || preset.regCurrentAvg,
+      connectionStatus: 'WAITING'
+    };
+
+    const updatedComp = {
+      ...comp,
+      electricityMeters: [...(comp.electricityMeters || []), newMeter]
+    };
+
+    saveTenantCompany(updatedComp);
+    refreshOrgsState();
+    return newMeter;
+  };
+
+  // Super Admin Action: Edit an existing meter in an organization
+  const updateMeterInOrganization = (orgId, meterId, meterUpdates) => {
+    const comp = TENANT_COMPANIES[orgId];
+    if (!comp) return false;
+
+    const updatedMeters = (comp.electricityMeters || []).map((m) =>
+      m.id === meterId
+        ? {
+            ...m,
+            ...meterUpdates,
+            baseKW: Number(meterUpdates.baseKW ?? m.baseKW) || 0,
+            liveKW: Number(meterUpdates.liveKW ?? meterUpdates.baseKW ?? m.liveKW ?? m.baseKW) || 0,
+            slaveId: Number(meterUpdates.slaveId ?? m.slaveId) || 1
+          }
+        : m
+    );
+
+    saveTenantCompany({
+      ...comp,
+      electricityMeters: updatedMeters
+    });
+    refreshOrgsState();
+    return true;
+  };
+
+  // Super Admin Action: Remove a meter from an organization
+  const removeMeterFromOrganization = (orgId, meterId) => {
+    const comp = TENANT_COMPANIES[orgId];
+    if (!comp) return;
+    const updatedComp = {
+      ...comp,
+      electricityMeters: (comp.electricityMeters || []).filter((m) => m.id !== meterId)
+    };
+    saveTenantCompany(updatedComp);
+    refreshOrgsState();
+  };
+
+  // Super Admin Action: Remove ANY organization
+  const removeOrganization = (orgId) => {
+    const ok = deleteTenantCompany(orgId);
+    if (ok) {
+      setAllAccounts((prev) => prev.filter((a) => a.orgId !== orgId || a.role === 'SUPER_ADMIN'));
+      refreshOrgsState();
+    }
+    return ok;
+  };
+
+  // Super Admin Action: Wipe all demo/old data cleanly
+  const clearAllDemoData = () => {
+    clearAllTenantCompanies();
+    setAllAccounts([DEMO_USERS[0]]);
+    setActiveOrgId('');
+    refreshOrgsState();
+  };
+
+  // Super Admin Action: Test Real Connection to Gateway HTTP Endpoint or Supabase Telemetry
+  const testRealGatewayConnection = async (orgId) => {
+    const comp = TENANT_COMPANIES[orgId];
+    if (!comp) {
+      return { success: false, message: 'ไม่พบข้อมูลบริษัทลูกค้า' };
+    }
+
+    const startTime = performance.now();
+    const nowStr = new Date().toLocaleTimeString('th-TH');
+
+    // 1. If Gateway HTTP Endpoint URL is configured, perform a real network fetch test
+    if (comp.gatewayEndpointUrl && comp.gatewayEndpointUrl.trim().startsWith('http')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const headers = {};
+        if (comp.gatewayApiKey) {
+          headers['Authorization'] = `Bearer ${comp.gatewayApiKey}`;
+        }
+
+        const response = await fetch(comp.gatewayEndpointUrl.trim(), {
+          method: 'GET',
+          headers,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        const latency = Math.round(performance.now() - startTime);
+        if (response.ok) {
+          updateOrganization(orgId, {
+            status: 'ONLINE',
+            lastTestedAt: nowStr,
+            lastLatencyMs: latency
+          });
+          return {
+            success: true,
+            status: 'ONLINE',
+            latencyMs: latency,
+            message: `เชื่อมต่อ Gateway จริงสำเร็จ! (HTTP ${response.status} • ความหน่วง ${latency} ms)`
+          };
+        } else {
+          updateOrganization(orgId, {
+            status: 'ERROR',
+            lastTestedAt: nowStr,
+            lastLatencyMs: latency
+          });
+          return {
+            success: false,
+            status: 'ERROR',
+            latencyMs: latency,
+            message: `เซิร์ฟเวอร์ปลายทางตอบกลับด้วยรหัส HTTP ${response.status} (${latency} ms)`
+          };
+        }
+      } catch (err) {
+        updateOrganization(orgId, {
+          status: 'OFFLINE',
+          lastTestedAt: nowStr,
+          lastLatencyMs: null
+        });
+        return {
+          success: false,
+          status: 'OFFLINE',
+          message: `ไม่สามารถติดต่อ URL อุปกรณ์จริงได้ (${err.name === 'AbortError' ? 'หมดเวลาเชื่อมต่อ 5 วินาที' : err.message})`
+        };
+      }
+    }
+
+    // 2. Check Supabase meter_readings table if Supabase is configured
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('meter_readings')
+          .select('recorded_at, reading_value, active_power_kw, meter_id')
+          .eq('org_id', orgId)
+          .order('recorded_at', { ascending: false })
+          .limit(5);
+
+        const latency = Math.round(performance.now() - startTime);
+        if (!error && data && data.length > 0) {
+          updateOrganization(orgId, {
+            status: 'ONLINE',
+            lastTestedAt: nowStr,
+            lastLatencyMs: latency
+          });
+          return {
+            success: true,
+            status: 'ONLINE',
+            latencyMs: latency,
+            message: `พบข้อมูลส่งจากอุปกรณ์จริงในฐานข้อมูล Supabase ล่าสุด (${data.length} รายการ • ${latency} ms)`
+          };
+        } else {
+          updateOrganization(orgId, {
+            status: 'WAITING_DATA',
+            lastTestedAt: nowStr,
+            lastLatencyMs: latency
+          });
+          return {
+            success: false,
+            status: 'WAITING_DATA',
+            latencyMs: latency,
+            message: `เชื่อมต่อฐานข้อมูลคลาวด์สำเร็จ (${latency} ms) แต่ยังไม่พบแพ็กเกจข้อมูลส่งมาจาก Gateway ของโรงงานนี้`
+          };
+        }
+      } catch (e) {
+        return {
+          success: false,
+          status: 'OFFLINE',
+          message: `เกิดข้อผิดพลาดในการตรวจสอบฐานข้อมูล: ${e.message}`
+        };
+      }
+    }
+
+    // 3. Neither Gateway HTTP Endpoint nor Supabase configured yet
+    updateOrganization(orgId, {
+      status: 'NOT_CONFIGURED',
+      lastTestedAt: nowStr
+    });
+    return {
+      success: false,
+      status: 'NOT_CONFIGURED',
+      message: 'ยังไม่ได้ระบุ Gateway Endpoint URL หรือเชื่อมต่อฐานข้อมูลคลาวด์สำหรับรับข้อมูลจริง'
+    };
+  };
+
   const createClientAccount = (accountPayload) => {
     const targetOrg =
       TENANT_COMPANIES[accountPayload.orgId] ||
@@ -527,130 +696,31 @@ export const AuthProvider = ({ children }) => {
     return newAcc;
   };
 
-  // Super Admin Action: Update password or account details
   const updateClientAccount = (accountId, updates) => {
     setAllAccounts((prev) =>
       prev.map((acc) => (acc.id === accountId ? { ...acc, ...updates } : acc))
     );
   };
 
-  // Super Admin Action: Delete user account
   const deleteClientAccount = (accountId) => {
     setAllAccounts((prev) =>
       prev.filter((acc) => acc.id !== accountId || acc.email === 'natshownolimit@gmail.com')
     );
   };
 
-  // Super Admin Action: Add a new meter to an organization
-  const addMeterToOrganization = (orgId, meterData) => {
-    const comp = TENANT_COMPANIES[orgId];
-    if (!comp) return null;
-
-    const nextIdx = (comp.electricityMeters?.length || 0) + 1;
-    const newMeter = {
-      id: `${comp.code}-E${String(nextIdx).padStart(2, '0')}-${Date.now().toString().slice(-2)}`,
-      tag: meterData.tag || `MDB-${nextIdx}`,
-      panel: meterData.panel || 'Main Panel',
-      name: meterData.name || `จุดวัดไฟฟ้า #${nextIdx}`,
-      baseKW: Number(meterData.baseKW) || 50,
-      model: meterData.model || 'Schneider PM2200',
-      unit: meterData.unit || 'MWh'
-    };
-
-    const updatedComp = {
-      ...comp,
-      electricityMeters: [...(comp.electricityMeters || []), newMeter]
-    };
-
-    saveTenantCompany(updatedComp);
-    setAllOrganizations(buildOrgListFromCompanies());
-    return newMeter;
-  };
-
-  // Super Admin Action: Remove a meter from an organization
-  const removeMeterFromOrganization = (orgId, meterId) => {
-    const comp = TENANT_COMPANIES[orgId];
-    if (!comp) return;
-    const updatedComp = {
-      ...comp,
-      electricityMeters: (comp.electricityMeters || []).filter((m) => m.id !== meterId)
-    };
-    saveTenantCompany(updatedComp);
-    setAllOrganizations(buildOrgListFromCompanies());
-  };
-
-  // Super Admin Action: Remove a custom organization
-  const removeOrganization = (orgId) => {
-    const ok = deleteTenantCompany(orgId);
-    if (ok) {
-      setAllOrganizations(buildOrgListFromCompanies());
-      setAllAccounts((prev) => prev.filter((a) => a.orgId !== orgId || a.role === 'SUPER_ADMIN'));
-      if (activeOrgId === orgId) {
-        setActiveOrgId('ORG-AOB');
-      }
-    }
-    return ok;
-  };
-
-  // Real Supabase User Registration
-  const signUpWithSupabase = async (email, password, fullName, companyName, role = 'PLANT_MANAGER') => {
-    setIsLoadingAuth(true);
-    setAuthError(null);
-    const supabase = getSupabase();
-
-    if (!supabase) {
-      setIsLoadingAuth(false);
-      setAuthError('ยังไม่ได้ตั้งค่า Supabase URL ในระบบ');
-      return false;
-    }
-
-    try {
-      const isSuper = isSuperAdminEmail(email);
-      const effectiveRole = isSuper ? 'SUPER_ADMIN' : role;
-
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-        options: {
-          data: {
-            full_name: fullName,
-            company_name: companyName,
-            role: effectiveRole
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.user) {
-        setIsLoadingAuth(false);
-        return true;
-      }
-    } catch (err) {
-      setIsLoadingAuth(false);
-      setAuthError(err.message || 'เกิดข้อผิดพลาดในการลงทะเบียน');
-      return false;
-    }
-  };
-
-  // Sign out (Reliably resets state and redirects to LoginPortal)
   const logout = async () => {
     try {
       const supabase = getSupabase();
       if (supabase) {
         await supabase.auth.signOut().catch(() => {});
       }
-    } catch (e) {
-      console.warn('Supabase sign out error:', e);
-    } finally {
-      localStorage.removeItem('AOB_ACTIVE_USER');
-      try {
-        sessionStorage.clear();
-      } catch {}
-      setCurrentUser(null);
-      setActiveOrgId('ORG-AOB');
-      setIsAuthModalOpen(false);
-    }
+    } catch {}
+    localStorage.removeItem('AOB_ACTIVE_USER');
+    try {
+      sessionStorage.clear();
+    } catch {}
+    setCurrentUser(null);
+    setIsAuthModalOpen(false);
   };
 
   const isSuperAdmin =
@@ -675,17 +745,18 @@ export const AuthProvider = ({ children }) => {
         setAuthError,
         isLoadingAuth,
         switchOrganization,
-        loginWithDemo,
         loginWithCredentials,
-        loginWithSupabase,
-        signUpWithSupabase,
         onboardNewClient,
+        updateOrganization,
         createClientAccount,
         updateClientAccount,
         deleteClientAccount,
         addMeterToOrganization,
+        updateMeterInOrganization,
         removeMeterFromOrganization,
         removeOrganization,
+        clearAllDemoData,
+        testRealGatewayConnection,
         logout
       }}
     >

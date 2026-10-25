@@ -37,7 +37,14 @@ import {
 
 export const ProductionReportView = ({ onSelectMeter }) => {
   const { activeOrgId } = useAuth();
-  const currentCompany = TENANT_COMPANIES[activeOrgId] || TENANT_COMPANIES['ORG-AOB'];
+  const currentCompany = TENANT_COMPANIES[activeOrgId] ||
+    Object.values(TENANT_COMPANIES)[0] || {
+      id: '',
+      name: 'ยังไม่มีบริษัทลูกค้าในระบบ',
+      code: '-',
+      transformerKVA: 1600,
+      electricityMeters: []
+    };
 
   // Report Mode: 'daily' | 'monthly' | 'yearly'
   const [reportMode, setReportMode] = useState('daily');
@@ -306,17 +313,19 @@ export const ProductionReportView = ({ onSelectMeter }) => {
 
   // Complete Meter-by-Meter Breakdown (ALL Meters of the company - Pure Electrical)
   const meterBreakdown = useMemo(() => {
-    const rawMeters = (currentCompany.electricityMeters || []).filter((m) => m.baseKW > 0);
-    const totalBase = rawMeters.reduce((s, m) => s + m.baseKW, 0) || 1;
+    const rawMeters = currentCompany.electricityMeters || [];
+    const totalBase =
+      rawMeters.reduce((s, m) => s + (Number(m.liveKW ?? m.baseKW) || 0), 0) || 1;
 
     return rawMeters
       .map((m, idx) => {
-        const share = m.baseKW / totalBase;
+        const mKW = Number(m.liveKW ?? m.baseKW) || 0;
+        const share = mKW > 0 ? mKW / totalBase : 0;
         const kwh = Math.round(reportSummary.totalKWh * share);
-        const onPeakRatio = m.name.toLowerCase().includes('refrig') ? 0.58 : 0.71;
+        const onPeakRatio = (m.name || '').toLowerCase().includes('refrig') ? 0.58 : 0.71;
         const onPeakKWh = Math.round(kwh * onPeakRatio);
         const offPeakKWh = kwh - onPeakKWh;
-        const peakKW = Number((m.baseKW * 1.08).toFixed(1));
+        const peakKW = Number((mKW * 1.08).toFixed(1));
 
         return {
           ...m,
