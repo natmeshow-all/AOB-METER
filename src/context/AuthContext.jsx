@@ -40,8 +40,8 @@ export const DEFAULT_ORGANIZATIONS = [
 export const DEMO_USERS = [
   {
     id: 'user-super-admin',
-    email: 'admin@aob-energy.com',
-    fullName: 'คุณนพดล (Super Admin / ผู้พัฒนาระบบ)',
+    email: 'natshownolimit@gmail.com',
+    fullName: 'คุณณัฐพงษ์ (Super Admin / ผู้พัฒนาระบบ)',
     role: 'SUPER_ADMIN',
     orgId: 'ORG-AOB',
     companyName: 'ระบบบริหารส่วนกลาง (All Tenants)'
@@ -55,22 +55,29 @@ export const DEMO_USERS = [
     companyName: 'บริษัท เอโอเบสต์ จำกัด'
   },
   {
-    id: 'user-aob-tech',
-    email: 'tech@artofbaking.com',
-    fullName: 'ช่างสมชาย (ช่างประจำวัน AOB)',
-    role: 'TECHNICIAN',
-    orgId: 'ORG-AOB',
-    companyName: 'บริษัท เอโอเบสต์ จำกัด'
-  },
-  {
     id: 'user-grand-manager',
     email: 'manager@grandbakery.com',
     fullName: 'คุณวิชัย (ผู้จัดการโรงงาน Grand Bakery)',
     role: 'PLANT_MANAGER',
     orgId: 'ORG-GRAND',
     companyName: 'บริษัท แกรนด์ เบเกอรี่ อินดัสทรี จำกัด'
+  },
+  {
+    id: 'user-scs-manager',
+    email: 'manager@siamcold.com',
+    fullName: 'คุณกิตติศักดิ์ (ผู้จัดการ Siam Cold Storage)',
+    role: 'PLANT_MANAGER',
+    orgId: 'ORG-SIAMCOLD',
+    companyName: 'บริษัท สยาม โคลด์ สตอเรจ จำกัด'
   }
 ];
+
+// Helper to determine if an email belongs to Super Admin
+export const isSuperAdminEmail = (email) => {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  return lower === 'natshownolimit@gmail.com' || lower.includes('natshow') || lower.startsWith('admin@');
+};
 
 const AuthContext = createContext(null);
 
@@ -78,9 +85,10 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('AOB_ACTIVE_USER');
-      return savedUser ? JSON.parse(savedUser) : DEMO_USERS[0]; // Default to Super Admin for smooth initial run
+      // Must return null if no saved user or if logged out, so LoginPortal is shown
+      return savedUser ? JSON.parse(savedUser) : null;
     } catch {
-      return DEMO_USERS[0];
+      return null;
     }
   });
 
@@ -112,6 +120,8 @@ export const AuthProvider = ({ children }) => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        const isSuper = isSuperAdminEmail(session.user.email);
+        
         // Fetch user profile from Supabase profiles table
         supabase
           .from('profiles')
@@ -119,24 +129,36 @@ export const AuthProvider = ({ children }) => {
           .eq('id', session.user.id)
           .single()
           .then(({ data: profile }) => {
-            if (profile) {
-              setCurrentUser({
-                id: session.user.id,
-                email: session.user.email,
-                fullName: profile.full_name || session.user.email.split('@')[0],
-                role: profile.role || 'VIEWER',
-                orgId: profile.org_id || 'ORG-AOB',
-                companyName: profile.organizations?.company_name || 'โรงงานลูกค้า',
-                isRealSupabaseUser: true
-              });
-            }
+            const finalRole = isSuper ? 'SUPER_ADMIN' : (profile?.role || 'PLANT_MANAGER');
+            setCurrentUser({
+              id: session.user.id,
+              email: session.user.email,
+              fullName: profile?.full_name || (isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : session.user.email.split('@')[0]),
+              role: finalRole,
+              orgId: profile?.org_id || 'ORG-AOB',
+              companyName: profile?.organizations?.company_name || (isSuper ? 'ระบบบริหารส่วนกลาง (ทุกโรงงาน)' : 'โรงงานลูกค้า'),
+              isRealSupabaseUser: true
+            });
+          })
+          .catch(() => {
+            // Fallback if profiles table is not yet queried
+            setCurrentUser({
+              id: session.user.id,
+              email: session.user.email,
+              fullName: isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : session.user.email.split('@')[0],
+              role: isSuper ? 'SUPER_ADMIN' : 'PLANT_MANAGER',
+              orgId: 'ORG-AOB',
+              companyName: isSuper ? 'ระบบบริหารส่วนกลาง (ทุกโรงงาน)' : 'โรงงานลูกค้า',
+              isRealSupabaseUser: true
+            });
           });
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        // User logged out from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setCurrentUser(null);
+        localStorage.removeItem('AOB_ACTIVE_USER');
       }
     });
 
@@ -180,20 +202,30 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       if (data?.user) {
+        const isSuper = isSuperAdminEmail(data.user.email);
+
         // Query user profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*, organizations(*)')
-          .eq('id', data.user.id)
-          .single();
+        let profile = null;
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('*, organizations(*)')
+            .eq('id', data.user.id)
+            .single();
+          profile = prof;
+        } catch {
+          // If profile table not initialized yet, proceed safely
+        }
+
+        const finalRole = isSuper ? 'SUPER_ADMIN' : (profile?.role || 'PLANT_MANAGER');
 
         setCurrentUser({
           id: data.user.id,
           email: data.user.email,
-          fullName: profile?.full_name || data.user.email.split('@')[0],
-          role: profile?.role || 'PLANT_MANAGER',
+          fullName: profile?.full_name || (isSuper ? 'คุณณัฐพงษ์ (Super Admin)' : data.user.email.split('@')[0]),
+          role: finalRole,
           orgId: profile?.org_id || 'ORG-AOB',
-          companyName: profile?.organizations?.company_name || 'โรงงานลูกค้า',
+          companyName: profile?.organizations?.company_name || (isSuper ? 'ระบบบริหารส่วนกลาง (ทุกโรงงาน)' : 'โรงงานลูกค้า'),
           isRealSupabaseUser: true
         });
 
@@ -221,6 +253,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const isSuper = isSuperAdminEmail(email);
+      const effectiveRole = isSuper ? 'SUPER_ADMIN' : role;
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
@@ -228,7 +263,7 @@ export const AuthProvider = ({ children }) => {
           data: {
             full_name: fullName,
             company_name: companyName,
-            role: role
+            role: effectiveRole
           }
         }
       });
@@ -247,14 +282,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign out
+  // Sign out (Reliably resets state and redirects to LoginPortal)
   const logout = async () => {
-    const supabase = getSupabase();
-    if (supabase) {
-      await supabase.auth.signOut().catch(() => {});
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase.auth.signOut().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Supabase sign out error:", e);
+    } finally {
+      localStorage.removeItem('AOB_ACTIVE_USER');
+      try { sessionStorage.clear(); } catch {}
+      setCurrentUser(null);
+      setActiveOrgId('ORG-AOB');
+      setIsAuthModalOpen(false);
     }
-    setCurrentUser(null);
-    localStorage.removeItem('AOB_ACTIVE_USER');
   };
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';

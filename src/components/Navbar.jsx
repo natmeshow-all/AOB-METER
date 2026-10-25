@@ -133,10 +133,11 @@ export const Navbar = ({
             {currentUser && (
               <button
                 onClick={logout}
-                className="p-2 text-rose-400 hover:text-white bg-slate-800/80 hover:bg-rose-950/80 rounded-lg border border-slate-700/60 hover:border-rose-800/60 transition-all cursor-pointer"
-                title="ออกจากระบบ"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-rose-400 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 rounded-lg border border-rose-800/60 hover:border-rose-700 transition-all cursor-pointer text-xs font-semibold shadow-sm"
+                title="ออกจากระบบ กลับไปยังหน้าเลือกโรงงาน"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4 text-rose-400" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
               </button>
             )}
           </div>

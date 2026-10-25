@@ -226,22 +226,27 @@ export const LoginPortal = () => {
               <div className="pt-2">
                 <button
                   type="button"
-                  onClick={() => loginWithDemo(DEMO_USERS[0])} // Super Admin
-                  className="w-full p-3 rounded-2xl bg-gradient-to-r from-indigo-950/70 to-slate-900 border border-indigo-500/40 hover:border-indigo-400 transition-all flex items-center justify-between text-xs cursor-pointer group"
+                  onClick={() => loginWithDemo(DEMO_USERS[0])} // Super Admin (natshownolimit@gmail.com)
+                  className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-indigo-950/60 to-slate-900 border border-amber-500/40 hover:border-amber-400 transition-all flex items-center justify-between text-xs cursor-pointer group shadow-lg hover:shadow-amber-500/10"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">👑</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">👑</span>
                     <div className="text-left">
-                      <span className="font-bold text-indigo-300 block">
-                        เข้าสู่ระบบในฐานะ Super Admin (ผู้ดูแลระบบกลาง)
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        สิทธิ์สูงสุด สามารถสลับดูทุกโรงงานลูกค้า และจัดการเชื่อมต่อ Gateway
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-amber-300 text-sm">
+                          เข้าสู่ระบบในฐานะ Super Admin (คุณณัฐพงษ์)
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono border border-amber-500/30">
+                          natshownolimit@gmail.com
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-300 block mt-0.5">
+                        สิทธิ์สูงสุด (SUPER_ADMIN): สลับดูแดชบอร์ดได้ทุกโรงงาน (AOB, GDB, SCS) และควบคุมระบบมิเตอร์ทั้งหมด
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-indigo-300 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                    เข้าสู่ระบบ ➔
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1 group-hover:translate-x-1 transition-transform shrink-0 ml-2">
+                    เข้าสู่ระบบทันที ➔
                   </span>
                 </button>
               </div>

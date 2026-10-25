@@ -162,3 +162,57 @@ VALUES
     ('AOB-MDB1-Q1-3', 'ORG-AOB', 'ELECTRICITY', 'MDB1-Q1-3', 'MCC-ACP (Air compressor)', 'C4-2', 'Q1-3', 3),
     ('AOB-WATER-MAIN', 'ORG-AOB', 'WATER', 'WATER-MAIN', 'มิเตอร์น้ำหลัก หน้าโรงงาน', 'MAIN', 'WATER', NULL)
 ON CONFLICT (id) DO NOTHING;
+
+-- 11. อัตโนมัติ: บันทึกโปรไฟล์ลง public.profiles ทันทีที่มีการสมัคร/ยืนยันใน auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, full_name, role, org_id)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+        CASE 
+            WHEN NEW.email = 'natshownolimit@gmail.com' THEN 'SUPER_ADMIN'
+            ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'PLANT_MANAGER')
+        END,
+        COALESCE(NEW.raw_user_meta_data->>'org_id', 'ORG-AOB')
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET 
+        role = CASE 
+            WHEN NEW.email = 'natshownolimit@gmail.com' THEN 'SUPER_ADMIN'
+            ELSE profiles.role 
+        END,
+        email = EXCLUDED.email;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ซิงค์ผู้ใช้เดิมใน auth.users มาไว้ใน public.profiles ทันที
+INSERT INTO public.profiles (id, email, full_name, role, org_id)
+SELECT 
+    id, 
+    email, 
+    COALESCE(raw_user_meta_data->>'full_name', split_part(email, '@', 1)),
+    CASE 
+        WHEN email = 'natshownolimit@gmail.com' THEN 'SUPER_ADMIN' 
+        ELSE 'PLANT_MANAGER' 
+    END,
+    'ORG-AOB'
+FROM auth.users
+ON CONFLICT (id) DO UPDATE
+SET role = CASE 
+    WHEN EXCLUDED.email = 'natshownolimit@gmail.com' THEN 'SUPER_ADMIN' 
+    ELSE profiles.role 
+END;
+
+-- ยืนยันกำหนดให้ natshownolimit@gmail.com เป็น SUPER_ADMIN ทันที
+UPDATE public.profiles 
+SET role = 'SUPER_ADMIN' 
+WHERE email = 'natshownolimit@gmail.com';

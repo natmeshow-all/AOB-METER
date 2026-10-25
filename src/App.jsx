@@ -24,7 +24,7 @@ import {
 import { Camera } from 'lucide-react';
 
 export function App() {
-  const { currentUser, isAuthModalOpen, setIsAuthModalOpen, activeOrganization } = useAuth();
+  const { currentUser, isAuthModalOpen, setIsAuthModalOpen, activeOrganization, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('realtime'); // 'realtime' | 'analytics' | 'electricity' | 'water' | 'solar' | 'monthly-sheet'
   const [timeframe, setTimeframe] = useState('daily'); // 'daily' | 'monthly' | 'yearly'
   const [currentDate, setCurrentDate] = useState('2026-09-01');
@@ -303,6 +303,15 @@ export function App() {
         >
           <span className="text-base">📋</span>
           <span>ตารางชีต</span>
+        </button>
+
+        <button
+          onClick={logout}
+          className="flex flex-col items-center gap-0.5 p-1 rounded-xl text-[10px] font-medium text-rose-400 hover:text-rose-300 transition-all cursor-pointer"
+          title="ออกจากระบบ"
+        >
+          <span className="text-base">🚪</span>
+          <span>ออกจากระบบ</span>
         </button>
       </div>
 
