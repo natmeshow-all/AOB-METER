@@ -1,13 +1,16 @@
 // Multi-Tenant Energy Data Engine
-// Generates company-isolated meters, realtime telemetry, and historical data (Hourly, Daily, Monthly, Yearly)
+// Supports both preset industrial clients and dynamically onboarded customer companies from Super Admin Console
 
-export const TENANT_COMPANIES = {
+const STORAGE_KEY_COMPANIES = 'POWERVIEW_CUSTOM_COMPANIES_V1';
+
+export const DEFAULT_TENANT_COMPANIES = {
   'ORG-AOB': {
     id: 'ORG-AOB',
     code: 'AOB',
     name: 'บริษัท เอโอเบสต์ จำกัด (ART OF BAKING CO., LTD.)',
     shortName: 'เอโอเบสต์ (AOB)',
     industry: 'โรงงานผลิตเบเกอรี่และแป้งแช่แข็ง',
+    location: 'นิคมอุตสาหกรรมลาดกระบัง กรุงเทพฯ',
     transformerKVA: 1600,
     contractPeakKW: 1200,
     rateKWh: 4.20,
@@ -15,6 +18,11 @@ export const TENANT_COMPANIES = {
     offPeakRate: 2.60,
     waterRate: 18.50,
     formCode: 'FM-EN-000/R00-AOB',
+    gatewayModel: 'Waveshare RS485 to Ethernet PoE (Industrial)',
+    gatewaySerial: 'GW-AOB-9841A',
+    gatewayIp: '192.168.10.201',
+    installedDate: '2026-08-15',
+    status: 'ONLINE',
     electricityMeters: [
       { id: 'AOB-E01', tag: 'Q1-1', panel: 'C2-2', name: 'MMC-PRO-1 (Frozen Line)', baseKW: 85, model: 'Schneider PM2200', unit: 'GWh' },
       { id: 'AOB-E02', tag: 'Q1-2', panel: 'C3-2 ดำ', name: 'MMC-PRO-2 (RTE Line)', baseKW: 110, model: 'Schneider PM2200', unit: 'GWh' },
@@ -44,6 +52,7 @@ export const TENANT_COMPANIES = {
     name: 'บริษัท แกรนด์ เบเกอรี่ อินดัสทรี จำกัด',
     shortName: 'แกรนด์ เบเกอรี่ (GDB)',
     industry: 'โรงงานผลิตขนมปังแผ่นและแซนวิชอุตสาหกรรม',
+    location: 'นิคมอุตสาหกรรมบางปู สมุทรปราการ',
     transformerKVA: 2000,
     contractPeakKW: 1500,
     rateKWh: 4.25,
@@ -51,6 +60,11 @@ export const TENANT_COMPANIES = {
     offPeakRate: 2.65,
     waterRate: 18.00,
     formCode: 'FM-EN-GDB/2026',
+    gatewayModel: 'Waveshare RS485 to Ethernet PoE (Industrial)',
+    gatewaySerial: 'GW-GDB-2044B',
+    gatewayIp: '192.168.20.110',
+    installedDate: '2026-09-02',
+    status: 'ONLINE',
     electricityMeters: [
       { id: 'GDB-E01', tag: 'MDB-01', panel: 'Main Feeder 1', name: 'สายการอบ Main Tunnel Oven 1', baseKW: 280, model: 'ABB M4M 20', unit: 'MWh' },
       { id: 'GDB-E02', tag: 'MDB-02', panel: 'Main Feeder 1', name: 'สายการอบ Main Tunnel Oven 2', baseKW: 295, model: 'ABB M4M 20', unit: 'MWh' },
@@ -75,6 +89,7 @@ export const TENANT_COMPANIES = {
     name: 'บริษัท สยาม โคลด์ สตอเรจ จำกัด (คลังสินค้าห้องเย็น)',
     shortName: 'สยามโคลด์ (SCS)',
     industry: 'ศูนย์กระจายสินค้าและห้องเย็นรักษาอุณหภูมิ -25°C',
+    location: 'มหาชัย สมุทรสาคร',
     transformerKVA: 2500,
     contractPeakKW: 1900,
     rateKWh: 4.15,
@@ -82,6 +97,11 @@ export const TENANT_COMPANIES = {
     offPeakRate: 2.58,
     waterRate: 18.50,
     formCode: 'FM-SCS-COLD-01',
+    gatewayModel: 'USR-TCP232-410s Dual Serial RS485 Gateway',
+    gatewaySerial: 'GW-SCS-8812C',
+    gatewayIp: '10.10.50.88',
+    installedDate: '2026-09-18',
+    status: 'ONLINE',
     electricityMeters: [
       { id: 'SCS-E01', tag: 'COMP-1', panel: 'Ammonia Plant', name: 'Screw Compressor 1 (Mycom 250kW)', baseKW: 240, model: 'Schneider PM5350', unit: 'GWh' },
       { id: 'SCS-E02', tag: 'COMP-2', panel: 'Ammonia Plant', name: 'Screw Compressor 2 (Mycom 250kW)', baseKW: 235, model: 'Schneider PM5350', unit: 'GWh' },
@@ -103,30 +123,77 @@ export const TENANT_COMPANIES = {
   }
 };
 
+// Load custom onboarded companies from localStorage and merge into TENANT_COMPANIES
+const loadInitialCompanies = () => {
+  const merged = { ...DEFAULT_TENANT_COMPANIES };
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_COMPANIES);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.keys(parsed).forEach((key) => {
+        merged[key] = parsed[key];
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to load custom companies:', e);
+  }
+  return merged;
+};
+
+export const TENANT_COMPANIES = loadInitialCompanies();
+
+// Save or update a tenant company in TENANT_COMPANIES and persist to localStorage
+export const saveTenantCompany = (companyObj) => {
+  if (!companyObj || !companyObj.id) return;
+  TENANT_COMPANIES[companyObj.id] = companyObj;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_COMPANIES);
+    const customMap = saved ? JSON.parse(saved) : {};
+    customMap[companyObj.id] = companyObj;
+    localStorage.setItem(STORAGE_KEY_COMPANIES, JSON.stringify(customMap));
+  } catch (e) {
+    console.warn('Failed to save custom company:', e);
+  }
+};
+
+export const deleteTenantCompany = (orgId) => {
+  if (DEFAULT_TENANT_COMPANIES[orgId]) return false; // Protect core presets
+  delete TENANT_COMPANIES[orgId];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_COMPANIES);
+    if (saved) {
+      const customMap = JSON.parse(saved);
+      delete customMap[orgId];
+      localStorage.setItem(STORAGE_KEY_COMPANIES, JSON.stringify(customMap));
+    }
+  } catch (e) {
+    console.warn('Failed to delete custom company:', e);
+  }
+  return true;
+};
+
 // 1. Generate 24-Hour Profile for Selected Company & Date
 export const generateHourlyData = (companyId) => {
   const company = TENANT_COMPANIES[companyId] || TENANT_COMPANIES['ORG-AOB'];
-  const baseTotal = company.electricityMeters.reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0);
+  const baseTotal = (company.electricityMeters || []).reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) || 350;
 
   const hours = [];
   for (let h = 0; h < 24; h++) {
     const hourStr = `${h.toString().padStart(2, '0')}:00`;
-    // On-Peak in Thailand is 09:00 - 22:00 on weekdays
     const isOnPeak = h >= 9 && h <= 22;
     
-    // Realistic industrial load curve: peaks at 10-12 and 14-17, lowers at night
-    let factor = 0.55; // baseline night load
+    let factor = 0.55;
     if (h >= 7 && h <= 8) factor = 0.75;
     else if (h >= 9 && h <= 12) factor = 0.95;
-    else if (h === 13) factor = 0.82; // lunch break dip
+    else if (h === 13) factor = 0.82;
     else if (h >= 14 && h <= 17) factor = 0.98;
     else if (h >= 18 && h <= 21) factor = 0.88;
     else if (h >= 22) factor = 0.62;
 
     const jitter = Math.sin(h * 1.3) * 0.04;
     const activeKW = Math.round(baseTotal * (factor + jitter));
-    const kwh = Math.round(activeKW); // 1 hr usage
-    const rate = isOnPeak ? company.peakRate : company.offPeakRate;
+    const kwh = Math.round(activeKW);
+    const rate = isOnPeak ? (company.peakRate || 5.10) : (company.offPeakRate || 2.60);
     const cost = Math.round(kwh * rate);
     const pf = Math.min(0.98, Math.max(0.89, 0.94 + Math.cos(h) * 0.02));
 
@@ -141,7 +208,7 @@ export const generateHourlyData = (companyId) => {
       voltage: Math.round((400 + Math.sin(h) * 2) * 10) / 10,
       currentA: Math.round(activeKW * 1.5),
       powerFactor: Number(pf.toFixed(2)),
-      solarGenerationKW: (h >= 8 && h <= 17) ? Math.round(Math.sin((h - 8) / 9 * Math.PI) * (company.transformerKVA * 0.15)) : 0
+      solarGenerationKW: (h >= 8 && h <= 17) ? Math.round(Math.sin((h - 8) / 9 * Math.PI) * ((company.transformerKVA || 1600) * 0.15)) : 0
     });
   }
   return hours;
@@ -150,12 +217,11 @@ export const generateHourlyData = (companyId) => {
 // 2. Generate 31-Day Profile for Selected Month
 export const generateDailyData = (companyId, daysInMonth = 30) => {
   const company = TENANT_COMPANIES[companyId] || TENANT_COMPANIES['ORG-AOB'];
-  const baseDailyKWh = company.electricityMeters.reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) * 18;
+  const baseDailyKWh = ((company.electricityMeters || []).reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) || 350) * 18;
 
   const days = [];
   for (let d = 1; d <= daysInMonth; d++) {
-    // Weekend load is ~65% of weekday
-    const dayOfWeek = (d % 7); // 0 or 6 is weekend
+    const dayOfWeek = (d % 7);
     const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
     const multiplier = isWeekend ? 0.65 : 1.0;
     const randomJitter = (Math.sin(d * 1.8) * 0.08);
@@ -164,8 +230,8 @@ export const generateDailyData = (companyId, daysInMonth = 30) => {
     const peakKW = Math.round((totalKWh / 16) * 1.15);
     const onPeakKWh = Math.round(totalKWh * 0.62);
     const offPeakKWh = totalKWh - onPeakKWh;
-    const cost = Math.round((onPeakKWh * company.peakRate) + (offPeakKWh * company.offPeakRate));
-    const waterM3 = Math.round((company.waterMeters.reduce((acc, w) => acc + w.baseM3, 0)) * (multiplier + randomJitter));
+    const cost = Math.round((onPeakKWh * (company.peakRate || 5.10)) + (offPeakKWh * (company.offPeakRate || 2.60)));
+    const waterM3 = Math.round(((company.waterMeters || []).reduce((acc, w) => acc + w.baseM3, 0) || 120) * (multiplier + randomJitter));
 
     days.push({
       day: d,
@@ -177,7 +243,7 @@ export const generateDailyData = (companyId, daysInMonth = 30) => {
       offPeakKWh: offPeakKWh,
       costBaht: cost,
       waterM3: waterM3,
-      waterCostBaht: Math.round(waterM3 * company.waterRate),
+      waterCostBaht: Math.round(waterM3 * (company.waterRate || 18.5)),
       powerFactor: Number((0.93 + (Math.sin(d) * 0.02)).toFixed(2))
     });
   }
@@ -187,7 +253,7 @@ export const generateDailyData = (companyId, daysInMonth = 30) => {
 // 3. Generate 12-Month Profile (Jan - Dec)
 export const generateMonthlyData = (companyId) => {
   const company = TENANT_COMPANIES[companyId] || TENANT_COMPANIES['ORG-AOB'];
-  const baseMonthlyKWh = company.electricityMeters.reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) * 18 * 28;
+  const baseMonthlyKWh = ((company.electricityMeters || []).reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) || 350) * 18 * 28;
 
   const monthNames = [
     'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -195,16 +261,15 @@ export const generateMonthlyData = (companyId) => {
   ];
 
   return monthNames.map((name, idx) => {
-    // Summer months (Mar - May) have higher cooling load
     let seasonal = 1.0;
-    if (idx >= 2 && idx <= 4) seasonal = 1.18; // Summer peak
-    if (idx === 11 || idx === 0) seasonal = 0.92; // Winter cooler
+    if (idx >= 2 && idx <= 4) seasonal = 1.18;
+    if (idx === 11 || idx === 0) seasonal = 0.92;
 
     const totalKWh = Math.round(baseMonthlyKWh * seasonal * (1 + (Math.sin(idx) * 0.04)));
     const peakKW = Math.round((totalKWh / (30 * 16)) * 1.25);
-    const costBaht = Math.round(totalKWh * company.rateKWh);
-    const previousYearKWh = Math.round(totalKWh * 1.06); // 6% higher last year (shows energy savings)
-    const savingsBaht = Math.round((previousYearKWh - totalKWh) * company.rateKWh);
+    const costBaht = Math.round(totalKWh * (company.rateKWh || 4.20));
+    const previousYearKWh = Math.round(totalKWh * 1.06);
+    const savingsBaht = Math.round((previousYearKWh - totalKWh) * (company.rateKWh || 4.20));
 
     return {
       month: name,
@@ -214,7 +279,7 @@ export const generateMonthlyData = (companyId) => {
       peakKW: peakKW,
       costBaht: costBaht,
       savingsBaht: Math.max(0, savingsBaht),
-      waterM3: Math.round(company.waterMeters.reduce((acc, w) => acc + w.baseM3, 0) * 30 * seasonal)
+      waterM3: Math.round(((company.waterMeters || []).reduce((acc, w) => acc + w.baseM3, 0) || 120) * 30 * seasonal)
     };
   });
 };
@@ -222,14 +287,14 @@ export const generateMonthlyData = (companyId) => {
 // 4. Generate Multi-Year Profile (2024, 2025, 2026)
 export const generateYearlyData = (companyId) => {
   const company = TENANT_COMPANIES[companyId] || TENANT_COMPANIES['ORG-AOB'];
-  const baseYearKWh = company.electricityMeters.reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) * 18 * 350;
+  const baseYearKWh = ((company.electricityMeters || []).reduce((acc, m) => acc + (m.baseKW > 0 ? m.baseKW : 0), 0) || 350) * 18 * 350;
 
   return [
     {
       year: '2567 (2024)',
       totalKWh: Math.round(baseYearKWh * 1.12),
       costBaht: Math.round(baseYearKWh * 1.12 * 4.35),
-      peakDemandKW: Math.round(company.contractPeakKW * 0.96),
+      peakDemandKW: Math.round((company.contractPeakKW || 1200) * 0.96),
       efficiencyScore: '78%',
       status: 'ก่อนติดตั้ง AI & IoT'
     },
@@ -237,15 +302,15 @@ export const generateYearlyData = (companyId) => {
       year: '2568 (2025)',
       totalKWh: Math.round(baseYearKWh * 1.04),
       costBaht: Math.round(baseYearKWh * 1.04 * 4.28),
-      peakDemandKW: Math.round(company.contractPeakKW * 0.91),
+      peakDemandKW: Math.round((company.contractPeakKW || 1200) * 0.91),
       efficiencyScore: '86%',
       status: 'เริ่มใช้ AI สแกนเนอร์'
     },
     {
       year: '2569 (2026 ปัจจุบัน)',
       totalKWh: Math.round(baseYearKWh * 0.95),
-      costBaht: Math.round(baseYearKWh * 0.95 * company.rateKWh),
-      peakDemandKW: Math.round(company.contractPeakKW * 0.82),
+      costBaht: Math.round(baseYearKWh * 0.95 * (company.rateKWh || 4.20)),
+      peakDemandKW: Math.round((company.contractPeakKW || 1200) * 0.82),
       efficiencyScore: '94%',
       status: 'เชื่อมต่อ PowerView IoT สด'
     }

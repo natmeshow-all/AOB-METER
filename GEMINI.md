@@ -7,14 +7,14 @@ All coding assistants and agents working on this project MUST strictly follow th
 
 1. **Authentication & Multi-Tenant Login Gate:**
    - When `currentUser` is `null`, `src/App.jsx` MUST display `<LoginPortal />`.
+   - `LoginPortal.jsx` MUST ONLY show clean, enterprise Username/Email and Password fields. NEVER display customer company names, client logos, or 1-click demo login cards on the public login page.
    - Never initialize `currentUser` to a default demo user in `src/context/AuthContext.jsx`. It must initialize to `null` if no valid `AOB_ACTIVE_USER` session exists in `localStorage`.
    - The `logout()` function must purge `localStorage`, `sessionStorage`, call `supabase.auth.signOut()`, and immediately reset `currentUser` to `null`.
 
-2. **Super Admin Designation:**
-   - Owner/Super Admin email: `natshownolimit@gmail.com` (คุณณัฐพงษ์).
-   - In frontend code (`AuthContext.jsx`), ALWAYS ensure `natshownolimit@gmail.com` is granted `role: 'SUPER_ADMIN'`.
-   - Super Admin has full multi-tenant switcher capability across all factories (`ORG-AOB`, `ORG-GRAND`, `ORG-SIAMCOLD`).
-   - Normal tenant users are isolated to their own company by Supabase RLS and cannot view other tenants' meters.
+2. **Super Admin Designation & Super Admin Console:**
+   - Owner/Super Admin email: `natshownolimit@gmail.com` or username `superadmin` (คุณณัฐพงษ์).
+   - When Super Admin logs in, they land on `<SuperAdminConsole />` (`activeTab === 'super-admin'`), where they can view all client companies, manage IoT Gateways & meters, onboard new client companies after hardware installation, and create/manage client login credentials (Username & Password).
+   - Normal tenant users are isolated to their own company and never see the Super Admin Console or other clients' names.
 
 3. **Mobile-First Experience (Primary User Constraint):**
    - The user operates primarily from a mobile smartphone.
