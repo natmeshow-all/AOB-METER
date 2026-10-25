@@ -6,7 +6,8 @@ import {
   Gauge,
   BarChart3,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Sun
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -151,6 +152,19 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
           >
             <BarChart3 className="w-4 h-4" />
             <span>3. รายงาน & ปรับแผนการผลิต</span>
+          </button>
+
+          {/* Menu 4: Home Solar Hybrid Inverter (SAJ H2-6K-LS2) */}
+          <button
+            onClick={() => setActiveTab('home-inverter')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'home-inverter'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/25'
+                : 'bg-slate-950 text-emerald-300 hover:text-white border border-emerald-500/30'
+            }`}
+          >
+            <Sun className="w-4 h-4" />
+            <span>☀️ 4. อินเวอร์เตอร์โซลาร์บ้าน</span>
           </button>
         </nav>
       </div>

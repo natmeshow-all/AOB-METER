@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { OverviewMetersView } from './components/OverviewMetersView';
 import { MeterDetailView } from './components/MeterDetailView';
 import { ProductionReportView } from './components/ProductionReportView';
+import { HomeInverterView } from './components/HomeInverterView';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { LoginPortal } from './components/LoginPortal';
 import { useAuth } from './context/AuthContext';
@@ -13,7 +14,8 @@ import {
   BarChart3,
   ShieldCheck,
   ArrowLeft,
-  LogOut
+  LogOut,
+  Sun
 } from 'lucide-react';
 
 export function App() {
@@ -94,7 +96,7 @@ export function App() {
         {/* SUPER ADMIN CONSOLE */}
         {isSuperAdmin && activeTab === 'super-admin' && (
           <SuperAdminConsole
-            onInspectClientDashboard={() => setActiveTab('overview')}
+            onInspectTenant={() => setActiveTab('overview')}
           />
         )}
 
@@ -116,14 +118,17 @@ export function App() {
         {activeTab === 'report' && (
           <ProductionReportView onSelectMeter={handleInspectMeter} />
         )}
+
+        {/* MENU 4: HOME SOLAR HYBRID INVERTER (SAJ H2-6K-LS2) */}
+        {activeTab === 'home-inverter' && <HomeInverterView />}
       </main>
 
       {/* Mobile App Sticky Bottom Navigation Bar (1-Thumb Ergonomics) */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-1.5 py-1.5 flex items-center justify-around shadow-2xl">
         {isSuperAdmin && (
           <button
             onClick={() => setActiveTab('super-admin')}
-            className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+            className={`flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
               activeTab === 'super-admin'
                 ? 'text-amber-400 bg-amber-500/10 font-bold'
                 : 'text-slate-400'
@@ -136,31 +141,31 @@ export function App() {
 
         <button
           onClick={() => setActiveTab('overview')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
             activeTab === 'overview'
               ? 'text-blue-400 bg-blue-500/10 font-bold'
               : 'text-slate-400'
           }`}
         >
           <Activity className="w-5 h-5" />
-          <span>1. ภาพรวมมิเตอร์</span>
+          <span>1. ภาพรวม</span>
         </button>
 
         <button
           onClick={() => setActiveTab('meter-detail')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
             activeTab === 'meter-detail'
               ? 'text-blue-400 bg-blue-500/10 font-bold'
               : 'text-slate-400'
           }`}
         >
           <Gauge className="w-5 h-5" />
-          <span>2. รายมิเตอร์</span>
+          <span>2. มิเตอร์</span>
         </button>
 
         <button
           onClick={() => setActiveTab('report')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
             activeTab === 'report'
               ? 'text-blue-400 bg-blue-500/10 font-bold'
               : 'text-slate-400'
@@ -171,8 +176,20 @@ export function App() {
         </button>
 
         <button
+          onClick={() => setActiveTab('home-inverter')}
+          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+            activeTab === 'home-inverter'
+              ? 'text-emerald-400 bg-emerald-500/10 font-bold'
+              : 'text-slate-400'
+          }`}
+        >
+          <Sun className="w-5 h-5" />
+          <span>4. โซลาร์บ้าน</span>
+        </button>
+
+        <button
           onClick={logout}
-          className="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold text-rose-400 cursor-pointer"
+          className="flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-[10px] font-semibold text-rose-400 cursor-pointer"
           title="ออกจากระบบ"
         >
           <LogOut className="w-5 h-5" />
