@@ -518,13 +518,15 @@ export const SuperAdminConsole = ({ onInspectClientDashboard }) => {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">อัตราค่าไฟเฉลี่ย:</span>
-                      <span className="font-mono text-white">{org.rateKWh.toFixed(2)} บาท/kWh</span>
+                      <span className="text-slate-400">พิกัดโหลดปลอดภัย (85%):</span>
+                      <span className="font-mono text-white">
+                        {Math.round(org.transformerKVA * 0.85).toLocaleString()} kW
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">จำนวนจุดวัด:</span>
-                      <span className="font-mono text-emerald-300">
-                        ไฟ {org.elecMeterCount} จุด • น้ำ {org.waterMeterCount} จุด
+                      <span className="text-slate-400">จำนวนพาวเวอร์มิเตอร์:</span>
+                      <span className="font-mono font-bold text-emerald-300">
+                        {org.elecMeterCount} จุดวัดออนไลน์
                       </span>
                     </div>
                   </div>
@@ -798,8 +800,8 @@ export const SuperAdminConsole = ({ onInspectClientDashboard }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="sm:col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
                     <label className="block text-xs text-slate-300 font-medium mb-1">
                       ประเภทอุตสาหกรรม / ลักษณะโรงงาน
                     </label>
@@ -816,6 +818,21 @@ export const SuperAdminConsole = ({ onInspectClientDashboard }) => {
 
                   <div>
                     <label className="block text-xs text-slate-300 font-medium mb-1">
+                      สถานที่ตั้งโรงงาน / นิคมอุตสาหกรรม
+                    </label>
+                    <input
+                      type="text"
+                      value={onboardForm.location}
+                      onChange={(e) =>
+                        setOnboardForm({ ...onboardForm, location: e.target.value })
+                      }
+                      placeholder="เช่น นิคมอุตสาหกรรมบางปู สมุทรปราการ"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 font-medium mb-1">
                       ขนาดหม้อแปลง (kVA)
                     </label>
                     <input
@@ -823,21 +840,6 @@ export const SuperAdminConsole = ({ onInspectClientDashboard }) => {
                       value={onboardForm.transformerKVA}
                       onChange={(e) =>
                         setOnboardForm({ ...onboardForm, transformerKVA: e.target.value })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-300 font-medium mb-1">
-                      อัตราค่าไฟเฉลี่ย (บาท/หน่วย)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={onboardForm.rateKWh}
-                      onChange={(e) =>
-                        setOnboardForm({ ...onboardForm, rateKWh: e.target.value })
                       }
                       className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none"
                     />

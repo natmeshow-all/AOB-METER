@@ -7,16 +7,15 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell
+  Cell,
+  LabelList
 } from 'recharts';
 import {
   Zap,
-  Gauge,
   Activity,
   CheckCircle2,
   ArrowLeft,
   Cpu,
-  Clock,
   TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -60,7 +59,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
   const vL1N = Number((230.8 + Math.sin(tick) * 0.6).toFixed(1));
   const vL2N = Number((231.2 + Math.cos(tick) * 0.5).toFixed(1));
   const vL3N = Number((230.5 + Math.sin(tick * 0.7) * 0.6).toFixed(1));
-  const vLL = Number(((vL1N + vL2N + vL3N) / 3 * 1.732).toFixed(1));
+  const vLL = Number((((vL1N + vL2N + vL3N) / 3) * 1.732).toFixed(1));
 
   const avgCurrent = liveKW * 1.52;
   const iL1 = Number((avgCurrent * 1.01).toFixed(1));
@@ -68,12 +67,9 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
   const iL3 = Number((avgCurrent * 1.01).toFixed(1));
   const frequency = Number((50.0 + Math.sin(tick) * 0.03).toFixed(2));
 
-  // Generate 24-hour profile specifically for this meter
+  // Generate 24-hour profile specifically for this meter (Pure Electrical kWh)
   const hourlyMeterData = useMemo(() => {
-    const peakRate = currentCompany.peakRate || 5.1;
-    const offPeakRate = currentCompany.offPeakRate || 2.6;
     const list = [];
-
     for (let h = 0; h < 24; h++) {
       const isOnPeak = h >= 9 && h < 22;
       let loadFactor = 0.55;
@@ -85,23 +81,20 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
       else if (h >= 22) loadFactor = 0.6;
 
       const kwh = Math.round(baseKW * loadFactor * (1 + Math.sin(h * 1.2) * 0.05));
-      const cost = Math.round(kwh * (isOnPeak ? peakRate : offPeakRate));
 
       list.push({
         hour: `${String(h).padStart(2, '0')}:00`,
         kwh,
-        cost,
         isOnPeak,
-        period: isOnPeak ? 'On-Peak (ค่าไฟแพง)' : 'Off-Peak (ค่าไฟถูก)'
+        period: isOnPeak ? 'On-Peak (09:00-22:00)' : 'Off-Peak (22:00-09:00)'
       });
     }
     return list;
-  }, [baseKW, currentCompany]);
+  }, [baseKW]);
 
   const totalDayKWh = hourlyMeterData.reduce((s, h) => s + h.kwh, 0);
   const onPeakKWh = hourlyMeterData.filter((h) => h.isOnPeak).reduce((s, h) => s + h.kwh, 0);
   const offPeakKWh = totalDayKWh - onPeakKWh;
-  const totalDayCost = hourlyMeterData.reduce((s, h) => s + h.cost, 0);
   const peakHourObj = [...hourlyMeterData].sort((a, b) => b.kwh - a.kwh)[0];
 
   return (
@@ -133,7 +126,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
           </div>
         </div>
 
-        {/* Horizontal Touch-Friendly Pill Bar for Mobile Switching */}
+        {/* Horizontal Touch-Friendly Pill Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           {meters.map((m) => {
             const isSelected = m.id === activeMeter.id;
@@ -171,16 +164,16 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
                 RS485 LIVE
               </span>
             </div>
-            <h2 className="text-lg sm:text-2xl font-bold text-white mt-2">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-2">
               {activeMeter.name}
             </h2>
           </div>
 
-          <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl px-4 py-3 text-right shrink-0">
-            <span className="text-[11px] text-slate-400 block">
+          <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl px-5 py-3 text-right shrink-0">
+            <span className="text-xs text-slate-400 block">
               กำลังไฟฟ้าใช้งานขณะนี้ (Active Power)
             </span>
-            <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-400">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400">
               {liveKW} <span className="text-sm font-sans text-slate-300">kW</span>
             </div>
           </div>
@@ -188,40 +181,41 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
         {/* 4 Core Power Parameters */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">เพาเวอร์แฟกเตอร์ (PF)</span>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 mt-1">
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 mt-1">
               {pf}
             </div>
-            <span className="text-[11px] text-slate-500">เกณฑ์มาตรฐาน &ge; 0.85</span>
+            <span className="text-xs text-slate-500">เกณฑ์มาตรฐาน &ge; 0.85</span>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">กำลังไฟฟ้าปรากฏ (Apparent)</span>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1">
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white mt-1">
               {liveKVA} <span className="text-xs font-sans text-slate-400">kVA</span>
             </div>
-            <span className="text-[11px] text-slate-500">Reactive: {liveKVAR} kVAR</span>
+            <span className="text-xs text-slate-500">Reactive: {liveKVAR} kVAR</span>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">หน่วยการใช้ไฟวันนี้ (24 ชม.)</span>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-blue-300 mt-1">
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-blue-300 mt-1">
               {totalDayKWh.toLocaleString()}{' '}
               <span className="text-xs font-sans text-slate-400">kWh</span>
             </div>
-            <span className="text-[11px] text-slate-500">
-              On-Peak {Math.round((onPeakKWh / totalDayKWh) * 100)}%
+            <span className="text-xs text-amber-300 font-semibold">
+              On-Peak {onPeakKWh.toLocaleString()} kWh ({Math.round((onPeakKWh / totalDayKWh) * 100)}%)
             </span>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
-            <span className="text-xs text-slate-400 block">ค่าไฟของมิเตอร์นี้ (วันนี้)</span>
-            <div className="text-xl sm:text-2xl font-bold font-mono text-amber-300 mt-1">
-              ฿{totalDayCost.toLocaleString()}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+            <span className="text-xs text-slate-400 block">หน่วยไฟช่วง Off-Peak</span>
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 mt-1">
+              {offPeakKWh.toLocaleString()}{' '}
+              <span className="text-xs font-sans text-slate-400">kWh</span>
             </div>
-            <span className="text-[11px] text-slate-500">
-              ประมาณการเดือนละ ฿{(totalDayCost * 30).toLocaleString()}
+            <span className="text-xs text-emerald-300/80">
+              สัดส่วน {100 - Math.round((onPeakKWh / totalDayKWh) * 100)}% ของมิเตอร์นี้
             </span>
           </div>
         </div>
@@ -243,20 +237,20 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
           <div className="grid grid-cols-3 gap-2.5 pt-1">
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">เฟส L1-N</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-white mt-1 block">
+              <span className="text-xs text-slate-400 block">เฟส L1-N</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-white mt-1 block">
                 {vL1N} <small className="text-xs text-slate-400">V</small>
               </span>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">เฟส L2-N</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-white mt-1 block">
+              <span className="text-xs text-slate-400 block">เฟส L2-N</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-white mt-1 block">
                 {vL2N} <small className="text-xs text-slate-400">V</small>
               </span>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">เฟส L3-N</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-white mt-1 block">
+              <span className="text-xs text-slate-400 block">เฟส L3-N</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-white mt-1 block">
                 {vL3N} <small className="text-xs text-slate-400">V</small>
               </span>
             </div>
@@ -264,7 +258,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
           <div className="bg-slate-950/60 border border-slate-800/70 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs">
             <span className="text-slate-400">แรงดันระหว่างสายเฉลี่ย (Line-to-Line):</span>
-            <span className="font-mono font-bold text-amber-300 text-sm">{vLL} VAC</span>
+            <span className="font-mono font-extrabold text-amber-300 text-base">{vLL} VAC</span>
           </div>
         </div>
 
@@ -282,28 +276,28 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
           <div className="grid grid-cols-3 gap-2.5 pt-1">
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">กระแส เฟส L1</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-cyan-300 mt-1 block">
+              <span className="text-xs text-slate-400 block">กระแส เฟส L1</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-cyan-300 mt-1 block">
                 {iL1} <small className="text-xs text-slate-400">A</small>
               </span>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">กระแส เฟส L2</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-cyan-300 mt-1 block">
+              <span className="text-xs text-slate-400 block">กระแส เฟส L2</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-cyan-300 mt-1 block">
                 {iL2} <small className="text-xs text-slate-400">A</small>
               </span>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
-              <span className="text-[11px] text-slate-400 block">กระแส เฟส L3</span>
-              <span className="text-lg sm:text-xl font-bold font-mono text-cyan-300 mt-1 block">
+              <span className="text-xs text-slate-400 block">กระแส เฟส L3</span>
+              <span className="text-xl sm:text-2xl font-extrabold font-mono text-cyan-300 mt-1 block">
                 {iL3} <small className="text-xs text-slate-400">A</small>
               </span>
             </div>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/70 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs">
-            <span className="text-slate-400">ช่วงเวลาที่มิเตอร์นี้กินไฟสูงสุด:</span>
-            <span className="font-mono font-bold text-rose-300">
+            <span className="text-slate-400">ช่วงเวลาที่มิเตอร์นี้ใช้ไฟสูงสุด:</span>
+            <span className="font-mono font-extrabold text-rose-300 text-sm">
               เวลา {peakHourObj.hour} น. ({peakHourObj.kwh} kWh)
             </span>
           </div>
@@ -319,11 +313,11 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
               <span>กราฟการใช้ไฟฟ้ารายชั่วโมง (00:00 - 23:00 น.) ของ {activeMeter.name}</span>
             </h3>
             <p className="text-xs text-slate-400">
-              แท่งสีส้ม = ช่วง On-Peak (ค่าไฟแพง 09:00-22:00 น.) • แท่งสีเขียว = ช่วง Off-Peak (ค่าไฟถูก)
+              แท่งสีส้ม = ช่วง On-Peak (09:00-22:00 น.) • แท่งสีเขียว = ช่วง Off-Peak (22:00-09:00 น.)
             </p>
           </div>
 
-          <div className="flex items-center gap-3 text-xs shrink-0">
+          <div className="flex items-center gap-3 text-xs shrink-0 font-bold">
             <span className="flex items-center gap-1.5 text-amber-300">
               <span className="w-3 h-3 rounded bg-amber-500 inline-block" />
               On-Peak ({onPeakKWh.toLocaleString()} kWh)
@@ -335,12 +329,12 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
           </div>
         </div>
 
-        <div className="h-64 sm:h-72 w-full">
+        <div className="h-72 sm:h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={hourlyMeterData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+            <BarChart data={hourlyMeterData} margin={{ top: 20, right: 10, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
+              <XAxis dataKey="hour" stroke="#cbd5e1" fontSize={11} fontWeight="bold" />
+              <YAxis stroke="#cbd5e1" fontSize={11} fontWeight="bold" />
               <Tooltip
                 contentStyle={{
                   backgroundColor: '#0f172a',
@@ -348,12 +342,10 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
                   borderRadius: '12px',
                   fontSize: '12px'
                 }}
-                formatter={(value, name) => [
-                  name === 'kwh' ? `${value} kWh` : `฿${value.toLocaleString()}`,
-                  name === 'kwh' ? 'ปริมาณการใช้ไฟ' : 'ค่าไฟฟ้า'
-                ]}
+                formatter={(value) => [`${value} kWh`, 'ปริมาณการใช้ไฟฟ้า']}
               />
               <Bar dataKey="kwh" radius={[6, 6, 0, 0]}>
+                <LabelList dataKey="kwh" position="top" fill="#ffffff" fontSize={10} fontWeight="bold" />
                 {hourlyMeterData.map((entry, idx) => (
                   <Cell
                     key={`cell-${idx}`}
