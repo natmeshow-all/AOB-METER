@@ -1,12 +1,13 @@
-// Production Multi-Tenant Energy & Hardware Configuration Engine
-// Zero hardcoded fake demo lock-in: 100% editable, deletable, and real-hardware ready
+// Production Multi-Tenant Energy & Hardware Configuration Engine (V3)
+// 100% Real User Data Only — Zero Hardcoded Demo Data
 
-const STORAGE_KEY_COMPANIES = 'POWERVIEW_PROD_COMPANIES_V2';
+const STORAGE_KEY_COMPANIES = 'POWERVIEW_PROD_COMPANIES_V3';
 
-// Standard Modbus Register Presets for Industrial Power Meters
+// Standard Modbus Register Presets for Industrial Power Meters & Solar Inverters
 export const METER_MODEL_PRESETS = {
   'Schneider PM2200': {
     model: 'Schneider PM2200',
+    category: 'INDUSTRIAL',
     dataType: 'Float32 (Big-Endian)',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 3020,
@@ -17,6 +18,7 @@ export const METER_MODEL_PRESETS = {
   },
   'Schneider PM5350': {
     model: 'Schneider PM5350',
+    category: 'INDUSTRIAL',
     dataType: 'Float32 (Big-Endian)',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 3020,
@@ -27,6 +29,7 @@ export const METER_MODEL_PRESETS = {
   },
   'ABB M4M 20': {
     model: 'ABB M4M 20',
+    category: 'INDUSTRIAL',
     dataType: 'UInt32 / Float32',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 23040,
@@ -35,8 +38,9 @@ export const METER_MODEL_PRESETS = {
     regPowerFactor: 23092,
     regEnergyKWh: 20480
   },
-  'Chint DTSU666': {
-    model: 'Chint DTSU666',
+  'Chint DTSU666 (3-Phase)': {
+    model: 'Chint DTSU666 (3-Phase)',
+    category: 'INDUSTRIAL',
     dataType: 'Float32 (IEEE754)',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 8192,
@@ -47,6 +51,7 @@ export const METER_MODEL_PRESETS = {
   },
   'Eastron SDM630': {
     model: 'Eastron SDM630',
+    category: 'INDUSTRIAL',
     dataType: 'Float32 (Input Reg 04)',
     functionCode: '04 (Read Input Registers)',
     regVoltageLL: 200,
@@ -57,6 +62,7 @@ export const METER_MODEL_PRESETS = {
   },
   'SAJ H2-6K-LS2 (Hybrid Inverter)': {
     model: 'SAJ H2-6K-LS2 (Hybrid Inverter)',
+    category: 'HOME_SOLAR',
     dataType: 'UInt16 / Int16 (Scale 0.1/0.01)',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 16433,
@@ -67,6 +73,7 @@ export const METER_MODEL_PRESETS = {
   },
   'Chint DDSU666 (1-Phase Meter)': {
     model: 'Chint DDSU666 (1-Phase Meter)',
+    category: 'HOME_SOLAR',
     dataType: 'Float32 (IEEE754)',
     functionCode: '03 (Read Holding Registers)',
     regVoltageLL: 8192,
@@ -77,7 +84,51 @@ export const METER_MODEL_PRESETS = {
   }
 };
 
-// Load production companies from localStorage (starts clean without locked demo clutter)
+export const createEmptySolarConfig = () => ({
+  inverterModel: 'SAJ H2-6K-LS2 (Hybrid Inverter)',
+  connectionMethod: 'WIFI_MODBUS_TCP',
+  inverterIp: '',
+  inverterPort: '502',
+  slaveId: 1,
+  baudRate: '9600',
+  pvCapacityKWp: 0,
+  batteryCapacityKWh: 0,
+  batteryType: 'Lithium Battery',
+  inverterTempC: 0,
+  pv1Voltage: 0,
+  pv1Current: 0,
+  pv1PowerW: 0,
+  pv2Voltage: 0,
+  pv2Current: 0,
+  pv2PowerW: 0,
+  batteryStatus: 'Standby',
+  batterySOC: 0,
+  batteryVoltage: 0,
+  batteryCurrent: 0,
+  batteryPowerW: 0,
+  gridAc1Voltage: 0,
+  gridAc1Current: 0,
+  gridAc1PowerW: 0,
+  gridAc1FreqHz: 50.0,
+  gridMeterL1Voltage: 0,
+  gridMeterL1Current: 0,
+  totalLoadPowerW: 0,
+  gridConnectedLoadVoltage: 0,
+  gridConnectedLoadCurrent: 0,
+  gridConnectedLoadPowerW: 0,
+  offGridLoadVoltage: 0,
+  offGridLoadCurrent: 0,
+  offGridLoadPowerW: 0,
+  todayEnergyKWh: 0,
+  totalEnergyKWh: 0,
+  statLoadElectricityKWh: 0,
+  statImportKWh: 0,
+  statExportKWh: 0,
+  statChargeBatteryKWh: 0,
+  statDischargeBatteryKWh: 0
+});
+
+// Load saved companies from localStorage (starts 100% empty — zero demo data)
 const loadInitialCompanies = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_COMPANIES);
@@ -103,14 +154,12 @@ const persistCompanies = () => {
   }
 };
 
-// Save or update a tenant company
 export const saveTenantCompany = (companyObj) => {
   if (!companyObj || !companyObj.id) return;
   TENANT_COMPANIES[companyObj.id] = companyObj;
   persistCompanies();
 };
 
-// Delete ANY tenant company (100% unlocked, no demo restrictions)
 export const deleteTenantCompany = (orgId) => {
   if (!TENANT_COMPANIES[orgId]) return false;
   delete TENANT_COMPANIES[orgId];
@@ -118,7 +167,6 @@ export const deleteTenantCompany = (orgId) => {
   return true;
 };
 
-// Clear all companies & reset to a 100% blank production slate
 export const clearAllTenantCompanies = () => {
   Object.keys(TENANT_COMPANIES).forEach((k) => {
     delete TENANT_COMPANIES[k];
@@ -126,7 +174,7 @@ export const clearAllTenantCompanies = () => {
   persistCompanies();
 };
 
-// 1. Generate 24-Hour Profile for Selected Company & Date (Uses real meter readings if present)
+// 1. Generate 24-Hour Profile for Selected Company & Date (Uses real meter readings)
 export const generateHourlyData = (companyId) => {
   const company = TENANT_COMPANIES[companyId];
   if (!company || !company.electricityMeters || company.electricityMeters.length === 0) {
