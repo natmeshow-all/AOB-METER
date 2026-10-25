@@ -16,10 +16,13 @@ All coding assistants and agents working on this project MUST strictly follow th
    - When Super Admin logs in, they land on `<SuperAdminConsole />` (`activeTab === 'super-admin'`), where they can view all client companies, manage IoT Gateways & meters, onboard new client companies after hardware installation, and create/manage client login credentials (Username & Password).
    - Normal tenant users are isolated to their own company and never see the Super Admin Console or other clients' names.
 
-3. **Mobile-First Experience (Primary User Constraint):**
-   - The user operates primarily from a mobile smartphone.
-   - Maintain the sticky bottom navigation bar with 1-thumb ergonomics.
-   - Ensure the mobile logout button (`🚪 ออกจากระบบ`) is prominently visible and accessible.
+3. **Mobile-First Experience & Clean 3-Menu Electricity Architecture (Primary User Constraint):**
+   - The user operates primarily from a mobile smartphone and wants a clean, uncluttered interface focused **100% on Electricity Power Meters** (NO water meters, NO solar clutter, NO wiring/SOP clutter on the client dashboard).
+   - Customer Dashboard MUST strictly follow the 3-Menu Mobile-App layout:
+     1. **`overview` (1. ภาพรวมมิเตอร์ทั้งหมด):** First screen after login showing company-wide real-time power summary and cards for all electricity meters of that company.
+     2. **`meter-detail` (2. เจาะลึกรายมิเตอร์):** Deep dive into a single selected meter (3-Phase Voltage, 3-Phase Current, Active/Apparent/Reactive Power, PF, and 24-hour load curve of that meter).
+     3. **`report` (3. รายงาน & ปรับแผนการผลิต):** Daily / Monthly / Yearly electricity report with On-Peak vs Off-Peak breakdown, 4-shift production analysis, and actionable load-shifting recommendations for production planning.
+   - Maintain the sticky bottom navigation bar with 1-thumb ergonomics and prominent logout button (`ออก / ออกจากระบบ`).
    - Font must remain Google Font `Prompt` across all components.
 
 4. **PowerShell on Windows:**
