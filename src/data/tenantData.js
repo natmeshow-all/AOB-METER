@@ -54,6 +54,26 @@ export const METER_MODEL_PRESETS = {
     regActivePowerKW: 52,
     regPowerFactor: 62,
     regEnergyKWh: 342
+  },
+  'SAJ H2-6K-LS2 (Hybrid Inverter)': {
+    model: 'SAJ H2-6K-LS2 (Hybrid Inverter)',
+    dataType: 'UInt16 / Int16 (Scale 0.1/0.01)',
+    functionCode: '03 (Read Holding Registers)',
+    regVoltageLL: 16433,
+    regCurrentAvg: 16434,
+    regActivePowerKW: 16493,
+    regPowerFactor: 16497,
+    regEnergyKWh: 16535
+  },
+  'Chint DDSU666 (1-Phase Meter)': {
+    model: 'Chint DDSU666 (1-Phase Meter)',
+    dataType: 'Float32 (IEEE754)',
+    functionCode: '03 (Read Holding Registers)',
+    regVoltageLL: 8192,
+    regCurrentAvg: 8194,
+    regActivePowerKW: 8196,
+    regPowerFactor: 8202,
+    regEnergyKWh: 16384
   }
 };
 
