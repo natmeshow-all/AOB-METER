@@ -6,6 +6,8 @@ import { ElectricityMeterView } from './components/ElectricityMeterView';
 import { SolarView } from './components/SolarView';
 import { MonthlySummaryTable } from './components/MonthlySummaryTable';
 import { RealtimePowerView } from './components/RealtimePowerView';
+import { HistoricalAnalyticsView } from './components/HistoricalAnalyticsView';
+import { LoginPortal } from './components/LoginPortal';
 import { MeterScannerModal } from './components/MeterScannerModal';
 import { LineBotSimulator } from './components/LineBotSimulator';
 import { SettingsModal } from './components/SettingsModal';
@@ -22,8 +24,8 @@ import {
 import { Camera } from 'lucide-react';
 
 export function App() {
-  const { isAuthModalOpen, setIsAuthModalOpen, activeOrganization } = useAuth();
-  const [activeTab, setActiveTab] = useState('water'); // 'water' | 'electricity' | 'solar' | 'monthly-sheet'
+  const { currentUser, isAuthModalOpen, setIsAuthModalOpen, activeOrganization } = useAuth();
+  const [activeTab, setActiveTab] = useState('realtime'); // 'realtime' | 'analytics' | 'electricity' | 'water' | 'solar' | 'monthly-sheet'
   const [timeframe, setTimeframe] = useState('daily'); // 'daily' | 'monthly' | 'yearly'
   const [currentDate, setCurrentDate] = useState('2026-09-01');
 
@@ -31,6 +33,11 @@ export function App() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isLineSimulatorOpen, setIsLineSimulatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // If not logged in, display the dedicated Company Login Portal first!
+  if (!currentUser) {
+    return <LoginPortal />;
+  }
 
   // 31-day generated logs
   const [monthlyDays, setMonthlyDays] = useState(() => generateMonthlyData());
@@ -151,7 +158,7 @@ export function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 sm:pb-8 space-y-6">
         {/* KPI Cards (Always visible or in tabs) */}
         {activeTab !== 'monthly-sheet' && (
           <KPICards
@@ -181,9 +188,14 @@ export function App() {
           </div>
         )}
 
-        {/* Tab 1.5: Realtime Power & IoT Telemetry */}
+        {/* Tab: Realtime Power & IoT Telemetry */}
         {activeTab === 'realtime' && (
           <RealtimePowerView />
+        )}
+
+        {/* Tab: Historical Analytics & Graphs (Hourly, Daily, Monthly, Yearly) */}
+        {activeTab === 'analytics' && (
+          <HistoricalAnalyticsView />
         )}
 
         {/* Tab 2: Electricity Meters (14 Points) */}
@@ -242,15 +254,57 @@ export function App() {
         </div>
       </footer>
 
-      {/* Mobile Floating Action Button (FAB) for 1-Tap Meter Scan */}
-      <button
-        onClick={() => setIsScannerOpen(true)}
-        className="sm:hidden fixed bottom-6 right-5 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 active:scale-95 text-white font-bold text-xs rounded-full shadow-2xl shadow-blue-600/50 border border-blue-400/40 cursor-pointer backdrop-blur transition-transform"
-        aria-label="ถ่ายรูปสแกนมิเตอร์"
-      >
-        <Camera className="w-4 h-4 text-yellow-300" />
-        <span>📸 สแกนมิเตอร์</span>
-      </button>
+      {/* Mobile Sticky Bottom Navigation Bar (1-Thumb Ergonomics) */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-3 py-1.5 flex items-center justify-around shadow-2xl">
+        <button
+          onClick={() => setActiveTab('realtime')}
+          className={`flex flex-col items-center gap-0.5 p-1 rounded-xl text-[10px] font-medium transition-all ${
+            activeTab === 'realtime' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <span className="text-base">⚡</span>
+          <span>สด IoT</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex flex-col items-center gap-0.5 p-1 rounded-xl text-[10px] font-medium transition-all ${
+            activeTab === 'analytics' ? 'text-indigo-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <span className="text-base">📈</span>
+          <span>กราฟย้อนหลัง</span>
+        </button>
+
+        {/* Center Scanner Button */}
+        <button
+          onClick={() => setIsScannerOpen(true)}
+          className="flex flex-col items-center gap-0.5 -mt-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-full shadow-lg shadow-indigo-500/40 border-2 border-slate-950 active:scale-95 transition-transform cursor-pointer"
+          aria-label="ถ่ายรูปสแกนมิเตอร์"
+        >
+          <Camera className="w-5 h-5 text-yellow-300" />
+        </button>
+
+        <button
+          onClick={() => setActiveTab('electricity')}
+          className={`flex flex-col items-center gap-0.5 p-1 rounded-xl text-[10px] font-medium transition-all ${
+            activeTab === 'electricity' ? 'text-amber-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <span className="text-base">🔌</span>
+          <span>มิเตอร์ไฟ</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('monthly-sheet')}
+          className={`flex flex-col items-center gap-0.5 p-1 rounded-xl text-[10px] font-medium transition-all ${
+            activeTab === 'monthly-sheet' ? 'text-cyan-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <span className="text-base">📋</span>
+          <span>ตารางชีต</span>
+        </button>
+      </div>
 
       {/* Modals */}
       <MeterScannerModal

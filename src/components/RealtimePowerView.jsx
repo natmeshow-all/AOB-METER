@@ -20,25 +20,31 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { ELECTRICITY_METERS } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
+import { TENANT_COMPANIES } from '../data/tenantData';
 
 export const RealtimePowerView = () => {
+  const { activeOrgId } = useAuth();
+  const currentCompany = TENANT_COMPANIES[activeOrgId] || TENANT_COMPANIES['ORG-AOB'];
+
   const [activeSubTab, setActiveSubTab] = useState('live'); // 'live' | 'diagram' | 'sop' | 'budget'
-  const [selectedPanelFilter, setSelectedPanelFilter] = useState('ALL'); // 'ALL' | 'C2-2' | 'C3-2' | 'C4-2'
+  const [selectedPanelFilter, setSelectedPanelFilter] = useState('ALL');
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isLiveStreaming, setIsLiveStreaming] = useState(true);
 
-  // Generate realistic simulated live Modbus telemetry for all 14 meters
+  // Generate realistic simulated live Modbus telemetry for company's specific meters
   const [telemetryData, setTelemetryData] = useState(() => {
-    return ELECTRICITY_METERS.map((m, idx) => {
-      const baseKW = m.avgDailyUsage ? Math.round(m.avgDailyUsage / 24 * 1.8) : 45;
+    const meters = currentCompany.electricityMeters;
+    return meters.map((m, idx) => {
+      const baseKW = Math.abs(m.baseKW) || 45;
       return {
         id: m.id,
         meterNo: idx + 1,
-        modbusId: idx + 1, // Modbus Slave ID 1 to 14
+        modbusId: idx + 1,
         port: idx < 8 ? 'Port 1 (RS485-A)' : 'Port 2 (RS485-B)',
         tag: m.tag,
         panel: m.panel,
-        location: m.location,
+        location: m.name,
         model: m.model || 'Schneider EasyLogic PM2200',
         voltageL1: 231.2,
         voltageL2: 230.8,
@@ -53,12 +59,47 @@ export const RealtimePowerView = () => {
         apparentPowerKVA: Math.round(baseKW * 1.05),
         powerFactor: 0.95,
         frequency: 50.02,
-        energyTotalKWh: m.readingSep01 || 120000,
+        energyTotalKWh: (idx + 1) * 85000 + 12000,
         status: 'ONLINE',
         loadPercent: Math.min(92, Math.max(15, Math.round((baseKW / (baseKW * 1.4)) * 100)))
       };
     });
   });
+
+  // Re-generate telemetry if active company switches
+  useEffect(() => {
+    const meters = currentCompany.electricityMeters;
+    setTelemetryData(meters.map((m, idx) => {
+      const baseKW = Math.abs(m.baseKW) || 45;
+      return {
+        id: m.id,
+        meterNo: idx + 1,
+        modbusId: idx + 1,
+        port: idx < 8 ? 'Port 1 (RS485-A)' : 'Port 2 (RS485-B)',
+        tag: m.tag,
+        panel: m.panel,
+        location: m.name,
+        model: m.model || 'Schneider EasyLogic PM2200',
+        voltageL1: 231.2,
+        voltageL2: 230.8,
+        voltageL3: 231.5,
+        voltageLL: 400.2,
+        currentL1: Math.round(baseKW * 1.52),
+        currentL2: Math.round(baseKW * 1.48),
+        currentL3: Math.round(baseKW * 1.50),
+        currentAvg: Math.round(baseKW * 1.5),
+        activePowerKW: baseKW,
+        reactivePowerKVAR: Math.round(baseKW * 0.32),
+        apparentPowerKVA: Math.round(baseKW * 1.05),
+        powerFactor: 0.95,
+        frequency: 50.02,
+        energyTotalKWh: (idx + 1) * 85000 + 12000,
+        status: 'ONLINE',
+        loadPercent: Math.min(92, Math.max(15, Math.round((baseKW / (baseKW * 1.4)) * 100)))
+      };
+    }));
+    setSelectedPanelFilter('ALL');
+  }, [activeOrgId]);
 
   // Simulation timer for live Modbus polling effect (updates every 3 seconds)
   useEffect(() => {
@@ -100,12 +141,18 @@ export const RealtimePowerView = () => {
     return (sum / telemetryData.length).toFixed(2);
   }, [telemetryData]);
 
-  const transformerCapacityKVA = 1600;
+  const transformerCapacityKVA = currentCompany.transformerKVA || 1600;
   const transformerLoadPercent = Math.min(100, Math.round((totalFactoryKW / (transformerCapacityKVA * 0.95)) * 100));
+
+  // Dynamic Panels list based on active tenant's meters
+  const availablePanels = useMemo(() => {
+    const panels = Array.from(new Set(telemetryData.map(m => m.panel))).filter(Boolean);
+    return ['ALL', ...panels];
+  }, [telemetryData]);
 
   const filteredMeters = telemetryData.filter(m => {
     if (selectedPanelFilter === 'ALL') return true;
-    return m.panel.includes(selectedPanelFilter);
+    return m.panel === selectedPanelFilter || m.panel.includes(selectedPanelFilter);
   });
 
   return (
@@ -128,7 +175,7 @@ export const RealtimePowerView = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                เชื่อมต่อมิเตอร์ Schneider PM2200 ครบ 14 จุด • Dual Port RS-485 • อัปเดตล่าสุด: {lastUpdated.toLocaleTimeString('th-TH')}
+                เชื่อมต่อมิเตอร์ {currentCompany.shortName} ครบ {telemetryData.length} จุด • หม้อแปลง {transformerCapacityKVA.toLocaleString()} kVA • อัปเดตล่าสุด: {lastUpdated.toLocaleTimeString('th-TH')}
               </p>
             </div>
           </div>
@@ -356,7 +403,7 @@ export const RealtimePowerView = () => {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
               <span className="text-slate-400 text-xs font-medium mr-1 shrink-0">เลือกตู้:</span>
-              {['ALL', 'C2-2', 'C3-2', 'C4-2'].map(filterKey => (
+              {availablePanels.map(filterKey => (
                 <button
                   key={filterKey}
                   onClick={() => setSelectedPanelFilter(filterKey)}
@@ -366,7 +413,7 @@ export const RealtimePowerView = () => {
                       : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  {filterKey === 'ALL' ? `ทั้งหมด (14 จุด)` : `ตู้ ${filterKey}`}
+                  {filterKey === 'ALL' ? `ทั้งหมด (${telemetryData.length} จุด)` : filterKey}
                 </button>
               ))}
             </div>

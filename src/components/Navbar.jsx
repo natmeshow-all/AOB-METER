@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   Activity,
   User,
-  ChevronDown
+  ChevronDown,
+  TrendingUp,
+  LogOut
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/mockData';
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +37,8 @@ export const Navbar = ({
     allOrganizations, 
     isSuperAdmin, 
     switchOrganization, 
-    setIsAuthModalOpen 
+    setIsAuthModalOpen,
+    logout
   } = useAuth();
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
@@ -125,6 +128,17 @@ export const Navbar = ({
             >
               <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
+
+            {/* Logout button */}
+            {currentUser && (
+              <button
+                onClick={logout}
+                className="p-2 text-rose-400 hover:text-white bg-slate-800/80 hover:bg-rose-950/80 rounded-lg border border-slate-700/60 hover:border-rose-800/60 transition-all cursor-pointer"
+                title="ออกจากระบบ"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -132,18 +146,7 @@ export const Navbar = ({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between py-2 gap-2 sm:gap-4">
           {/* Main Category Tabs */}
           <nav className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-            <button
-              onClick={() => setActiveTab('water')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === 'water'
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Droplet className="w-4 h-4 text-blue-400 shrink-0" />
-              <span><span className="hidden sm:inline">มิเตอร์</span>น้ำ (3)</span>
-            </button>
-
+            {/* 1. Realtime IoT Tab */}
             <button
               onClick={() => setActiveTab('realtime')}
               className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
@@ -153,9 +156,23 @@ export const Navbar = ({
               }`}
             >
               <Activity className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
-              <span>⚡ ออนไลน์ (IoT)</span>
+              <span>⚡ สดเรียลไทม์ (IoT)</span>
             </button>
 
+            {/* 2. Historical Analytics Tab (Hourly, Daily, Monthly, Yearly) */}
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>📈 วิเคราะห์ & กราฟย้อนหลัง</span>
+            </button>
+
+            {/* 3. Electricity Meters Tab */}
             <button
               onClick={() => setActiveTab('electricity')}
               className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
@@ -165,9 +182,23 @@ export const Navbar = ({
               }`}
             >
               <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-              <span><span className="hidden sm:inline">มิเตอร์</span>ไฟฟ้า (14)</span>
+              <span>มิเตอร์ไฟฟ้า</span>
             </button>
 
+            {/* 4. Water Meters Tab */}
+            <button
+              onClick={() => setActiveTab('water')}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'water'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Droplet className="w-4 h-4 text-blue-400 shrink-0" />
+              <span>มิเตอร์น้ำ</span>
+            </button>
+
+            {/* 5. Solar Tab */}
             <button
               onClick={() => setActiveTab('solar')}
               className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
@@ -180,6 +211,7 @@ export const Navbar = ({
               <span>โซลาร์</span>
             </button>
 
+            {/* 6. Monthly Sheet */}
             <button
               onClick={() => setActiveTab('monthly-sheet')}
               className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
@@ -189,7 +221,7 @@ export const Navbar = ({
               }`}
             >
               <FileSpreadsheet className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span><span className="hidden sm:inline">ตารางรวม </span>1-31 วัน</span>
+              <span>ตารางรวม 1-31 วัน</span>
             </button>
           </nav>
 
