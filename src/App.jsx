@@ -46,7 +46,7 @@ export function App() {
 
   // Keep selectedMeterId synced with active company's first meter when switching company
   useEffect(() => {
-    const comp = TENANT_COMPANIES[activeOrgId] || TENANT_COMPANIES['ORG-AOB'];
+    const comp = TENANT_COMPANIES[activeOrgId] || Object.values(TENANT_COMPANIES)[0];
     const firstMeter = comp?.electricityMeters?.[0];
     if (firstMeter) {
       setSelectedMeterId(firstMeter.id);

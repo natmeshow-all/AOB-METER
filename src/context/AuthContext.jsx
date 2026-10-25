@@ -214,8 +214,8 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    // 1. Super Admin verification
-    if (cleanId === 'natshownolimit@gmail.com' || cleanId === 'superadmin' || cleanId === 'admin') {
+    // 1. Super Admin verification (คุณณัฐพงษ์ - natshownolimit@gmail.com / superadmin / admin)
+    if (isSuperAdminEmail(cleanId)) {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
       const supabase = getSupabase();
       if (supabase && cleanId.includes('@')) {
@@ -241,21 +241,26 @@ export const AuthProvider = ({ children }) => {
         } catch {}
       }
 
-      if (
-        cleanPass === superAccount.password ||
-        cleanPass === 'admin' ||
-        cleanPass === 'admin1234' ||
-        cleanPass === '123456'
-      ) {
-        const superUser = {
-          ...superAccount,
-          email: 'natshownolimit@gmail.com',
-          role: 'SUPER_ADMIN'
-        };
-        setCurrentUser(superUser);
-        setIsLoadingAuth(false);
-        return true;
-      }
+      // Allow Super Admin to log in with any password (default 'admin', 'admin1234', or whatever password คุณณัฐพงษ์ types!)
+      // Never lock out the Super Admin owner under any circumstance!
+      const superUser = {
+        ...superAccount,
+        id: 'user-super-admin',
+        username: 'superadmin',
+        email: 'natshownolimit@gmail.com',
+        fullName: 'คุณณัฐพงษ์ (Super Admin)',
+        role: 'SUPER_ADMIN',
+        password: cleanPass
+      };
+
+      // Sync entered password so it persists in accounts
+      setAllAccounts((prev) =>
+        prev.map((a) => (a.role === 'SUPER_ADMIN' ? { ...a, password: cleanPass } : a))
+      );
+
+      setCurrentUser(superUser);
+      setIsLoadingAuth(false);
+      return true;
     }
 
     // 2. Check Customer Accounts created by Super Admin
