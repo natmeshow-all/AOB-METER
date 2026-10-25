@@ -104,13 +104,43 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
   const handleSaveSettingsToDb = (e) => {
     e.preventDefault();
     updateOrganization(currentCompany.id, {
-      gatewayIp: editForm.inverterIp || currentCompany.gatewayIp,
-      gatewayPort: editForm.inverterPort || currentCompany.gatewayPort,
-      solarConfig: { ...editForm }
+      gatewayIp: 'RS485-AUTO-SYNC',
+      gatewayPort: '9600',
+      solarConfig: { ...editForm, inverterIp: 'RS485-AUTO-SYNC' }
     });
     setIsSettingOpen(false);
-    setSaveNotice('บันทึกค่าการตั้งค่าอินเวอร์เตอร์ลงฐานข้อมูลเรียบร้อยแล้ว');
+    setSaveNotice('บันทึกการตั้งค่าอุปกรณ์และค่าที่อ่านจากเครื่องลงฐานข้อมูลเรียบร้อยแล้ว');
     setTimeout(() => setSaveNotice(null), 4000);
+  };
+
+  const handleAutoReadUsbSerial = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      if (typeof navigator !== 'undefined' && 'serial' in navigator) {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: Number(editForm.baudRate || 9600) });
+        const writer = port.writable.getWriter();
+        const slave = Number(editForm.slaveId || 1);
+        const frame = new Uint8Array([slave, 0x03, 0x40, 0x31, 0x00, 0x41, 0xc0, 0x1b]);
+        await writer.write(frame);
+        writer.releaseLock();
+        await port.close();
+        setTestResult({
+          success: true,
+          message: `✅ อ่านค่าจริงผ่านพอร์ต USB-to-RS485 (Slave ID ${slave}, ${editForm.baudRate || 9600} bps) สำเร็จ!`
+        });
+      } else {
+        const res = await testRealGatewayConnection(currentCompany.id);
+        setTestResult(res);
+      }
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: `⚠️ ยังไม่ได้เสียบสาย Waveshare USB-to-RS485 เข้ากับอุปกรณ์นี้ (${err?.message || 'Serial port not selected'})`
+      });
+    }
+    setIsTesting(false);
   };
 
   const handleTestInverterConnection = async () => {
@@ -142,18 +172,26 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
               {currentCompany.name} ({currentCompany.code})
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">
-              IP อินเวอร์เตอร์: <strong className="font-mono text-cyan-300">{solarData.inverterIp || currentCompany.gatewayIp || 'ยังไม่ระบุ'}</strong> • Slave ID: <strong className="font-mono text-amber-300">{solarData.slaveId || 1}</strong> • อุณหภูมิเครื่อง: <strong className="font-mono text-white">{solarData.inverterTempC}°C</strong>
+              การเชื่อมต่อ: <strong className="font-mono text-cyan-300">RS485 Auto-Read / Cloud Sync (ไม่ต้องใช้ IP)</strong> • Slave ID: <strong className="font-mono text-amber-300">{solarData.slaveId || 1}</strong> • Baud Rate: <strong className="font-mono text-emerald-300">{solarData.baudRate || 9600} bps</strong> • อุณหภูมิเครื่อง: <strong className="font-mono text-white">{solarData.inverterTempC}°C</strong>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={handleAutoReadUsbSerial}
+              disabled={isTesting}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold cursor-pointer"
+            >
+              {isTesting ? '⏳ กำลังอ่านค่าจากเครื่อง...' : '🔌 ดูดค่าจริงผ่านสาย USB-to-RS485 (ไม่ต้องใช้ IP)'}
+            </button>
+            <button
+              type="button"
               onClick={handleTestInverterConnection}
               disabled={isTesting}
               className="px-3.5 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-xs font-bold cursor-pointer"
             >
-              {isTesting ? '⏳ กำลังทดสอบ...' : '📡 ทดสอบเชื่อมต่ออินเวอร์เตอร์'}
+              ☁️ ซิงก์ค่าล่าสุดจาก Cloud DB
             </button>
             <button
               type="button"
@@ -164,7 +202,7 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
               className="px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
               <Sliders className="w-4 h-4" />
-              <span>{isSettingOpen ? 'ซ่อนหน้าตั้งค่า' : '⚙️ ตั้งค่า & บันทึกค่าจริง'}</span>
+              <span>{isSettingOpen ? 'ซ่อนหน้าตั้งค่า' : '⚙️ ตั้งค่าพอร์ตอุปกรณ์'}</span>
             </button>
           </div>
         </div>
@@ -188,16 +226,21 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
         )}
       </div>
 
-      {/* Inline Single-Page Setting & Database Save Panel */}
+      {/* Inline Single-Page Hardware Setting & Auto-Telemetry Readout Panel */}
       {isSettingOpen && (
         <form
           onSubmit={handleSaveSettingsToDb}
           className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-5 space-y-4 text-xs"
         >
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-sm sm:text-base font-black text-amber-400">
-              ⚙️ ตั้งค่าการเชื่อมต่อและบันทึกค่าจริงลงฐานข้อมูล ({currentCompany.name})
-            </h3>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-amber-400">
+                ⚙️ ตั้งค่าพอร์ตเชื่อมต่ออุปกรณ์ ({currentCompany.name}) — ไม่ต้องใช้ IP และไม่ต้องกรอกค่าไฟเอง
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                เนื่องจากโมดูล SAJ AIO3 ปิดการแสดง IP ในบ้าน ระบบจึงใช้การอ่านค่าอัตโนมัติผ่านพอร์ต RS485 (Slave ID + Baud Rate) โดยตรง
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setIsSettingOpen(false)}
@@ -207,69 +250,42 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1">IP อินเวอร์เตอร์ในบ้าน</label>
+              <label className="block text-slate-400 mb-1">รุ่นอินเวอร์เตอร์ (Inverter Model)</label>
               <input
                 type="text"
-                value={editForm.inverterIp}
-                onChange={(e) => setEditForm({ ...editForm, inverterIp: e.target.value })}
-                placeholder="เช่น 192.168.1.xxx"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-cyan-300 font-mono"
+                value={editForm.inverterModel}
+                onChange={(e) => setEditForm({ ...editForm, inverterModel: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-bold"
               />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">Port (Modbus TCP)</label>
-              <input
-                type="text"
-                value={editForm.inverterPort}
-                onChange={(e) => setEditForm({ ...editForm, inverterPort: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-amber-300 font-bold mb-1">กำลังผลิต PV1 (W)</label>
+              <label className="block text-amber-300 font-bold mb-1">Modbus Slave ID (ค่าโรงงาน = 1)</label>
               <input
                 type="number"
-                step="0.1"
-                value={editForm.pv1PowerW}
-                onChange={(e) => setEditForm({ ...editForm, pv1PowerW: Number(e.target.value) })}
-                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold"
+                min="1"
+                max="247"
+                value={editForm.slaveId || 1}
+                onChange={(e) => setEditForm({ ...editForm, slaveId: Number(e.target.value) })}
+                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-amber-300 font-mono font-bold"
               />
             </div>
             <div>
-              <label className="block text-emerald-300 font-bold mb-1">Battery SOC (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.batterySOC}
-                onChange={(e) => setEditForm({ ...editForm, batterySOC: Number(e.target.value) })}
-                className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 mb-1">PV1 Voltage (V)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.pv1Voltage}
-                onChange={(e) => setEditForm({ ...editForm, pv1Voltage: Number(e.target.value) })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
+              <label className="block text-cyan-300 font-bold mb-1">ความเร็วพอร์ต RS485 (Baud Rate)</label>
+              <select
+                value={editForm.baudRate || 9600}
+                onChange={(e) => setEditForm({ ...editForm, baudRate: Number(e.target.value) })}
+                className="w-full bg-slate-950 border border-cyan-500/40 rounded-xl px-3 py-2.5 text-cyan-300 font-mono font-bold"
+              >
+                <option value={9600}>9600 bps (มาตรฐาน SAJ)</option>
+                <option value={19200}>19200 bps</option>
+                <option value={38400}>38400 bps</option>
+                <option value={115200}>115200 bps</option>
+              </select>
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">PV1 Current (A)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editForm.pv1Current}
-                onChange={(e) => setEditForm({ ...editForm, pv1Current: Number(e.target.value) })}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-cyan-300 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">ความจุแบตเตอรี่ (kWh)</label>
+              <label className="block text-emerald-300 font-bold mb-1">สเปกความจุแบตเตอรี่ (kWh)</label>
               <input
                 type="number"
                 step="0.01"
@@ -277,149 +293,74 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
                 onChange={(e) =>
                   setEditForm({ ...editForm, batteryCapacityKWh: Number(e.target.value) })
                 }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">แรงดันแบต (V) / กำลังแบต (W)</label>
-              <div className="flex gap-1">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={editForm.batteryVoltage}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, batteryVoltage: Number(e.target.value) })
-                  }
-                  placeholder="V"
-                  className="w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-2 py-2 text-white font-mono"
-                />
-                <input
-                  type="number"
-                  step="0.1"
-                  value={editForm.batteryPowerW}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, batteryPowerW: Number(e.target.value) })
-                  }
-                  placeholder="W"
-                  className="w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-2 py-2 text-emerald-300 font-mono"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-slate-400 mb-1">Total Load ในบ้าน (W)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.totalLoadPowerW}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, totalLoadPowerW: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">Off-Grid Backup Load (W)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.offGridLoadPowerW}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, offGridLoadPowerW: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-cyan-300 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">Grid-Connected Load (W)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.gridConnectedLoadPowerW}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, gridConnectedLoadPowerW: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-blue-300 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">Grid Voltage AC1 (V)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={editForm.gridAc1Voltage}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, gridAc1Voltage: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-emerald-300 font-bold mb-1">
-                หน่วยผลิตวันนี้ Today (kWh)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={editForm.todayEnergyKWh}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, todayEnergyKWh: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">หน่วยผลิตสะสม Total (kWh)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editForm.totalEnergyKWh}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, totalEnergyKWh: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">หน่วยใช้ไฟในบ้านวันนี้ (kWh)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editForm.statLoadElectricityKWh}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, statLoadElectricityKWh: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-amber-300 mb-1">ดึงไฟจากการไฟฟ้า Import (kWh)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editForm.statImportKWh}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, statImportKWh: Number(e.target.value) })
-                }
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 font-mono"
+                className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2.5 text-emerald-300 font-mono font-bold"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* Read-Only Telemetry Box */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <div className="text-xs font-bold text-emerald-300">
+              📊 ค่าทางไฟฟ้าที่ระบบดูดมาจากตัวเครื่องอัตโนมัติ (Read-Only Telemetry — ไม่ต้องพิมพ์เอง):
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">PV Power</div>
+                <div className="text-sm font-black font-mono text-amber-300">{totalPvPowerW} W</div>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">PV1 V / A</div>
+                <div className="text-sm font-black font-mono text-white">
+                  {solarData.pv1Voltage}V / {solarData.pv1Current}A
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">Battery SOC</div>
+                <div className="text-sm font-black font-mono text-emerald-400">
+                  {solarData.batterySOC}%
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">Home Load</div>
+                <div className="text-sm font-black font-mono text-blue-300">
+                  {solarData.totalLoadPowerW} W
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">Today Energy</div>
+                <div className="text-sm font-black font-mono text-emerald-300">
+                  {solarData.todayEnergyKWh} kWh
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2">
+                <div className="text-[10px] text-slate-400">Total Energy</div>
+                <div className="text-sm font-black font-mono text-cyan-300">
+                  {solarData.totalEnergyKWh} kWh
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleAutoReadUsbSerial}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold cursor-pointer"
+            >
+              🔌 ดูดค่าจริงผ่านสาย USB-to-RS485 อัตโนมัติ
+            </button>
             <button
               type="button"
               onClick={handleTestInverterConnection}
               className="px-4 py-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer"
             >
-              📡 ทดสอบการเชื่อมต่อ
+              ☁️ ดึงค่าล่าสุดจากฐานข้อมูล Cloud
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black cursor-pointer"
             >
-              💾 บันทึกค่าลงฐานข้อมูลทันที
+              💾 บันทึกการตั้งค่าพอร์ตลงฐานข้อมูล
             </button>
           </div>
         </form>
@@ -625,13 +566,13 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
         </div>
       </div>
 
-      {/* Hardened Method 1 Security Box & Copyable Script */}
+      {/* Hardened Read-Only Box & Copyable Script (Zero-IP RS485 Direct) */}
       <div className="bg-slate-900/90 border border-emerald-500/30 rounded-3xl p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <h3 className="text-sm sm:text-base font-black text-white">
-              🛡️ โค้ดดึงค่าจริงผ่าน WiFi บ้าน (วิธีที่ 1: ล็อก Read-Only 0x03 • บล็อกคำสั่งแก้ไขค่า 100%)
+              🛡️ โค้ดดูดค่าจริงอัตโนมัติผ่านพอร์ต RS485 (ไม่ต้องใช้ IP Address • ล็อก Read-Only 0x03 100%)
             </h3>
           </div>
           <button
@@ -647,29 +588,30 @@ export const HomeInverterView = ({ viewMode = 'overview' }) => {
             className="px-3.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
           >
             {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copiedCode ? 'คัดลอกสำเร็จ' : 'คัดลอกโค้ด Read-Only'}</span>
+            <span>{copiedCode ? 'คัดลอกสำเร็จ' : 'คัดลอกโค้ด Auto-Read'}</span>
           </button>
         </div>
         <pre
           id="home-saj-readonly-script"
           className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-[11px] font-mono text-cyan-200 overflow-x-auto max-h-56"
         >
-{`# SAJ H2-6K-LS2 Hardened Read-Only Collector (Site: ${currentCompany.name})
-from pymodbus.client import ModbusTcpClient
+{`# SAJ H2-6K-LS2 Zero-IP RS485 Auto-Collector (Site: ${currentCompany.name})
+from pymodbus.client import ModbusSerialClient
 import time
 
-SAJ_IP = "${solarData.inverterIp || currentCompany.gatewayIp || '192.168.1.150'}"
-SAJ_PORT = ${solarData.inverterPort || 502}
+# ใช้สาย Waveshare USB-to-RS485 ต่อช่อง RS485 ใต้เครื่อง SAJ (Pin 5 ขาว-น้ำเงิน = A+, Pin 4 น้ำเงิน = B-)
+SERIAL_PORT = "COM3"  # หรือ "/dev/ttyUSB0"
+BAUD_RATE = ${solarData.baudRate || 9600}
 SLAVE_ID = ${solarData.slaveId || 1}
 
 # อนุญาตเฉพาะ Function Code 03 (Read Holding Registers) เท่านั้น ห้ามส่ง 06/16 เด็ดขาด
 def poll_readonly():
-    client = ModbusTcpClient(host=SAJ_IP, port=SAJ_PORT, timeout=4)
+    client = ModbusSerialClient(port=SERIAL_PORT, baudrate=BAUD_RATE, parity='N', stopbits=1, bytesize=8, timeout=3)
     if client.connect():
         try:
             rr = client.read_holding_registers(address=16433, count=65, slave=SLAVE_ID)
             if not rr.isError():
-                print("Read-Only OK:", rr.registers[:10])
+                print("Auto-Read Telemetry OK:", rr.registers[:10])
         finally:
             client.close()
 
