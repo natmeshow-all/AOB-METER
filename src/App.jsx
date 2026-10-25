@@ -9,7 +9,9 @@ import { RealtimePowerView } from './components/RealtimePowerView';
 import { MeterScannerModal } from './components/MeterScannerModal';
 import { LineBotSimulator } from './components/LineBotSimulator';
 import { SettingsModal } from './components/SettingsModal';
+import { AuthModal } from './components/AuthModal';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
+import { useAuth } from './context/AuthContext';
 import { 
   generateMonthlyData, 
   calculateMonthlyTotals, 
@@ -20,6 +22,7 @@ import {
 import { Camera } from 'lucide-react';
 
 export function App() {
+  const { isAuthModalOpen, setIsAuthModalOpen, activeOrganization } = useAuth();
   const [activeTab, setActiveTab] = useState('water'); // 'water' | 'electricity' | 'solar' | 'monthly-sheet'
   const [timeframe, setTimeframe] = useState('daily'); // 'daily' | 'monthly' | 'yearly'
   const [currentDate, setCurrentDate] = useState('2026-09-01');
@@ -227,7 +230,7 @@ export function App() {
       <footer className="bg-slate-900 border-t border-slate-800/80 py-4 text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            © 2026 {COMPANY_INFO.name} — ระบบบริหารจัดการพลังงานและบันทึกมิเตอร์อัจฉริยะ (AI Meter Vision)
+            © 2026 {activeOrganization?.name || COMPANY_INFO.name} — ระบบบริหารจัดการพลังงานและบันทึกมิเตอร์อัจฉริยะ (AI Meter Vision)
           </span>
           <div className="flex items-center gap-4 text-slate-500">
             <span>เชื่อมต่อ Google Sheets API</span>
@@ -264,6 +267,11 @@ export function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

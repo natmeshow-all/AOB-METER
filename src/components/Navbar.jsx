@@ -10,9 +10,12 @@ import {
   FileSpreadsheet, 
   Calendar,
   CheckCircle2,
-  Activity
+  Activity,
+  User,
+  ChevronDown
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
 export const Navbar = ({ 
   activeTab, 
@@ -25,6 +28,15 @@ export const Navbar = ({
   currentDate,
   setCurrentDate
 }) => {
+  const { 
+    currentUser, 
+    activeOrganization, 
+    activeOrgId, 
+    allOrganizations, 
+    isSuperAdmin, 
+    switchOrganization, 
+    setIsAuthModalOpen 
+  } = useAuth();
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
       {/* Top Banner */}
@@ -35,16 +47,35 @@ export const Navbar = ({
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-white tracking-tight">
-                  {COMPANY_INFO.name}
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base sm:text-xl font-bold text-white tracking-tight">
+                  {activeOrganization?.name || COMPANY_INFO.name}
                 </h1>
                 <span className="px-2 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Live Synced
+                  <CheckCircle2 className="w-3 h-3" /> Live
                 </span>
+
+                {/* Tenant Switcher Dropdown for Super Admin */}
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-1 bg-slate-800/90 border border-amber-500/40 rounded-lg px-2 py-0.5 text-xs">
+                    <span className="text-[10px] text-amber-400 font-bold hidden sm:inline">สลับโรงงาน:</span>
+                    <select
+                      value={activeOrgId}
+                      onChange={(e) => switchOrganization(e.target.value)}
+                      className="bg-transparent text-amber-300 font-bold font-mono focus:outline-none cursor-pointer text-xs"
+                      title="สลับมุมมองลูกค้าแต่ละเจ้า"
+                    >
+                      {allOrganizations.map((org) => (
+                        <option key={org.id} value={org.id} className="bg-slate-900 text-white">
+                          🏢 {org.shortName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <p className="text-xs text-slate-400">
-                ระบบบันทึกค่าน้ำ-ค่าไฟ-โซลาร์เซลล์ประจำวัน | รหัสแบบฟอร์ม: <span className="text-slate-300 font-mono">{COMPANY_INFO.formCode}</span>
+                ระบบบริหารจัดการพลังงาน Multi-Tenant | หม้อแปลง: <span className="text-amber-300 font-mono font-bold">{activeOrganization?.transformerKVA || 1600} kVA</span> | รหัส: <span className="text-slate-300 font-mono">{activeOrganization?.code || 'AOB'}</span>
               </p>
             </div>
           </div>
@@ -69,6 +100,22 @@ export const Navbar = ({
               <Bell className="w-4 h-4" />
               <span className="hidden sm:inline">LINE Bot & เตือน 06:30 น.</span>
               <span className="sm:hidden">LINE Bot</span>
+            </button>
+
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 hover:from-emerald-600/30 hover:to-teal-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer"
+              title="สลับบัญชีผู้ใช้ หรือ เชื่อมต่อ Supabase Auth"
+            >
+              <User className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="hidden md:inline font-bold text-white max-w-[120px] truncate">
+                {currentUser ? currentUser.fullName.split(' ')[0] : 'เข้าสู่ระบบ'}
+              </span>
+              {currentUser && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-emerald-500/20 text-emerald-300 hidden lg:inline border border-emerald-500/30">
+                  {currentUser.role === 'SUPER_ADMIN' ? '👑 Admin' : currentUser.role === 'PLANT_MANAGER' ? '👔 Manager' : '🔧 Tech'}
+                </span>
+              )}
             </button>
 
             <button
