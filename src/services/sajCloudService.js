@@ -1,14 +1,68 @@
-// 100% Real SAJ Elekeeper / eSolar Cloud V2 Sync & Multi-Day Historical Backfill Service
+// 100% Real SAJ Elekeeper / eSolar Cloud V2 Sync, Auto-Renewing Session & Historical Backfill Service
 // - Calls our Backend Serverless Proxy (/api/saj-sync) which authenticates directly against
 //   SAJ's official Elekeeper V2 servers (iop.saj-electric.com / eop.saj-electric.com / op.saj-electric.cn).
-// - Fetches real historical daily records & 24-hour curves in parallel 10-day batches.
+// - Persists AES-encrypted `sessionTicket` in both org config and localStorage (`POWERVIEW_SAJ_SESSION_TICKET`)
+//   so the user NEVER has to re-type their SAJ password again.
+// - Automatically backfills historical daily records & 24-hour curves in fast 5-day batches.
 // - Zero Fake / Simulated Data: Purges any legacy simulated logs and only stores verified SAJ V2 records (`isRealSajV2: true`).
 
 import { getSupabase } from './supabaseClient';
 
+const GLOBAL_SAJ_TICKET_KEY = 'POWERVIEW_SAJ_SESSION_TICKET';
+const GLOBAL_SAJ_EMAIL_KEY = 'POWERVIEW_SAJ_GUEST_EMAIL';
+
 export const getThailandDateStr = (daysAgo = 0) => {
   const thTimeMs = Date.now() + 7 * 3600 * 1000 - daysAgo * 86400 * 1000;
   return new Date(thTimeMs).toISOString().slice(0, 10);
+};
+
+export const getSavedSajSessionTicket = (solarConfig = {}) => {
+  if (solarConfig?.sajEncryptedSessionTicket) {
+    return solarConfig.sajEncryptedSessionTicket;
+  }
+  try {
+    return localStorage.getItem(GLOBAL_SAJ_TICKET_KEY) || null;
+  } catch {
+    return null;
+  }
+};
+
+export const getSavedSajEmail = (solarConfig = {}) => {
+  if (solarConfig?.sajCloudGuestEmail) {
+    return solarConfig.sajCloudGuestEmail.trim();
+  }
+  try {
+    return (localStorage.getItem(GLOBAL_SAJ_EMAIL_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+};
+
+export const saveGlobalSajSession = (sessionTicket, email) => {
+  try {
+    if (sessionTicket) {
+      localStorage.setItem(GLOBAL_SAJ_TICKET_KEY, sessionTicket);
+    }
+    if (email) {
+      localStorage.setItem(GLOBAL_SAJ_EMAIL_KEY, email.trim());
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+};
+
+const safeFetchJson = async (url, options) => {
+  const response = await fetch(url, options);
+  const rawText = await response.text();
+  let json = null;
+  try {
+    json = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    throw new Error(
+      `เซิร์ฟเวอร์ตอบกลับไม่ใช่ JSON (HTTP ${response.status}): ${rawText.slice(0, 120)}`
+    );
+  }
+  return { response, result: json };
 };
 
 export const createZeroTrustAuthDigest = async (email, deviceSn = '') => {
@@ -32,27 +86,29 @@ export const syncSajCloudAndBackfillHistory = async ({
   backfillDays = 90,
   region = 'auto',
   currentSolarConfig = {},
-  onProgress = null
+  skipBackfillIfCached = false,
+  onProgress = null,
+  onPartialSync = null
 }) => {
-  const cleanEmail = (guestEmail || currentSolarConfig.sajCloudGuestEmail || '').trim();
+  const cleanEmail = (guestEmail || getSavedSajEmail(currentSolarConfig) || 'natshownolimit@gmail.com').trim();
   const cleanPass = (transientPassword || '').trim();
-  const savedTicket = currentSolarConfig.sajEncryptedSessionTicket || null;
+  const savedTicket = getSavedSajSessionTicket(currentSolarConfig);
 
-  if (!cleanEmail || (!cleanPass && !savedTicket)) {
+  if (!cleanPass && !savedTicket) {
     return {
       success: false,
       needsPassword: true,
       message:
-        '🔑 กรุณากรอก "รหัสผ่านแอป SAJ (Elekeeper)" ในช่องที่ 2 ด้านล่างเพื่อยืนยันตัวตนดึงข้อมูลจริงและประวัติย้อนหลังจากเซิร์ฟเวอร์ SAJ'
+        '🔑 กรุณากรอก "รหัสผ่านแอป SAJ (Elekeeper)" เพียงครั้งเดียวในช่องรหัสผ่าน เพื่อเปิดระบบดึงข้อมูลเรียลไทม์และประวัติย้อนหลังอัตโนมัติ (หลังจากผูกสำเร็จแล้ว ไม่ต้องกรอกรหัสซ้ำอีก)'
     };
   }
 
   try {
     if (onProgress) {
-      onProgress('🔐 กำลังเชื่อมต่อเซิร์ฟเวอร์ SAJ (iop.saj-electric.com) และดึงค่าปัจจุบัน...');
+      onProgress('🔐 กำลังเชื่อมต่อเซิร์ฟเวอร์ SAJ (iop.saj-electric.com) แบบเรียลไทม์...');
     }
 
-    const response = await fetch('/api/saj-sync', {
+    const { response, result } = await safeFetchJson('/api/saj-sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -68,16 +124,19 @@ export const syncSajCloudAndBackfillHistory = async ({
     // Wipe password reference immediately
     transientPassword = null;
 
-    const result = await response.json();
-
     if (!response.ok || !result.success) {
       return {
         success: false,
-        needsPassword: true,
+        needsPassword: Boolean(result.needsPassword),
         message:
           result.message ||
           `ไม่สามารถดึงข้อมูลจากเซิร์ฟเวอร์ SAJ ได้ (HTTP ${response.status})`
       };
+    }
+
+    const activeSessionTicket = result.sessionTicket || savedTicket;
+    if (activeSessionTicket) {
+      saveGlobalSajSession(activeSessionTicket, cleanEmail);
     }
 
     const t = result.telemetry || {};
@@ -115,44 +174,130 @@ export const syncSajCloudAndBackfillHistory = async ({
     }
     logMap.set(todayStr, todayRealLog);
 
-    // Step 2: Fetch historical days in parallel batches of 10 days using sessionTicket
+    // Ingest initialHistoryDays (past 4 days) returned directly in the first response
+    if (Array.isArray(result.initialHistoryDays)) {
+      for (const dayObj of result.initialHistoryDays) {
+        if (dayObj && dayObj.hasData && dayObj.date) {
+          logMap.set(dayObj.date, {
+            date: dayObj.date,
+            isRealSajV2: true,
+            pvGenerationKWh: Number(dayObj.pvGenerationKWh || 0),
+            loadElectricityKWh: Number(dayObj.loadElectricityKWh || 0),
+            importKWh: Number(dayObj.importKWh || 0),
+            exportKWh: Number(dayObj.exportKWh || 0),
+            chargeBatteryKWh: Number(dayObj.chargeBatteryKWh || 0),
+            dischargeBatteryKWh: Number(dayObj.dischargeBatteryKWh || 0),
+            peakPvPowerW: Number(dayObj.peakPvPowerW || 0),
+            savedBaht: Number(dayObj.savedBaht || 0),
+            hourlyCurve: Array.isArray(dayObj.hourlyCurve) ? dayObj.hourlyCurve : []
+          });
+        }
+      }
+    }
+
+    const buildSolarConfigSnapshot = () => {
+      const sortedLogs = Array.from(logMap.values()).sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      );
+      return {
+        ...currentSolarConfig,
+        inverterModel: t.inverterModel || currentSolarConfig.inverterModel || 'H2-6K-LS2',
+        connectionMethod: 'SAJ_CLOUD_REAL_V2',
+        sajCloudGuestEmail: cleanEmail,
+        sajDeviceSn: result.deviceSn || t.sajDeviceSn || 'H2A2602J2539E14713',
+        sajPlantUid: result.plantUid || '',
+        sajPlantName: result.plantName || '',
+        sajReadOnlyTokenId: readOnlyTokenId,
+        sajEncryptedSessionTicket: activeSessionTicket,
+        sajCloudAutoCollect24h: true,
+        lastCloudSyncAt: result.updatedAt || new Date().toLocaleString('th-TH'),
+        inverterIp: `SAJ Cloud (${result.region})`,
+        inverterPort: 'HTTPS-443',
+        pvCapacityKWp: Number(t.pvCapacityKWp || currentSolarConfig.pvCapacityKWp || 6.0),
+        batteryCapacityKWh: Number(
+          t.batteryCapacityKWh || currentSolarConfig.batteryCapacityKWh || 10.24
+        ),
+        inverterTempC: Number(t.inverterTempC || 36.5),
+        pv1Voltage: Number(t.pv1Voltage || 0),
+        pv1Current: Number(t.pv1Current || 0),
+        pv1PowerW: Number(t.pv1PowerW || 0),
+        pv2Voltage: Number(t.pv2Voltage || 0),
+        pv2Current: Number(t.pv2Current || 0),
+        pv2PowerW: Number(t.pv2PowerW || 0),
+        batteryStatus: t.batteryStatus || 'Standby',
+        batterySOC: Number(t.batterySOC || 0),
+        batteryVoltage: Number(t.batteryVoltage || 0),
+        batteryCurrent: Number(t.batteryCurrent || 0),
+        batteryPowerW: Number(t.batteryPowerW || 0),
+        gridAc1Voltage: Number(t.gridAc1Voltage || 230.0),
+        gridAc1Current: Number(t.gridAc1Current || 0),
+        gridAc1PowerW: Number(t.gridAc1PowerW || 0),
+        gridAc1FreqHz: Number(t.gridAc1FreqHz || 50.0),
+        totalLoadPowerW: Number(t.totalLoadPowerW || 0),
+        offGridLoadPowerW: Number(t.offGridLoadPowerW || 0),
+        gridConnectedLoadPowerW: Number(t.gridConnectedLoadPowerW || 0),
+        todayEnergyKWh: Number(t.todayEnergyKWh || 0),
+        totalEnergyKWh: Number(t.totalEnergyKWh || 0),
+        statLoadElectricityKWh: Number(t.statLoadElectricityKWh || 0),
+        statImportKWh: Number(t.statImportKWh || 0),
+        statExportKWh: Number(t.statExportKWh || 0),
+        statChargeBatteryKWh: Number(t.statChargeBatteryKWh || 0),
+        statDischargeBatteryKWh: Number(t.statDischargeBatteryKWh || 0),
+        historicalDailyLogs: sortedLogs
+      };
+    };
+
+    // Emit immediate snapshot (Today + last 4 days) so UI updates right away
+    if (onPartialSync) {
+      onPartialSync(buildSolarConfigSnapshot());
+    }
+
+    // Step 2: Fetch remaining historical days in parallel batches of 5 days using activeSessionTicket
     const targetDays = Math.min(365, Math.max(1, Number(backfillDays) || 90));
-    if (result.sessionTicket && targetDays > 1) {
+    const alreadyHasHistory = logMap.size >= Math.min(targetDays, 7);
+    const shouldRunFullBackfill = !skipBackfillIfCached || !alreadyHasHistory;
+
+    if (activeSessionTicket && targetDays > 5 && shouldRunFullBackfill) {
       const pastDatesToFetch = [];
-      for (let d = 1; d < targetDays; d++) {
+      for (let d = 5; d < targetDays; d++) {
         const dStr = getThailandDateStr(d);
-        pastDatesToFetch.push(dStr);
+        // Only fetch dates we haven't already cached (or always fetch last 10 days)
+        if (!logMap.has(dStr) || d <= 10) {
+          pastDatesToFetch.push(dStr);
+        }
       }
 
-      const batchSize = 10;
+      const batchSize = 5;
       let emptyBatchStreak = 0;
 
       for (let i = 0; i < pastDatesToFetch.length; i += batchSize) {
         const batchDates = pastDatesToFetch.slice(i, i + batchSize);
         if (onProgress) {
           onProgress(
-            `⏳ กำลังดึงประวัติจริงย้อนหลังจากเซิร์ฟเวอร์ SAJ: ตรวจสอบแล้ว ${Math.min(
-              i + batchSize,
-              pastDatesToFetch.length
-            )} / ${pastDatesToFetch.length} วัน (พบข้อมูลจริงแล้ว ${logMap.size} วัน)...`
+            `⏳ กำลังดึงประวัติจริงย้อนหลังจาก SAJ อัตโนมัติ: ตรวจสอบแล้ว ${Math.min(
+              i + batchSize + 5,
+              targetDays
+            )} / ${targetDays} วัน (บันทึกข้อมูลจริงแล้ว ${logMap.size} วัน)...`
           );
         }
 
         try {
-          const batchResp = await fetch('/api/saj-sync', {
+          const { response: batchResp, result: batchJson } = await safeFetchJson('/api/saj-sync', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               mode: 'backfill_batch',
-              sessionTicket: result.sessionTicket,
+              sessionTicket: activeSessionTicket,
               dates: batchDates
             })
           });
 
-          if (batchResp.ok) {
-            const batchJson = await batchResp.json();
+          if (batchResp.ok && batchJson.success) {
+            if (batchJson.sessionTicket) {
+              saveGlobalSajSession(batchJson.sessionTicket, cleanEmail);
+            }
             const daysArr = Array.isArray(batchJson.days) ? batchJson.days : [];
             let foundInThisBatch = 0;
 
@@ -175,10 +320,14 @@ export const syncSajCloudAndBackfillHistory = async ({
               }
             }
 
+            if (foundInThisBatch > 0 && onPartialSync) {
+              onPartialSync(buildSolarConfigSnapshot());
+            }
+
             if (foundInThisBatch === 0) {
               emptyBatchStreak += 1;
-              // Stop early if 3 consecutive batches (30 days) have no records on SAJ server (reached pre-installation date)
-              if (emptyBatchStreak >= 3) {
+              // Stop early if 4 consecutive batches (20 days) have no records on SAJ server (reached pre-installation date)
+              if (emptyBatchStreak >= 4) {
                 break;
               }
             } else {
@@ -191,57 +340,8 @@ export const syncSajCloudAndBackfillHistory = async ({
       }
     }
 
-    // Sort all collected real logs chronologically (oldest -> newest)
-    const updatedHistoricalLogs = Array.from(logMap.values()).sort((a, b) =>
-      String(a.date).localeCompare(String(b.date))
-    );
-
-    const syncedSolarConfig = {
-      ...currentSolarConfig,
-      inverterModel: t.inverterModel || currentSolarConfig.inverterModel || 'H2-6K-LS2',
-      connectionMethod: 'SAJ_CLOUD_REAL_V2',
-      sajCloudGuestEmail: cleanEmail,
-      sajDeviceSn: result.deviceSn || t.sajDeviceSn || 'H2A2602J2539E14713',
-      sajPlantUid: result.plantUid || '',
-      sajPlantName: result.plantName || '',
-      sajReadOnlyTokenId: readOnlyTokenId,
-      sajEncryptedSessionTicket: result.sessionTicket || savedTicket,
-      sajCloudAutoCollect24h: true,
-      lastCloudSyncAt: result.updatedAt || new Date().toLocaleString('th-TH'),
-      inverterIp: `SAJ Cloud (${result.region})`,
-      inverterPort: 'HTTPS-443',
-      pvCapacityKWp: Number(t.pvCapacityKWp || currentSolarConfig.pvCapacityKWp || 6.0),
-      batteryCapacityKWh: Number(
-        t.batteryCapacityKWh || currentSolarConfig.batteryCapacityKWh || 10.24
-      ),
-      inverterTempC: Number(t.inverterTempC || 36.5),
-      pv1Voltage: Number(t.pv1Voltage || 0),
-      pv1Current: Number(t.pv1Current || 0),
-      pv1PowerW: Number(t.pv1PowerW || 0),
-      pv2Voltage: Number(t.pv2Voltage || 0),
-      pv2Current: Number(t.pv2Current || 0),
-      pv2PowerW: Number(t.pv2PowerW || 0),
-      batteryStatus: t.batteryStatus || 'Standby',
-      batterySOC: Number(t.batterySOC || 0),
-      batteryVoltage: Number(t.batteryVoltage || 0),
-      batteryCurrent: Number(t.batteryCurrent || 0),
-      batteryPowerW: Number(t.batteryPowerW || 0),
-      gridAc1Voltage: Number(t.gridAc1Voltage || 230.0),
-      gridAc1Current: Number(t.gridAc1Current || 0),
-      gridAc1PowerW: Number(t.gridAc1PowerW || 0),
-      gridAc1FreqHz: Number(t.gridAc1FreqHz || 50.0),
-      totalLoadPowerW: Number(t.totalLoadPowerW || 0),
-      offGridLoadPowerW: Number(t.offGridLoadPowerW || 0),
-      gridConnectedLoadPowerW: Number(t.gridConnectedLoadPowerW || 0),
-      todayEnergyKWh: Number(t.todayEnergyKWh || 0),
-      totalEnergyKWh: Number(t.totalEnergyKWh || 0),
-      statLoadElectricityKWh: Number(t.statLoadElectricityKWh || 0),
-      statImportKWh: Number(t.statImportKWh || 0),
-      statExportKWh: Number(t.statExportKWh || 0),
-      statChargeBatteryKWh: Number(t.statChargeBatteryKWh || 0),
-      statDischargeBatteryKWh: Number(t.statDischargeBatteryKWh || 0),
-      historicalDailyLogs: updatedHistoricalLogs
-    };
+    const syncedSolarConfig = buildSolarConfigSnapshot();
+    const updatedHistoricalLogs = syncedSolarConfig.historicalDailyLogs;
 
     // Persist all real historical logs to Supabase if configured
     const supabase = getSupabase();
@@ -271,7 +371,7 @@ export const syncSajCloudAndBackfillHistory = async ({
       readOnlyTokenId,
       backfilledDaysCount: updatedHistoricalLogs.length,
       syncedSolarConfig,
-      message: `✅ ซิงก์ข้อมูลจริงจากเซิร์ฟเวอร์ SAJ (${result.region}) สำเร็จ! สถานี: "${result.plantName}" • SN: ${result.deviceSn} • PV: ${t.pv1PowerW}W • แบตเตอรี่ SOC: ${t.batterySOC}% • ผลิตวันนี้: ${t.todayEnergyKWh} kWh • ดึงประวัติจริงสะสมได้ ${updatedHistoricalLogs.length} วัน`
+      message: `✅ ซิงก์ข้อมูลจริงเรียลไทม์จาก SAJ (${result.region}) สำเร็จ! สถานี: "${result.plantName}" • SN: ${result.deviceSn} • PV: ${t.pv1PowerW}W • แบตเตอรี่ SOC: ${t.batterySOC}% • ผลิตวันนี้: ${t.todayEnergyKWh} kWh • ประวัติจริงสะสม ${updatedHistoricalLogs.length} วัน (จำสิทธิ์ปลอดภัยแล้ว ไม่ต้องกรอกรหัสซ้ำ)`
     };
   } catch (err) {
     return {

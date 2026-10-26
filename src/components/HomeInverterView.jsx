@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   AreaChart,
   Area,
@@ -37,7 +37,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { TENANT_COMPANIES, createEmptySolarConfig } from '../data/tenantData';
-import { syncSajCloudAndBackfillHistory } from '../services/sajCloudService';
+import {
+  syncSajCloudAndBackfillHistory,
+  getSavedSajSessionTicket,
+  getSavedSajEmail
+} from '../services/sajCloudService';
 
 const COCKPIT_THEMES = {
   WEISSACH: {
@@ -484,76 +488,165 @@ export const HomeInverterView = () => {
     batterySOC: Number(solarData.batterySOC || 0)
   };
 
-  // One-click REAL SAJ Cloud V2 Sync + Multi-Day Backfill
-  const handleSyncSajCloudAndHistory = async () => {
-    const cleanSajUser = (editForm.sajCloudGuestEmail || solarData.sajCloudGuestEmail || '').trim();
-    const cleanSajPass = (transientGuestPassword || '').trim();
-    const hasSavedTicket = Boolean(solarData.sajEncryptedSessionTicket);
+  const savedTicket = getSavedSajSessionTicket(solarData);
+  const savedEmail = getSavedSajEmail(solarData) || 'natshownolimit@gmail.com';
+  const [autoSyncCountdown, setAutoSyncCountdown] = useState(60);
+  const isSyncingRef = useRef(false);
+  const autoStartedOrgRef = useRef(null);
 
-    if (!cleanSajUser || (!cleanSajPass && !hasSavedTicket)) {
-      setIsSettingOpen(true);
-      setTestResult({
-        success: false,
-        message:
-          '🔑 กรุณากรอก "รหัสผ่านแอป SAJ (Elekeeper)" ในช่องที่ 2 ด้านล่าง แล้วกดปุ่ม "☁️ ดึงข้อมูลปัจจุบัน + ดึงข้อมูลเก่าย้อนหลัง" เพื่อดึงประวัติจริงจากเซิร์ฟเวอร์ SAJ'
-      });
-      return;
-    }
+  // Core Real-Time + Automatic Historical Backfill Engine (Zero Repeated Password Prompts)
+  const executeSajSync = useCallback(
+    async ({ silent = false, skipBackfillIfCached = false } = {}) => {
+      if (!currentCompany || isSyncingRef.current) return;
 
-    setIsTesting(true);
-    setTestResult({
-      success: true,
-      message: `⏳ กำลังติดต่อเซิร์ฟเวอร์ SAJ (iop.saj-electric.com) และดึงข้อมูลจริงย้อนหลัง ${backfillDays} วัน...`
-    });
+      const cleanSajUser = (
+        editForm.sajCloudGuestEmail ||
+        solarData.sajCloudGuestEmail ||
+        savedEmail
+      ).trim();
+      const cleanSajPass = (transientGuestPassword || '').trim();
+      const activeTicket = getSavedSajSessionTicket({ ...solarData, ...editForm });
 
-    const res = await syncSajCloudAndBackfillHistory({
-      orgId: currentCompany.id,
-      companyName: currentCompany.name,
-      guestEmail: cleanSajUser,
-      transientPassword: cleanSajPass,
-      deviceSn: editForm.sajDeviceSn || solarData.sajDeviceSn || '',
-      backfillDays,
-      pvCapacityKWp: editForm.pvCapacityKWp || solarData.pvCapacityKWp || 6.0,
-      batteryCapacityKWh: editForm.batteryCapacityKWh || solarData.batteryCapacityKWh || 10.24,
-      currentSolarConfig: {
-        ...solarData,
-        ...editForm
-      },
-      onProgress: (progressText) => {
+      if (!cleanSajPass && !activeTicket) {
+        if (!silent) {
+          setIsSettingOpen(true);
+          setTestResult({
+            success: false,
+            message:
+              '🔑 กรุณากรอก "รหัสผ่านแอป SAJ (Elekeeper)" เพียงครั้งเดียวในช่องรหัสผ่านด้านล่าง เพื่อเปิดระบบดึงข้อมูลเรียลไทม์และประวัติย้อนหลังอัตโนมัติ (หลังจากผูกสำเร็จแล้ว ไม่ต้องกรอกรหัสซ้ำอีก)'
+          });
+        }
+        return;
+      }
+
+      isSyncingRef.current = true;
+      if (!silent) {
+        setIsTesting(true);
         setTestResult({
           success: true,
-          message: progressText
+          message: `⏳ กำลังซิงก์ข้อมูลเรียลไทม์และดึงประวัติจริงย้อนหลัง ${backfillDays} วันจาก SAJ Cloud อัตโนมัติ...`
         });
       }
-    });
 
-    setTransientGuestPassword('');
-
-    if (res.success) {
-      setEditForm(res.syncedSolarConfig);
-      updateOrganization(currentCompany.id, {
-        gatewayIp: 'SAJ-CLOUD-AUTO',
-        gatewayPort: '443',
-        status: 'ONLINE',
-        solarConfig: res.syncedSolarConfig
+      const res = await syncSajCloudAndBackfillHistory({
+        orgId: currentCompany.id,
+        companyName: currentCompany.name,
+        guestEmail: cleanSajUser,
+        transientPassword: cleanSajPass,
+        deviceSn: editForm.sajDeviceSn || solarData.sajDeviceSn || '',
+        backfillDays,
+        skipBackfillIfCached,
+        currentSolarConfig: {
+          ...solarData,
+          ...editForm,
+          sajEncryptedSessionTicket: activeTicket
+        },
+        onProgress: (progressText) => {
+          if (!silent) {
+            setTestResult({
+              success: true,
+              message: progressText
+            });
+          }
+        },
+        onPartialSync: (partialConfig) => {
+          setEditForm(partialConfig);
+          updateOrganization(currentCompany.id, {
+            gatewayIp: 'SAJ-CLOUD-AUTO',
+            gatewayPort: '443',
+            status: 'ONLINE',
+            solarConfig: partialConfig
+          });
+        }
       });
-      if (res.syncedSolarConfig.historicalDailyLogs?.length > 0) {
-        const latestDay =
-          res.syncedSolarConfig.historicalDailyLogs[
-            res.syncedSolarConfig.historicalDailyLogs.length - 1
-          ];
-        setSelectedHistoryDate(latestDay.date);
+
+      setTransientGuestPassword('');
+
+      if (res.success) {
+        setEditForm(res.syncedSolarConfig);
+        updateOrganization(currentCompany.id, {
+          gatewayIp: 'SAJ-CLOUD-AUTO',
+          gatewayPort: '443',
+          status: 'ONLINE',
+          solarConfig: res.syncedSolarConfig
+        });
+        if (res.syncedSolarConfig.historicalDailyLogs?.length > 0 && !selectedHistoryDate) {
+          const latestDay =
+            res.syncedSolarConfig.historicalDailyLogs[
+              res.syncedSolarConfig.historicalDailyLogs.length - 1
+            ];
+          setSelectedHistoryDate(latestDay.date);
+        }
+        setAutoSyncCountdown(60);
+        if (!silent) {
+          setIsSettingOpen(false);
+          setSaveNotice(
+            `ซิงก์เรียลไทม์และดึงประวัติย้อนหลัง ${res.backfilledDaysCount} วันสำเร็จ! (ระบบจำสิทธิ์ปลอดภัยแล้ว ไม่ต้องใส่รหัสซ้ำ)`
+          );
+          setTimeout(() => setSaveNotice(null), 6000);
+          setTestResult(res);
+        }
+      } else {
+        if (res.needsPassword) {
+          setIsSettingOpen(true);
+        }
+        if (!silent || res.needsPassword) {
+          setTestResult(res);
+        }
       }
-      setSaveNotice(
-        `ซิงก์ข้อมูลจริงจากเซิร์ฟเวอร์ SAJ และบันทึกประวัติย้อนหลัง ${res.backfilledDaysCount} วัน สำเร็จ!`
-      );
-      setTimeout(() => setSaveNotice(null), 6000);
-    } else if (res.needsPassword) {
+
+      isSyncingRef.current = false;
+      if (!silent) {
+        setIsTesting(false);
+      }
+    },
+    [
+      currentCompany,
+      editForm,
+      solarData,
+      savedEmail,
+      transientGuestPassword,
+      backfillDays,
+      updateOrganization,
+      selectedHistoryDate
+    ]
+  );
+
+  // Automatic Initial Sync + Historical Backfill on Mount & 60s Real-Time Auto-Polling
+  useEffect(() => {
+    if (!currentCompany) return;
+    const ticket = getSavedSajSessionTicket(solarData);
+
+    if (ticket && autoStartedOrgRef.current !== currentCompany.id) {
+      autoStartedOrgRef.current = currentCompany.id;
+      const needsHistoryBackfill = historicalLogs.length <= 2;
+      executeSajSync({
+        silent: !needsHistoryBackfill,
+        skipBackfillIfCached: !needsHistoryBackfill
+      });
+    } else if (!ticket && autoStartedOrgRef.current !== currentCompany.id) {
+      autoStartedOrgRef.current = currentCompany.id;
       setIsSettingOpen(true);
     }
+  }, [currentCompany, solarData, historicalLogs.length, executeSajSync]);
 
-    setTestResult(res);
-    setIsTesting(false);
+  useEffect(() => {
+    if (!savedTicket) return;
+    const interval = setInterval(() => {
+      setAutoSyncCountdown((prev) => {
+        if (prev <= 1) {
+          executeSajSync({ silent: true, skipBackfillIfCached: true });
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [savedTicket, executeSajSync]);
+
+  // Manual One-click REAL SAJ Cloud V2 Sync + Full Historical Backfill
+  const handleSyncSajCloudAndHistory = async () => {
+    await executeSajSync({ silent: false, skipBackfillIfCached: false });
   };
 
   const handleSaveSettingsToDb = (e) => {
@@ -697,9 +790,16 @@ export const HomeInverterView = () => {
               <span className="px-2.5 py-0.5 rounded-lg bg-slate-900/80 border border-slate-800 text-amber-300/90 font-mono text-xs">
                 SN: {solarData.sajDeviceSn || 'H2A2602J2539E14713'}
               </span>
-              <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 font-mono text-[11px] font-bold flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Read-Only Safe 100%
-              </span>
+              {savedTicket ? (
+                <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  LIVE AUTO-SYNC ({autoSyncCountdown}s) • จำสิทธิ์แล้ว ไม่ต้องใส่รหัสซ้ำ
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono text-[11px] font-bold flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> กรอกรหัส SAJ ครั้งเดียวเพื่อเปิดระบบเรียลไทม์อัตโนมัติ
+                </span>
+              )}
             </div>
 
             <div className="flex items-baseline gap-3">
@@ -820,16 +920,16 @@ export const HomeInverterView = () => {
 
             <div>
               <label className="block text-sky-300 font-bold mb-1">
-                2. รหัสผ่านแอป SAJ (กรอกเพื่อซิงก์ข้อมูลจริง)
+                2. รหัสผ่านแอป SAJ (กรอกครั้งเดียว ระบบจำสิทธิ์ถาวร)
               </label>
               <input
                 type="password"
                 value={transientGuestPassword}
                 onChange={(e) => setTransientGuestPassword(e.target.value)}
                 placeholder={
-                  solarData.sajEncryptedSessionTicket
-                    ? 'มี Session แล้ว (กรอกใหม่เมื่อต้องการรีเฟรชสิทธิ์)'
-                    : 'กรอกรหัสผ่านแอป SAJ ที่นี่ก่อนกดซิงก์'
+                  savedTicket
+                    ? '✅ ผูกสิทธิ์สำเร็จแล้ว (ไม่ต้องกรอกรหัสซ้ำ กดซิงก์ได้เลย)'
+                    : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่ก่อนกดซิงก์'
                 }
                 className="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2.5 text-sky-300 font-mono"
               />

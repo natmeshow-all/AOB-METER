@@ -11,7 +11,10 @@ import {
   saveSupabaseConfig,
   testSupabaseConnection
 } from '../services/supabaseClient';
-import { syncSajCloudAndBackfillHistory } from '../services/sajCloudService';
+import {
+  syncSajCloudAndBackfillHistory,
+  getSavedSajSessionTicket
+} from '../services/sajCloudService';
 
 // Standard Modbus RTU CRC-16 Calculator
 const calculateModbusCRC16 = (bytes) => {
@@ -182,13 +185,14 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
   const handleSyncSajCloudZeroCost = async () => {
     const cleanSajUser = (form.solarConfig.sajCloudGuestEmail || '').trim();
     const cleanSajPass = (sajTransientGuestPass || '').trim();
+    const savedTicket = getSavedSajSessionTicket(form.solarConfig);
 
-    if (!cleanSajUser || !cleanSajPass) {
+    if (!cleanSajUser || (!cleanSajPass && !savedTicket)) {
       setConnectionTestResult({
         success: false,
         testedAt: new Date().toLocaleTimeString('th-TH'),
         message:
-          '⚠️ กรุณากรอกทั้ง "1. อีเมล/ชื่อผู้ใช้แอป SAJ" และ "2. รหัสผ่านแอป SAJ" ในขั้นตอนที่ 3 ก่อนกดดึงข้อมูล (ระบบดึงข้อมูลจริงจากเซิร์ฟเวอร์ SAJ 100% ไม่มีการสุ่มหรือจำลองตัวเลข)'
+          '⚠️ กรุณากรอก "1. อีเมล/ชื่อผู้ใช้แอป SAJ" และ "2. รหัสผ่านแอป SAJ" เพียงครั้งเดียวในขั้นตอนที่ 3 ก่อนกดดึงข้อมูล (หลังจากผูกสำเร็จแล้ว ระบบจำสิทธิ์ถาวร ไม่ต้องกรอกรหัสซ้ำอีก)'
       });
       return;
     }
@@ -204,7 +208,7 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
 
     addLog(
       'INFO',
-      `กำลังล็อกอินเข้าเซิร์ฟเวอร์ SAJ Elekeeper V2 จริงด้วยบัญชี "${cleanSajUser}"...`
+      `กำลังซิงก์เซิร์ฟเวอร์ SAJ Elekeeper V2 จริงด้วยบัญชี "${cleanSajUser}"...`
     );
 
     const res = await syncSajCloudAndBackfillHistory({
@@ -216,13 +220,28 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
       backfillDays: sajBackfillDays,
       pvCapacityKWp: form.solarConfig.pvCapacityKWp || 6.0,
       batteryCapacityKWh: form.solarConfig.batteryCapacityKWh || 10.24,
-      currentSolarConfig: form.solarConfig,
+      currentSolarConfig: {
+        ...form.solarConfig,
+        sajEncryptedSessionTicket: savedTicket
+      },
       onProgress: (progressText) => {
         setConnectionTestResult({
           success: true,
           testedAt: new Date().toLocaleTimeString('th-TH'),
           message: progressText
         });
+      },
+      onPartialSync: (partialConfig) => {
+        setForm((prev) => ({
+          ...prev,
+          solarConfig: partialConfig
+        }));
+        if (form.id) {
+          updateOrganization(form.id, {
+            status: 'ONLINE',
+            solarConfig: partialConfig
+          });
+        }
       }
     });
 
@@ -234,6 +253,12 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
         ...prev,
         solarConfig: res.syncedSolarConfig
       }));
+      if (form.id) {
+        updateOrganization(form.id, {
+          status: 'ONLINE',
+          solarConfig: res.syncedSolarConfig
+        });
+      }
       addLog('SUCCESS', res.message);
       setConnectionTestResult({
         success: true,
@@ -924,13 +949,17 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
 
                 <div>
                   <label className="block font-bold text-cyan-300 mb-1">
-                    2. รหัสผ่าน Guest (ใช้ขอ Token แล้วลบทิ้งทันที)
+                    2. รหัสผ่านแอป SAJ (กรอกครั้งเดียว ระบบจำสิทธิ์ถาวร)
                   </label>
                   <input
                     type="password"
                     value={sajTransientGuestPass}
                     onChange={(e) => setSajTransientGuestPass(e.target.value)}
-                    placeholder="ไม่บันทึกในเครื่อง (Zero Storage)"
+                    placeholder={
+                      getSavedSajSessionTicket(form.solarConfig)
+                        ? '✅ ผูกสิทธิ์สำเร็จแล้ว (ไม่ต้องกรอกซ้ำ กดซิงก์ได้เลย)'
+                        : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่'
+                    }
                     className="w-full bg-slate-950 border border-cyan-500/40 rounded-xl px-3 py-2.5 text-cyan-300 font-mono"
                   />
                 </div>
