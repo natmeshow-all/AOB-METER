@@ -216,7 +216,14 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
       backfillDays: sajBackfillDays,
       pvCapacityKWp: form.solarConfig.pvCapacityKWp || 6.0,
       batteryCapacityKWh: form.solarConfig.batteryCapacityKWh || 10.24,
-      currentSolarConfig: form.solarConfig
+      currentSolarConfig: form.solarConfig,
+      onProgress: (progressText) => {
+        setConnectionTestResult({
+          success: true,
+          testedAt: new Date().toLocaleTimeString('th-TH'),
+          message: progressText
+        });
+      }
     });
 
     // Immediately wipe transient password from React state (Zero Password Storage!)

@@ -187,7 +187,10 @@ export const HomeInverterView = () => {
     }
 
     setIsTesting(true);
-    setTestResult(null);
+    setTestResult({
+      success: true,
+      message: `⏳ กำลังติดต่อเซิร์ฟเวอร์ SAJ และดึงข้อมูลเก่าย้อนหลัง ${backfillDays} วัน (กรุณารอสักครู่)...`
+    });
 
     const res = await syncSajCloudAndBackfillHistory({
       orgId: currentCompany.id,
@@ -198,7 +201,13 @@ export const HomeInverterView = () => {
       backfillDays,
       pvCapacityKWp: editForm.pvCapacityKWp || solarData.pvCapacityKWp || 6.0,
       batteryCapacityKWh: editForm.batteryCapacityKWh || solarData.batteryCapacityKWh || 10.24,
-      currentSolarConfig: editForm
+      currentSolarConfig: editForm,
+      onProgress: (progressText) => {
+        setTestResult({
+          success: true,
+          message: progressText
+        });
+      }
     });
 
     // Immediately wipe transient password from RAM

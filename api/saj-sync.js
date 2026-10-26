@@ -1,8 +1,7 @@
-// Vercel Serverless Function: Real SAJ Elekeeper / eSolar Cloud V2 Read-Only Proxy
+// Vercel Serverless Function: Real SAJ Elekeeper / eSolar Cloud V2 Read-Only Proxy & Historical Backfill
 // - 100% Real Data from SAJ Servers (iop.saj-electric.com / eop.saj-electric.com / op.saj-electric.cn)
-// - Zero Fake / Simulated Numbers: Returns exact telemetry from SAJ or real error message if credentials fail.
-// - Zero Password Storage: Plaintext password is encrypted in-memory for SAJ login and immediately discarded.
-// - Strictly Read-Only: Only calls plant/device telemetry & historical read endpoints.
+// - Supports both Real-Time Overview Sync AND Multi-Day Historical Backfill (`mode: 'backfill_batch'`)
+// - Zero Fake / Simulated Numbers: Returns exact telemetry and raw history logs from SAJ.
 
 import crypto from 'node:crypto';
 
@@ -17,6 +16,11 @@ const SAJ_REGIONS = [
   { code: 'cn', name: 'China (op.saj-electric.cn)', base: 'https://op.saj-electric.cn' }
 ];
 
+export function getThailandDateStr(daysAgo = 0) {
+  const thTimeMs = Date.now() + 7 * 3600 * 1000 - daysAgo * 86400 * 1000;
+  return new Date(thTimeMs).toISOString().slice(0, 10);
+}
+
 function encryptSajPassword(plaintext) {
   const cipher = crypto.createCipheriv(
     'aes-128-ecb',
@@ -24,6 +28,32 @@ function encryptSajPassword(plaintext) {
     null
   );
   return Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()]).toString('hex');
+}
+
+function encodeSessionTicket(obj) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(
+    'aes-128-cbc',
+    Buffer.from(PASSWORD_AES_KEY_HEX, 'hex'),
+    iv
+  );
+  const enc = Buffer.concat([cipher.update(JSON.stringify(obj), 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${enc.toString('hex')}`;
+}
+
+function decodeSessionTicket(ticketStr) {
+  const [ivHex, encHex] = String(ticketStr || '').split(':');
+  if (!ivHex || !encHex) throw new Error('Invalid session ticket');
+  const decipher = crypto.createDecipheriv(
+    'aes-128-cbc',
+    Buffer.from(PASSWORD_AES_KEY_HEX, 'hex'),
+    Buffer.from(ivHex, 'hex')
+  );
+  const dec = Buffer.concat([
+    decipher.update(Buffer.from(encHex, 'hex')),
+    decipher.final()
+  ]).toString('utf8');
+  return JSON.parse(dec);
 }
 
 function randomKey(len = 16) {
@@ -36,9 +66,9 @@ function randomKey(len = 16) {
   return out;
 }
 
-function signV2Request(bodyObj, authToken = null, lang = 'en') {
+function signV2Request(bodyObj, authToken = null, lang = 'en', overrideClientDate = null) {
   const timestamp = Date.now();
-  const clientDate = new Date().toISOString().slice(0, 10);
+  const clientDate = overrideClientDate || getThailandDateStr(0);
   const rawData = {
     ...bodyObj,
     appProjectName: 'elekeeper',
@@ -101,7 +131,7 @@ function signV1Query(paramsObj) {
   const data = {
     ...paramsObj,
     appProjectName: 'elekeeper',
-    clientDate: new Date().toISOString().slice(0, 10),
+    clientDate: getThailandDateStr(0),
     lang: 'en',
     timeStamp: Date.now(),
     random: randomKey(32),
@@ -123,8 +153,8 @@ function signV1Query(paramsObj) {
   };
 }
 
-async function postSajV2(baseUrl, path, bodyObj, authToken = null) {
-  const { headers, body } = signV2Request(bodyObj, authToken);
+async function postSajV2(baseUrl, path, bodyObj, authToken = null, overrideClientDate = null) {
+  const { headers, body } = signV2Request(bodyObj, authToken, 'en', overrideClientDate);
   const url = `${baseUrl}/dev-api/api/v2${path}`;
   const res = await fetch(url, {
     method: 'POST',
@@ -166,6 +196,232 @@ function readEnergyStat(plantStats, dataType, field) {
   return 0;
 }
 
+/**
+ * Parses a day's raw 5-minute inverter records from `/monitor/deviceData/findRawdataPageList`
+ * into a complete historical day object (including 24-hour curve and daily kWh totals).
+ */
+function parseDayFromRawRecords(dateStr, rawRecords, optionalPlantStats = null) {
+  if (!Array.isArray(rawRecords) || rawRecords.length === 0) {
+    return {
+      date: dateStr,
+      hasData: false
+    };
+  }
+
+  const hourlyMap = new Map();
+  for (let h = 0; h < 24; h++) {
+    const hKey = `${String(h).padStart(2, '0')}:00`;
+    hourlyMap.set(hKey, { hour: hKey, pvW: 0, loadW: 0, batterySOC: 0, sampleCount: 0 });
+  }
+
+  let maxTodayPvKWh = 0;
+  let maxTodayLoadKWh = 0;
+  let maxTodayImportKWh = 0;
+  let maxTodayExportKWh = 0;
+  let maxTodayChargeKWh = 0;
+  let maxTodayDischargeKWh = 0;
+  let peakPvPowerW = 0;
+
+  let integratedPvWh = 0;
+  let integratedLoadWh = 0;
+  let integratedImportWh = 0;
+  let integratedExportWh = 0;
+  let integratedChargeWh = 0;
+  let integratedDischargeWh = 0;
+
+  // Each raw record in SAJ is typically a 5-minute interval (1/12 hour)
+  const intervalHours = 5 / 60;
+
+  for (const rec of rawRecords) {
+    const pvW = Number(
+      rec.totalPVPower ??
+        rec.totalPvPower ??
+        (Number(rec.pv1Power || 0) + Number(rec.pv2Power || 0)) ||
+        rec.powerNow ||
+        0
+    );
+    const loadW = Number(
+      rec.totalLoadPower ?? rec.totalLoadPowerwatt ?? rec.loadPower ?? rec.outPower ?? 0
+    );
+    const gridW = Number(
+      rec.sysGridPowerwatt ?? rec.gridPower ?? rec.totalGridPower ?? 0
+    );
+    const batW = Number(rec.batPower ?? rec.batteryPower ?? 0);
+    const soc = Number(
+      rec.batEnergyPercent ?? rec.batterySoc ?? rec.batSoc ?? rec.soc ?? 0
+    );
+
+    if (pvW > peakPvPowerW) peakPvPowerW = Math.round(pvW);
+
+    integratedPvWh += Math.max(0, pvW) * intervalHours;
+    integratedLoadWh += Math.max(0, loadW) * intervalHours;
+    if (gridW > 0) integratedImportWh += gridW * intervalHours;
+    if (gridW < 0) integratedExportWh += Math.abs(gridW) * intervalHours;
+    if (batW < 0) integratedChargeWh += Math.abs(batW) * intervalHours;
+    if (batW > 0) integratedDischargeWh += batW * intervalHours;
+
+    const rPvKWh = Number(
+      rec.todayPVEnergy ?? rec.todayPvEnergy ?? rec.todayEnergy ?? rec.eToday ?? 0
+    );
+    const rLoadKWh = Number(
+      rec.todayLoadEnergy ?? rec.todayLoadElec ?? rec.todayConsumpElec ?? 0
+    );
+    const rImpKWh = Number(
+      rec.todayBuyEnergy ?? rec.todayBuyElec ?? rec.todayGridImport ?? 0
+    );
+    const rExpKWh = Number(
+      rec.todaySellEnergy ?? rec.todaySellElec ?? rec.todayGridExport ?? 0
+    );
+    const rChgKWh = Number(
+      rec.todayBatChgEnergy ?? rec.todayBatCharge ?? 0
+    );
+    const rDisKWh = Number(
+      rec.todayBatDischgEnergy ?? rec.todayBatDisEnergy ?? rec.todayBatDischarge ?? 0
+    );
+
+    if (rPvKWh > maxTodayPvKWh) maxTodayPvKWh = rPvKWh;
+    if (rLoadKWh > maxTodayLoadKWh) maxTodayLoadKWh = rLoadKWh;
+    if (rImpKWh > maxTodayImportKWh) maxTodayImportKWh = rImpKWh;
+    if (rExpKWh > maxTodayExportKWh) maxTodayExportKWh = rExpKWh;
+    if (rChgKWh > maxTodayChargeKWh) maxTodayChargeKWh = rChgKWh;
+    if (rDisKWh > maxTodayDischargeKWh) maxTodayDischargeKWh = rDisKWh;
+
+    const timeStr = String(rec.dataTime || rec.createTime || '');
+    const match = timeStr.match(/(\d{2}):\d{2}/);
+    if (match) {
+      const hKey = `${match[1]}:00`;
+      const existing = hourlyMap.get(hKey);
+      if (existing) {
+        existing.pvW = Math.max(existing.pvW, Math.round(pvW));
+        existing.loadW = Math.max(existing.loadW, Math.round(loadW));
+        if (soc > 0) existing.batterySOC = Math.round(soc);
+        existing.sampleCount += 1;
+      }
+    }
+  }
+
+  // Prefer plantStats if provided for that day, then cumulative raw counters, then integrated Wh/1000
+  const pvGenerationKWh = Number(
+    (
+      (optionalPlantStats ? readEnergyStat(optionalPlantStats, 'PV_ENERGY', 'energy1Today') : 0) ||
+      maxTodayPvKWh ||
+      integratedPvWh / 1000
+    ).toFixed(2)
+  );
+  const loadElectricityKWh = Number(
+    (
+      (optionalPlantStats ? readEnergyStat(optionalPlantStats, 'LOAD_ENERGY', 'energy1Today') : 0) ||
+      maxTodayLoadKWh ||
+      integratedLoadWh / 1000
+    ).toFixed(2)
+  );
+  const importKWh = Number(
+    (
+      (optionalPlantStats ? readEnergyStat(optionalPlantStats, 'BUY_AND_SELL', 'energy1Today') : 0) ||
+      maxTodayImportKWh ||
+      integratedImportWh / 1000
+    ).toFixed(2)
+  );
+  const exportKWh = Number(
+    (
+      (optionalPlantStats ? readEnergyStat(optionalPlantStats, 'BUY_AND_SELL', 'energy2Today') : 0) ||
+      maxTodayExportKWh ||
+      integratedExportWh / 1000
+    ).toFixed(2)
+  );
+  const chargeBatteryKWh = Number(
+    (
+      (optionalPlantStats
+        ? readEnergyStat(optionalPlantStats, 'CHARGE_AND_DISCHARGE', 'energy1Today')
+        : 0) ||
+      maxTodayChargeKWh ||
+      integratedChargeWh / 1000
+    ).toFixed(2)
+  );
+  const dischargeBatteryKWh = Number(
+    (
+      (optionalPlantStats
+        ? readEnergyStat(optionalPlantStats, 'CHARGE_AND_DISCHARGE', 'energy2Today')
+        : 0) ||
+      maxTodayDischargeKWh ||
+      integratedDischargeWh / 1000
+    ).toFixed(2)
+  );
+
+  const savedBaht = Math.round(
+    Math.max(0, pvGenerationKWh - exportKWh) * 4.72 + exportKWh * 2.2
+  );
+
+  const hourlyCurve = Array.from(hourlyMap.values()).map(({ hour, pvW, loadW, batterySOC }) => ({
+    hour,
+    pvW,
+    loadW,
+    batterySOC
+  }));
+
+  return {
+    date: dateStr,
+    hasData: true,
+    pvGenerationKWh,
+    loadElectricityKWh,
+    importKWh,
+    exportKWh,
+    chargeBatteryKWh,
+    dischargeBatteryKWh,
+    peakPvPowerW,
+    savedBaht,
+    hourlyCurve
+  };
+}
+
+/**
+ * Fetches a batch of historical dates in parallel from SAJ's V2 `findRawdataPageList` endpoint.
+ */
+export async function executeSajHistoricalBatch({ sessionTicket, dates = [] }) {
+  const session = decodeSessionTicket(sessionTicket);
+  const { authToken, baseUrl, deviceSn } = session;
+
+  if (!authToken || !baseUrl || !deviceSn) {
+    return {
+      success: false,
+      message: 'Session Ticket สำหรับดึงข้อมูลย้อนหลังไม่สมบูรณ์'
+    };
+  }
+
+  const cleanDates = Array.isArray(dates) ? dates.slice(0, 12) : [];
+
+  const dayResults = await Promise.all(
+    cleanDates.map(async (dateStr) => {
+      try {
+        const rawRes = await postSajV2(
+          baseUrl,
+          '/monitor/deviceData/findRawdataPageList',
+          {
+            deviceSn,
+            deviceType: 1,
+            timeStr: dateStr,
+            startTime: `${dateStr} 00:00:00`,
+            endTime: `${dateStr} 23:59:59`,
+            pageNo: 1,
+            pageSize: 300
+          },
+          authToken,
+          dateStr
+        );
+        const list = rawRes?.data?.list || [];
+        return parseDayFromRawRecords(dateStr, list, null);
+      } catch {
+        return { date: dateStr, hasData: false };
+      }
+    })
+  );
+
+  return {
+    success: true,
+    days: dayResults
+  };
+}
+
 export async function executeRealSajCloudSync({ username, password, preferredRegion = 'auto' }) {
   const cleanUser = (username || '').trim();
   const cleanPass = (password || '').trim();
@@ -174,13 +430,13 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
     return {
       success: false,
       errorCode: 'MISSING_CREDENTIALS',
-      message: 'กรุณากรอกทั้งชื่อบัญชี/อีเมล และรหัสผ่านของแอป SAJ (eSolar / Elekeeper) เพื่อดึงค่าจริงจากเซิร์ฟเวอร์ SAJ'
+      message:
+        'กรุณากรอกทั้งชื่อบัญชี/อีเมล และรหัสผ่านของแอป SAJ (eSolar / Elekeeper) เพื่อดึงค่าจริงจากเซิร์ฟเวอร์ SAJ'
     };
   }
 
   const encryptedPassword = encryptSajPassword(cleanPass);
 
-  // Order regions based on preference (Default tries Asia-Pacific iop first, then Global eop, then China op)
   const regionList =
     preferredRegion && preferredRegion !== 'auto'
       ? [
@@ -202,7 +458,11 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
         loginType: 1
       });
 
-      if (loginRes && (loginRes.errCode === 0 || loginRes.errCode === null) && loginRes.data?.token) {
+      if (
+        loginRes &&
+        (loginRes.errCode === 0 || loginRes.errCode === null) &&
+        loginRes.data?.token
+      ) {
         authToken = (loginRes.data.tokenHead || 'Bearer ') + loginRes.data.token;
         activeRegion = reg;
         break;
@@ -218,7 +478,9 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
     return {
       success: false,
       errorCode: 'SAJ_AUTH_FAILED',
-      message: `เซิร์ฟเวอร์ SAJ ปฏิเสธการล็อกอิน: ${lastLoginError || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'} (กรุณาตรวจสอบอีเมล/ชื่อผู้ใช้และรหัสผ่านที่ใช้เข้าแอป SAJ Elekeeper / eSolar)`
+      message: `เซิร์ฟเวอร์ SAJ ปฏิเสธการล็อกอิน: ${
+        lastLoginError || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+      } (กรุณาตรวจสอบอีเมล/ชื่อผู้ใช้และรหัสผ่านที่ใช้เข้าแอป SAJ Elekeeper / eSolar)`
     };
   }
 
@@ -245,9 +507,15 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
 
   // 2. Fetch Plant Capability & Device Tree
   const [plantDetailRes, capabilityRes, deviceTreeRes] = await Promise.all([
-    postSajV2(activeRegion.base, '/monitor/plant/getOnePlantInfoV2', { plantUid }, authToken).catch(() => ({})),
-    postSajV2(activeRegion.base, '/monitor/plant/getPlantCapability', { plantUid }, authToken).catch(() => ({})),
-    postSajV2(activeRegion.base, '/monitor/plantDevice/listForWeb', { plantUid }, authToken).catch(() => ({}))
+    postSajV2(activeRegion.base, '/monitor/plant/getOnePlantInfoV2', { plantUid }, authToken).catch(
+      () => ({})
+    ),
+    postSajV2(activeRegion.base, '/monitor/plant/getPlantCapability', { plantUid }, authToken).catch(
+      () => ({})
+    ),
+    postSajV2(activeRegion.base, '/monitor/plantDevice/listForWeb', { plantUid }, authToken).catch(
+      () => ({})
+    )
   ]);
 
   const snList = capabilityRes?.data?.snList || [];
@@ -257,9 +525,10 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
   const inverterNode = treeDevices.find((d) => d.deviceType === 1) || treeDevices[0] || {};
   const deviceSn = inverterNode.deviceSn || snList[0]?.sn || '';
   const deviceModel = inverterNode.deviceModel || 'SAJ H2-6K-LS2';
+  const firstOnlineTime = inverterNode.accessTime || '';
 
-  // 3. Fetch Live Plant Statistics, Live Energy Flow, Inverter Energy Detail, Battery Info, and Raw Telemetry Logs
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // 3. Fetch Live Plant Statistics, Live Energy Flow, Inverter Energy Detail, Battery Info, and Today's Raw Telemetry Logs
+  const todayStr = getThailandDateStr(0);
 
   const [statsRes, flowRes, invEnergyRes, batInfoRes, rawDataRes] = await Promise.all([
     postSajV2(
@@ -289,7 +558,16 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
           { deviceSn },
           authToken
         )
-          .then((r) => (r?.errCode === 0 && r?.data ? r : postSajV2(activeRegion.base, '/monitor/device/getInverterBatteryEnergyDetailForApp', { deviceSn }, authToken)))
+          .then((r) =>
+            r?.errCode === 0 && r?.data
+              ? r
+              : postSajV2(
+                  activeRegion.base,
+                  '/monitor/device/getInverterBatteryEnergyDetailForApp',
+                  { deviceSn },
+                  authToken
+                )
+          )
           .catch(() => ({}))
       : Promise.resolve({}),
     deviceSn
@@ -317,6 +595,9 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
   const rawRecords = rawDataRes?.data?.list || [];
   const latestRaw = rawRecords[0] || {};
 
+  // Parse today's log using both plantStats and rawRecords
+  const todayParsed = parseDayFromRawRecords(todayStr, rawRecords, plantStats);
+
   // Extract 100% genuine values from SAJ API response
   const pvPowerW = Number(
     invEnergy.powerNow ??
@@ -343,7 +624,9 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
   );
   const batteryVoltage = Number(batInfo.batVoltage ?? latestRaw.batVolt ?? 0);
   const batteryCurrent = Number(batInfo.batCurrent ?? latestRaw.batCurr ?? 0);
-  const batteryPowerW = Number(batInfo.batPower ?? energyFlow.batPower ?? latestRaw.batPower ?? 0);
+  const batteryPowerW = Number(
+    batInfo.batPower ?? energyFlow.batPower ?? latestRaw.batPower ?? 0
+  );
   const batDir = Number(energyFlow.batteryDirection ?? batInfo.batteryDirection ?? 0);
   const batteryStatus = batDir === -1 ? 'Charging' : batDir === 1 ? 'Discharging' : 'Standby';
 
@@ -371,61 +654,44 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
 
   const todayPvKWh =
     readEnergyStat(plantStats, 'PV_ENERGY', 'energy1Today') ||
-    Number(invEnergy.todayEnergy ?? latestRaw.todayPVEnergy ?? 0);
+    Number(invEnergy.todayEnergy ?? latestRaw.todayPVEnergy ?? todayParsed.pvGenerationKWh ?? 0);
   const totalPvKWh =
     readEnergyStat(plantStats, 'PV_ENERGY', 'energy1Total') ||
     Number(invEnergy.totalEnergy ?? latestRaw.totalPVEnergy ?? 0);
 
   const todayLoadKWh =
     readEnergyStat(plantStats, 'LOAD_ENERGY', 'energy1Today') ||
-    Number(latestRaw.todayLoadEnergy ?? 0);
+    Number(latestRaw.todayLoadEnergy ?? todayParsed.loadElectricityKWh ?? 0);
   const todayImportKWh =
     readEnergyStat(plantStats, 'BUY_AND_SELL', 'energy1Today') ||
-    Number(latestRaw.todayBuyEnergy ?? 0);
+    Number(latestRaw.todayBuyEnergy ?? todayParsed.importKWh ?? 0);
   const todayExportKWh =
     readEnergyStat(plantStats, 'BUY_AND_SELL', 'energy2Today') ||
-    Number(latestRaw.todaySellEnergy ?? 0);
+    Number(latestRaw.todaySellEnergy ?? todayParsed.exportKWh ?? 0);
   const todayChargeKWh =
     readEnergyStat(plantStats, 'CHARGE_AND_DISCHARGE', 'energy1Today') ||
-    Number(batInfo.todayBatChgEnergy ?? latestRaw.todayBatChgEnergy ?? 0);
+    Number(batInfo.todayBatChgEnergy ?? latestRaw.todayBatChgEnergy ?? todayParsed.chargeBatteryKWh ?? 0);
   const todayDischargeKWh =
     readEnergyStat(plantStats, 'CHARGE_AND_DISCHARGE', 'energy2Today') ||
-    Number(batInfo.todayBatDisEnergy ?? latestRaw.todayBatDischgEnergy ?? 0);
+    Number(batInfo.todayBatDisEnergy ?? latestRaw.todayBatDischgEnergy ?? todayParsed.dischargeBatteryKWh ?? 0);
 
-  // Build today's real 24-hour curve from rawRecords (sorted chronologically)
-  const hourlyMap = new Map();
-  for (let h = 0; h < 24; h++) {
-    const hKey = `${String(h).padStart(2, '0')}:00`;
-    hourlyMap.set(hKey, { hour: hKey, pvW: 0, loadW: 0, batterySOC: 0 });
-  }
-  for (const rec of rawRecords) {
-    const timeStr = String(rec.dataTime || rec.createTime || '');
-    const match = timeStr.match(/(\d{2}):\d{2}/);
-    if (match) {
-      const hKey = `${match[1]}:00`;
-      const existing = hourlyMap.get(hKey);
-      const rPv = Number(rec.totalPVPower ?? rec.pv1Power ?? 0);
-      const rLoad = Number(rec.totalLoadPower ?? 0);
-      const rSoc = Number(rec.batEnergyPercent ?? 0);
-      if (existing && (rPv >= existing.pvW || rLoad >= existing.loadW)) {
-        hourlyMap.set(hKey, {
-          hour: hKey,
-          pvW: Math.round(rPv),
-          loadW: Math.round(rLoad),
-          batterySOC: Math.round(rSoc)
-        });
-      }
-    }
-  }
-  const todayHourlyCurve = Array.from(hourlyMap.values());
+  // Create short-lived encrypted session ticket so the frontend can stream historical day batches
+  const sessionTicket = encodeSessionTicket({
+    authToken,
+    baseUrl: activeRegion.base,
+    plantUid,
+    deviceSn
+  });
 
   return {
     success: true,
+    sessionTicket,
     region: activeRegion.name,
     plantUid,
     plantName,
     deviceSn,
     deviceModel,
+    firstOnlineTime,
     updatedAt: energyFlow.updateDate || latestRaw.dataTime || new Date().toLocaleString('th-TH'),
     telemetry: {
       inverterModel: deviceModel,
@@ -460,7 +726,7 @@ export async function executeRealSajCloudSync({ username, password, preferredReg
       statExportKWh: todayExportKWh,
       statChargeBatteryKWh: todayChargeKWh,
       statDischargeBatteryKWh: todayDischargeKWh,
-      todayHourlyCurve,
+      todayHourlyCurve: todayParsed.hourlyCurve || [],
       rawRecordCount: rawRecords.length
     }
   };
@@ -480,6 +746,15 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+
+    if (body.mode === 'backfill_batch') {
+      const batchRes = await executeSajHistoricalBatch({
+        sessionTicket: body.sessionTicket,
+        dates: body.dates
+      });
+      return res.status(200).json(batchRes);
+    }
+
     const result = await executeRealSajCloudSync({
       username: body.username,
       password: body.password,
