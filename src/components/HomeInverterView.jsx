@@ -52,6 +52,62 @@ const formatSlashDate = (isoStr) => {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
+// Residential stepped (progressive) electricity tariff — editable in ⚙️ ตั้งค่า
+const TARIFF_STORAGE_KEY = 'POWERVIEW_TARIFF_TIERS_V1';
+const DEFAULT_TARIFF_TIERS = [
+  { upTo: 200, rate: 3.0 },
+  { upTo: 400, rate: 4.22 },
+  { upTo: null, rate: 4.42 }
+];
+const DEFAULT_EXPORT_RATE = 2.2;
+
+const loadTariffSettings = () => {
+  try {
+    const raw = localStorage.getItem(TARIFF_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed?.tiers) && parsed.tiers.length > 0) {
+        return {
+          tiers: parsed.tiers,
+          exportRate: Number(parsed.exportRate ?? DEFAULT_EXPORT_RATE)
+        };
+      }
+    }
+  } catch {
+    // ignore malformed storage
+  }
+  return { tiers: DEFAULT_TARIFF_TIERS, exportRate: DEFAULT_EXPORT_RATE };
+};
+
+/**
+ * Calculates a monthly stepped electricity bill (e.g. 0–200 units @ 3 baht, 201–400 @ 4.22, 401+ @ 4.42).
+ */
+export const calcTieredBill = (kwh, tiers = DEFAULT_TARIFF_TIERS) => {
+  let remaining = Math.max(0, Number(kwh) || 0);
+  let prevCap = 0;
+  let total = 0;
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    const cap = tier.upTo === null || tier.upTo === '' ? Infinity : Number(tier.upTo);
+    const tierUnits = Math.min(remaining, Math.max(0, cap - prevCap));
+    total += tierUnits * Number(tier.rate || 0);
+    remaining -= tierUnits;
+    prevCap = cap;
+  }
+  return Number(total.toFixed(2));
+};
+
+const THAI_MONTHS = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+];
+const formatThaiMonth = (ym) => {
+  const [y, m] = String(ym).split('-');
+  return `${THAI_MONTHS[Number(m) - 1] || m} ${Number(y) + 543}`;
+};
+const formatBaht = (n) =>
+  `฿${Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const COCKPIT_THEMES = {
   WEISSACH: {
     id: 'WEISSACH',
@@ -354,6 +410,16 @@ export const HomeInverterView = () => {
   const [statPeriod, setStatPeriod] = useState('Month'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total' | 'Custom'
   const [customStartDate, setCustomStartDate] = useState(() => getThailandDateStr(30));
   const [customEndDate, setCustomEndDate] = useState(() => getThailandDateStr(0));
+  const [tariffSettings, setTariffSettings] = useState(() => loadTariffSettings());
+
+  const updateTariffSettings = (next) => {
+    setTariffSettings(next);
+    try {
+      localStorage.setItem(TARIFF_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
+  };
   const [isSettingOpen, setIsSettingOpen] = useState(false);
   const [editForm, setEditForm] = useState(solarData);
   const [transientGuestPassword, setTransientGuestPassword] = useState('');
@@ -450,6 +516,80 @@ export const HomeInverterView = () => {
       );
       const imp = Math.max(rawImp, balancedImp);
 
+      // Group logs by month (YYYY-MM) for monthly progressive tariff calculation
+      const monthBuckets = new Map();
+      subset.forEach((log) => {
+        const ym = (log.date || '').slice(0, 7);
+        if (!ym) return;
+        if (!monthBuckets.has(ym)) {
+          monthBuckets.set(ym, {
+            month: ym,
+            days: 0,
+            pvGen: 0,
+            load: 0,
+            imp: 0,
+            exp: 0,
+            chg: 0,
+            dis: 0
+          });
+        }
+        const b = monthBuckets.get(ym);
+        b.days += 1;
+        b.pvGen += Number(log.pvGenerationKWh || 0);
+        b.load += Number(log.loadElectricityKWh || 0);
+        b.exp += Number(log.exportKWh || 0);
+        b.chg += Number(log.chargeBatteryKWh || 0);
+        b.dis += Number(log.dischargeBatteryKWh || 0);
+        const dayBalancedImp = Math.max(
+          0,
+          Number(
+            (
+              Number(log.loadElectricityKWh || 0) -
+              Math.max(
+                0,
+                Number(log.pvGenerationKWh || 0) -
+                  Number(log.exportKWh || 0) -
+                  Number(log.chargeBatteryKWh || 0) +
+                  Number(log.dischargeBatteryKWh || 0)
+              )
+            ).toFixed(2)
+          )
+        );
+        b.imp += Math.max(Number(log.importKWh || 0), dayBalancedImp);
+      });
+
+      // Calculate bill & savings per month using tiered rates
+      const monthlyBreakdown = Array.from(monthBuckets.values())
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .map((m) => {
+          const importBill = calcTieredBill(m.imp, tariffSettings.tiers);
+          const hypotheticalBillWithoutSolar = calcTieredBill(m.load, tariffSettings.tiers);
+          const exportIncome = Number((m.exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
+          // Saved = (What you would have paid to Grid for Load) - (What you actually paid for Grid Import) + Export Income
+          const savedBaht = Math.max(
+            0,
+            Number((hypotheticalBillWithoutSolar - importBill + exportIncome).toFixed(2))
+          );
+          return {
+            ...m,
+            pvGen: Number(m.pvGen.toFixed(2)),
+            load: Number(m.load.toFixed(2)),
+            imp: Number(m.imp.toFixed(2)),
+            exp: Number(m.exp.toFixed(2)),
+            importBill,
+            hypotheticalBillWithoutSolar,
+            exportIncome,
+            savedBaht
+          };
+        });
+
+      const totalGridBill = Number(
+        monthlyBreakdown.reduce((acc, m) => acc + m.importBill, 0).toFixed(2)
+      );
+      const totalSavedBaht = Number(
+        monthlyBreakdown.reduce((acc, m) => acc + m.savedBaht, 0).toFixed(2)
+      );
+
       return {
         daysCount: subset.length,
         pvGen,
@@ -458,12 +598,20 @@ export const HomeInverterView = () => {
         exp,
         chg,
         dis,
-        savedBaht: Math.round(Math.max(0, pvGen - exp) * simTariffBaht + exp * 2.2)
+        gridBill: totalGridBill,
+        savedBaht: totalSavedBaht || Math.round(Math.max(0, pvGen - exp) * simTariffBaht + exp * 2.2),
+        monthlyBreakdown
       };
     }
 
     const pvGen = statPeriod === 'Total' ? totalGenKWh : todayGenKWh;
-    const savedBaht = Math.round(Math.max(0, pvGen - exportKWh) * simTariffBaht + exportKWh * 2.2);
+    const todayImportBill = calcTieredBill(importKWh, tariffSettings.tiers);
+    const todayWithoutSolar = calcTieredBill(loadKWh, tariffSettings.tiers);
+    const todayExportIncome = Number((exportKWh * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
+    const todaySavedBaht = Math.max(
+      0,
+      Number((todayWithoutSolar - todayImportBill + todayExportIncome).toFixed(2))
+    );
 
     return {
       daysCount: 1,
@@ -473,7 +621,21 @@ export const HomeInverterView = () => {
       exp: exportKWh,
       chg: chargeBatKWh,
       dis: dischargeBatKWh,
-      savedBaht
+      gridBill: todayImportBill,
+      savedBaht: todaySavedBaht || Math.round(Math.max(0, pvGen - exportKWh) * simTariffBaht + exportKWh * 2.2),
+      monthlyBreakdown: [
+        {
+          month: (getThailandDateStr(0) || '').slice(0, 7),
+          days: 1,
+          pvGen,
+          load: loadKWh,
+          imp: importKWh,
+          exp: exportKWh,
+          importBill: todayImportBill,
+          exportIncome: todayExportIncome,
+          savedBaht: todaySavedBaht
+        }
+      ]
     };
   }, [
     historicalLogs.length,
@@ -486,7 +648,8 @@ export const HomeInverterView = () => {
     exportKWh,
     chargeBatKWh,
     dischargeBatKWh,
-    simTariffBaht
+    simTariffBaht,
+    tariffSettings
   ]);
 
   const selfConsKWh = Math.max(0, Number((periodStats.pvGen - periodStats.exp).toFixed(2)));
@@ -863,42 +1026,113 @@ export const HomeInverterView = () => {
           )}
 
           {/* Theme & Tariff Preferences inside Settings */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#04070e] border border-slate-800 rounded-2xl p-3.5">
-            <div>
-              <label className="block text-slate-300 font-bold mb-1.5">
-                🎨 เลือกโทนสีหน้าปัด (Cockpit Theme)
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.values(COCKPIT_THEMES).map((tItem) => (
-                  <button
-                    key={tItem.id}
-                    type="button"
-                    onClick={() => setCockpitThemeKey(tItem.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                      cockpitThemeKey === tItem.id
-                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
-                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                    }`}
-                  >
-                    {tItem.name}
-                  </button>
-                ))}
+          <div className="space-y-3 bg-[#04070e] border border-slate-800 rounded-2xl p-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-3 border-b border-slate-800/80">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1.5">
+                  🎨 เลือกโทนสีหน้าปัด (Cockpit Theme)
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.values(COCKPIT_THEMES).map((tItem) => (
+                    <button
+                      key={tItem.id}
+                      type="button"
+                      onClick={() => setCockpitThemeKey(tItem.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                        cockpitThemeKey === tItem.id
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      {tItem.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1.5">
+                  💰 เรตรับซื้อไฟคืน (Export): <strong className="text-sky-300 font-mono">฿{tariffSettings.exportRate || DEFAULT_EXPORT_RATE} / หน่วย</strong>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    value={tariffSettings.exportRate || DEFAULT_EXPORT_RATE}
+                    onChange={(e) =>
+                      updateTariffSettings({
+                        ...tariffSettings,
+                        exportRate: Number(e.target.value) || 0
+                      })
+                    }
+                    className="w-28 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-sky-300 font-mono font-bold"
+                  />
+                  <span className="text-[11px] text-slate-400">บาท/kWh (โครงการโซลาร์ภาคประชาชน ฿2.20)</span>
+                </div>
               </div>
             </div>
 
+            {/* Stepped Tariff Tier Editor */}
             <div>
-              <label className="block text-slate-300 font-bold mb-1.5">
-                💰 เรตค่าไฟฟ้าสำหรับคำนวณเงินประหยัด: <strong className="text-emerald-400 font-mono">฿{simTariffBaht.toFixed(2)} / หน่วย (kWh)</strong>
-              </label>
-              <input
-                type="range"
-                min="3.5"
-                max="6.5"
-                step="0.05"
-                value={simTariffBaht}
-                onChange={(e) => setSimTariffBaht(Number(e.target.value))}
-                className="w-full accent-sky-400 cursor-pointer"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="block text-amber-300 font-bold">
+                    ⚡ กำหนดอัตราค่าไฟฟ้าแบบขั้นบันได (Progressive Tariff)
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    คำนวณแยกตามเดือนจริง: 0–200 หน่วยแรกคิดหน่วยละ 3 บาท และ 201 หน่วยขึ้นไปคิดเป็นขั้นบันได
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTariffSettings({
+                      tiers: DEFAULT_TARIFF_TIERS,
+                      exportRate: DEFAULT_EXPORT_RATE
+                    })
+                  }
+                  className="text-[10px] font-bold text-sky-400 hover:text-sky-200 underline cursor-pointer"
+                >
+                  ↺ รีเซ็ตเป็นค่ามาตรฐาน
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {tariffSettings.tiers.map((tier, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1.5 text-xs font-mono"
+                  >
+                    <div className="text-[10px] font-sans font-bold text-slate-300 flex items-center justify-between">
+                      <span>ขั้นที่ {idx + 1}</span>
+                      <span className="text-amber-400">
+                        {idx === 0
+                          ? `0 – ${tier.upTo} หน่วย`
+                          : tier.upTo
+                          ? `${tariffSettings.tiers[idx - 1].upTo + 1} – ${tier.upTo} หน่วย`
+                          : `${tariffSettings.tiers[idx - 1].upTo + 1} หน่วยขึ้นไป`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-sans text-slate-400">คิดหน่วยละ:</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={tier.rate}
+                        onChange={(e) => {
+                          const newTiers = [...tariffSettings.tiers];
+                          newTiers[idx] = { ...newTiers[idx], rate: Number(e.target.value) || 0 };
+                          updateTariffSettings({ ...tariffSettings, tiers: newTiers });
+                        }}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-emerald-400 font-black text-right"
+                      />
+                      <span className="text-[11px] font-sans text-slate-400">฿</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1479,45 +1713,65 @@ export const HomeInverterView = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
               <div className="text-xs text-sky-300 font-bold">☀️ ผลิตไฟโซลาร์ (PV Gen)</div>
-              <div className="text-2xl font-black font-mono text-white mt-1">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.pvGen.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
               <div className="text-xs text-indigo-300 font-bold">🏠 ไฟที่ใช้ในบ้านรวม (Load)</div>
-              <div className="text-2xl font-black font-mono text-white mt-1">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.load.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
             <div className="bg-[#04070e] border border-emerald-500/30 rounded-2xl p-3.5">
-              <div className="text-xs text-emerald-300 font-bold">💰 ประหยัดค่าไฟได้</div>
-              <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
-                ฿{periodStats.savedBaht.toLocaleString()}
+              <div className="text-xs text-emerald-300 font-bold flex items-center justify-between">
+                <span>💰 ประหยัดค่าไฟได้</span>
+                <span className="text-[10px] text-emerald-400/80 font-normal">สุทธิ</span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
+                {formatBaht(periodStats.savedBaht)}
               </div>
             </div>
+            <div className="bg-[#04070e] border border-rose-500/40 rounded-2xl p-3.5">
+              <div className="text-xs text-rose-300 font-bold flex items-center justify-between">
+                <span>⚡ จ่ายให้การไฟฟ้า</span>
+                <span className="text-[10px] text-rose-400/80 font-normal">ขั้นบันได</span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
+                {formatBaht(periodStats.gridBill || 0)}
+              </div>
+            </div>
+
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
               <div className="text-xs text-amber-300 font-bold">🗼 ดึงไฟการไฟฟ้า (Import)</div>
-              <div className="text-2xl font-black font-mono text-amber-300 mt-1">
+              <div className="text-xl sm:text-2xl font-black font-mono text-amber-300 mt-1">
                 {periodStats.imp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
               <div className="text-xs text-emerald-300 font-bold">🔋 ชาร์จลงแบตเตอรี่</div>
-              <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
+              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
                 {periodStats.chg.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
               <div className="text-xs text-teal-300 font-bold">🔋 จ่ายไฟจากแบตเตอรี่</div>
-              <div className="text-2xl font-black font-mono text-teal-300 mt-1">
+              <div className="text-xl sm:text-2xl font-black font-mono text-teal-300 mt-1">
                 {periodStats.dis.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400">kWh</span>
+              </div>
+            </div>
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
+              <div className="text-xs text-sky-300 font-bold">📤 ส่งออกขายไฟ (Export)</div>
+              <div className="text-xl sm:text-2xl font-black font-mono text-sky-300 mt-1">
+                {periodStats.exp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
@@ -1525,10 +1779,55 @@ export const HomeInverterView = () => {
         </div>
 
         <div className="lg:col-span-5 bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 flex flex-col justify-between space-y-4">
-          <h3 className="text-base font-black text-white flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span>ดัชนีการพึ่งพาตนเองด้านพลังงาน (Self-Sufficiency)</span>
-          </h3>
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-white flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span>สรุปค่าไฟฟ้าและเงินที่ประหยัดได้</span>
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-md">
+                อัตราก้าวหน้า 0-200หน่วย @ ฿3
+              </span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              คิดคำนวณแยกตามเดือนจริง และหักลบรายได้ขายไฟคืน ({tariffSettings.exportRate || DEFAULT_EXPORT_RATE}฿/หน่วย)
+            </p>
+          </div>
+
+          {/* Monthly Billing Breakdown Table */}
+          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 space-y-2 overflow-hidden">
+            <div className="text-xs font-bold text-slate-300 flex items-center justify-between pb-1 border-b border-slate-800">
+              <span>รอบเดือน</span>
+              <span>ดึงไฟ (kWh)</span>
+              <span>จ่ายการไฟฟ้า</span>
+              <span className="text-emerald-400">ประหยัดได้</span>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+              {Array.isArray(periodStats.monthlyBreakdown) && periodStats.monthlyBreakdown.length > 0 ? (
+                periodStats.monthlyBreakdown.map((m) => (
+                  <div
+                    key={m.month}
+                    className="flex items-center justify-between text-[11px] font-mono py-1 px-2 rounded-lg bg-slate-900/60 border border-slate-800/60 hover:border-slate-700"
+                  >
+                    <span className="font-sans font-bold text-slate-200">
+                      {formatThaiMonth(m.month)} <span className="text-[10px] text-slate-500 font-normal">({m.days}วัน)</span>
+                    </span>
+                    <span className="text-amber-300">{m.imp.toLocaleString()}</span>
+                    <span className="text-rose-400 font-bold">{formatBaht(m.importBill)}</span>
+                    <span className="text-emerald-400 font-bold">{formatBaht(m.savedBaht)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-xs text-slate-500 py-2">ไม่มีข้อมูลเดือนที่เลือก</div>
+              )}
+            </div>
+            <div className="flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-800 font-mono">
+              <span className="text-slate-300 font-sans">รวมยอดที่เลือก:</span>
+              <span className="text-amber-300">{periodStats.imp.toLocaleString()} kWh</span>
+              <span className="text-rose-400">{formatBaht(periodStats.gridBill || 0)}</span>
+              <span className="text-emerald-400">{formatBaht(periodStats.savedBaht || 0)}</span>
+            </div>
+          </div>
 
           <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-4 space-y-2">
             <div className="flex justify-between text-xs font-bold">
