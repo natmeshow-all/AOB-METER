@@ -284,10 +284,25 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
         rec.todayLoadEnergy ?? rec.todayLoadElec ?? rec.todayConsumpElec ?? 0
       );
       const rImpKWh = Number(
-        rec.todayBuyEnergy ?? rec.todayBuyElec ?? rec.todayGridImport ?? 0
+        rec.todayBuyEnergy ??
+          rec.todayBuyElec ??
+          rec.todayGridImport ??
+          rec.todayImportEnergy ??
+          rec.todayEnergyToUser ??
+          rec.todayUserEnergy ??
+          rec.todayFeedInEnergy2 ??
+          rec.buyEnergyToday ??
+          0
       );
       const rExpKWh = Number(
-        rec.todaySellEnergy ?? rec.todaySellElec ?? rec.todayGridExport ?? 0
+        rec.todaySellEnergy ??
+          rec.todaySellElec ??
+          rec.todayGridExport ??
+          rec.todayExportEnergy ??
+          rec.todayEnergyToGrid ??
+          rec.todayFeedInEnergy ??
+          rec.sellEnergyToday ??
+          0
       );
       const rChgKWh = Number(rec.todayBatChgEnergy ?? rec.todayBatCharge ?? 0);
       const rDisKWh = Number(
@@ -368,18 +383,28 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
   const loadElectricityKWh = Number(
     (statLoad || maxTodayLoadKWh || integratedLoadWh / 1000).toFixed(2)
   );
-  const importKWh = Number(
-    (statImp || maxTodayImportKWh || integratedImportWh / 1000).toFixed(2)
-  );
-  const exportKWh = Number(
-    (statExp || maxTodayExportKWh || integratedExportWh / 1000).toFixed(2)
-  );
   const chargeBatteryKWh = Number(
     (statChg || maxTodayChargeKWh || integratedChargeWh / 1000).toFixed(2)
   );
   const dischargeBatteryKWh = Number(
     (statDis || maxTodayDischargeKWh || integratedDischargeWh / 1000).toFixed(2)
   );
+  let exportKWh = Number(
+    (statExp || maxTodayExportKWh || integratedExportWh / 1000).toFixed(2)
+  );
+  let importKWh = Number(
+    (statImp || maxTodayImportKWh || integratedImportWh / 1000).toFixed(2)
+  );
+
+  // Physical Hybrid Inverter Energy Balance:
+  // House Load = Net Solar & Battery Supplied + Grid Import
+  const netSelfSuppliedKWh = Math.max(
+    0,
+    pvGenerationKWh - exportKWh - chargeBatteryKWh + dischargeBatteryKWh
+  );
+  if (importKWh <= 0 && loadElectricityKWh > netSelfSuppliedKWh + 0.01) {
+    importKWh = Number((loadElectricityKWh - netSelfSuppliedKWh).toFixed(2));
+  }
 
   const hasAnyData =
     (Array.isArray(rawRecords) && rawRecords.length > 0) ||
@@ -483,25 +508,37 @@ async function fetchSingleHistoricalDay({
   dateStr
 }) {
   try {
-    const rawRes = await postSajV2(
-      baseUrl,
-      '/monitor/deviceData/findRawdataPageList',
-      {
-        deviceSn,
-        deviceType: Number(deviceType) || 1,
-        timeStr: dateStr,
-        startTime: `${dateStr} 00:00:00`,
-        endTime: `${dateStr} 23:59:59`,
-        pageNo: 1,
-        pageSize: 300
-      },
-      authToken,
-      dateStr
-    ).catch(() => ({}));
+    const [rawRes, dayStatsRes] = await Promise.all([
+      postSajV2(
+        baseUrl,
+        '/monitor/deviceData/findRawdataPageList',
+        {
+          deviceSn,
+          deviceType: Number(deviceType) || 1,
+          timeStr: dateStr,
+          startTime: `${dateStr} 00:00:00`,
+          endTime: `${dateStr} 23:59:59`,
+          pageNo: 1,
+          pageSize: 300
+        },
+        authToken,
+        dateStr
+      ).catch(() => ({})),
+      plantUid
+        ? postSajV2(
+            baseUrl,
+            '/monitor/plantHome/getPlantEnergyStatistics',
+            { plantUid, clientDate: dateStr },
+            authToken,
+            dateStr
+          ).catch(() => ({}))
+        : Promise.resolve({})
+    ]);
 
     const list = rawRes?.data?.list || [];
+    const dayPlantStats = dayStatsRes?.data || null;
     if (list.length > 0) {
-      return parseDayFromRawRecords(dateStr, list, null, null);
+      return parseDayFromRawRecords(dateStr, list, dayPlantStats, null);
     }
 
     // Fallback to V1 chart endpoint if raw page list was empty for that date

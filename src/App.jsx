@@ -73,34 +73,7 @@ export function App() {
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6 pb-24 sm:pb-10 space-y-4">
-        {/* Super Admin Inspection Banner when viewing a user's dashboard */}
-        {isSuperAdmin && activeTab !== 'super-admin' && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 text-amber-200">
-              <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                กำลังดูหน้าจอของผู้ใช้งาน:{' '}
-                <strong className="text-white">
-                  {activeOrganization?.name || 'ยังไม่ได้เลือกรายการ'}
-                </strong>{' '}
-                (
-                {isHomeSolarSite
-                  ? '🏠 ผู้ใช้งานตามบ้าน / Solar Inverter'
-                  : '🏢 ใช้งานบริษัท / โรงงาน'}
-                )
-              </span>
-            </div>
-            <button
-              onClick={() => setActiveTab('super-admin')}
-              className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg font-bold transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>กลับหน้าตั้งค่าระบบ (Super Admin)</span>
-            </button>
-          </div>
-        )}
-
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-5 pb-24 sm:pb-10 space-y-4">
         {/* SUPER ADMIN ALL-IN-ONE CONSOLE */}
         {isSuperAdmin && activeTab === 'super-admin' && (
           <SuperAdminConsole onInspectTenant={() => setActiveTab('overview')} />

@@ -99,90 +99,81 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
             </div>
           </div>
 
-          {/* Right: Logout Button */}
+          {/* Right: Super Admin Toggle (if Super Admin) & Logout Button */}
           {currentUser && (
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 px-3 py-2 text-rose-300 hover:text-white bg-rose-950/50 hover:bg-rose-900/70 rounded-xl border border-rose-800/60 transition-all cursor-pointer text-xs font-bold shrink-0"
-              title="ออกจากระบบ"
-            >
-              <LogOut className="w-4 h-4 text-rose-400" />
-              <span className="hidden sm:inline">ออกจากระบบ</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isSuperAdmin && (
+                <button
+                  onClick={() =>
+                    setActiveTab(activeTab === 'super-admin' ? 'overview' : 'super-admin')
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'super-admin'
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
+                      : 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">
+                    {activeTab === 'super-admin' ? 'ดูหน้าแดชบอร์ด' : 'ตั้งค่าระบบ (Admin)'}
+                  </span>
+                </button>
+              )}
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 px-3 py-2 text-rose-300 hover:text-white bg-rose-950/50 hover:bg-rose-900/70 rounded-xl border border-rose-800/60 transition-all cursor-pointer text-xs font-bold shrink-0"
+                title="ออกจากระบบ"
+              >
+                <LogOut className="w-4 h-4 text-rose-400" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Navigation Bar: Automatically adapts to User Type (Industrial Company vs Home Solar) without clutter */}
-        <nav className="hidden sm:grid sm:grid-cols-3 lg:flex items-center gap-2 pb-3 pt-1">
-          {isSuperAdmin && (
-            <button
-              onClick={() => setActiveTab('super-admin')}
-              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'super-admin'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md'
-                  : 'bg-slate-950 text-amber-300 hover:bg-slate-800 border border-amber-500/30'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>👑 ตั้งค่าระบบ & จัดการผู้ใช้งาน (Super Admin)</span>
-            </button>
-          )}
-
-          {isHomeSolarSite ? (
+        {/* Navigation Bar: Only shown for 3-Menu Industrial Sites (Home Solar is a clean single-screen cockpit) */}
+        {!isHomeSolarSite && activeTab !== 'super-admin' && (
+          <nav className="hidden sm:grid sm:grid-cols-3 lg:flex items-center gap-2 pb-3 pt-1">
+            {/* Menu 1: Overview of All Company Meters */}
             <button
               onClick={() => setActiveTab('overview')}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                activeTab !== 'super-admin'
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg'
-                  : 'bg-slate-950 text-emerald-300 hover:text-white border border-emerald-500/30'
+                activeTab === 'overview'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
-              <Sun className="w-4 h-4" />
-              <span>🏠 แดชบอร์ดและตั้งค่าอินเวอร์เตอร์โซลาร์ประจำบ้าน</span>
+              <Activity className="w-4 h-4" />
+              <span>1. ภาพรวมมิเตอร์ทั้งหมด</span>
             </button>
-          ) : (
-            <>
-              {/* Menu 1: Overview of All Company Meters */}
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'overview'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                <span>1. ภาพรวมมิเตอร์ทั้งหมด</span>
-              </button>
 
-              {/* Menu 2: Specific Meter Deep-Dive */}
-              <button
-                onClick={() => setActiveTab('meter-detail')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'meter-detail'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <Gauge className="w-4 h-4" />
-                <span>2. เจาะลึกรายมิเตอร์</span>
-              </button>
+            {/* Menu 2: Specific Meter Deep-Dive */}
+            <button
+              onClick={() => setActiveTab('meter-detail')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === 'meter-detail'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Gauge className="w-4 h-4" />
+              <span>2. เจาะลึกรายมิเตอร์</span>
+            </button>
 
-              {/* Menu 3: Daily / Monthly / Yearly Report & Production Planning */}
-              <button
-                onClick={() => setActiveTab('report')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'report'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>3. รายงาน & ปรับแผนการผลิต</span>
-              </button>
-            </>
-          )}
-        </nav>
+            {/* Menu 3: Daily / Monthly / Yearly Report & Production Planning */}
+            <button
+              onClick={() => setActiveTab('report')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === 'report'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>3. รายงาน & ปรับแผนการผลิต</span>
+            </button>
+          </nav>
+        )}
       </div>
     </header>
   );

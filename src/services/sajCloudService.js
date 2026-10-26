@@ -65,6 +65,42 @@ const safeFetchJson = async (url, options) => {
   return { response, result: json };
 };
 
+export const normalizeHistoricalDayLog = (dayObj) => {
+  if (!dayObj || !dayObj.date) return null;
+  const pvGenerationKWh = Number(dayObj.pvGenerationKWh || 0);
+  const loadElectricityKWh = Number(dayObj.loadElectricityKWh || 0);
+  const exportKWh = Number(dayObj.exportKWh || 0);
+  const chargeBatteryKWh = Number(dayObj.chargeBatteryKWh || 0);
+  const dischargeBatteryKWh = Number(dayObj.dischargeBatteryKWh || 0);
+  let importKWh = Number(dayObj.importKWh || 0);
+
+  // Physical Hybrid Inverter Energy Balance:
+  // House Load = Net Solar & Battery Supplied + Grid Import
+  const netSelfSuppliedKWh = Math.max(
+    0,
+    pvGenerationKWh - exportKWh - chargeBatteryKWh + dischargeBatteryKWh
+  );
+  if (importKWh <= 0 && loadElectricityKWh > netSelfSuppliedKWh + 0.01) {
+    importKWh = Number((loadElectricityKWh - netSelfSuppliedKWh).toFixed(2));
+  }
+
+  return {
+    date: dayObj.date,
+    isRealSajV2: true,
+    pvGenerationKWh,
+    loadElectricityKWh,
+    importKWh,
+    exportKWh,
+    chargeBatteryKWh,
+    dischargeBatteryKWh,
+    peakPvPowerW: Number(dayObj.peakPvPowerW || 0),
+    savedBaht:
+      Number(dayObj.savedBaht) ||
+      Math.round(Math.max(0, pvGenerationKWh - exportKWh) * 4.72 + exportKWh * 2.2),
+    hourlyCurve: Array.isArray(dayObj.hourlyCurve) ? dayObj.hourlyCurve : []
+  };
+};
+
 export const createZeroTrustAuthDigest = async (email, deviceSn = '') => {
   const cleanEmail = (email || '').trim().toLowerCase();
   const rawPayload = `SAJ_REAL_V2:${cleanEmail}:${deviceSn}`;
@@ -146,7 +182,7 @@ export const syncSajCloudAndBackfillHistory = async ({
     );
     const todayStr = getThailandDateStr(0);
 
-    const todayRealLog = {
+    const todayRealLog = normalizeHistoricalDayLog({
       date: todayStr,
       isRealSajV2: true,
       pvGenerationKWh: Number(t.todayEnergyKWh || 0),
@@ -161,14 +197,14 @@ export const syncSajCloudAndBackfillHistory = async ({
           Number(t.statExportKWh || 0) * 2.2
       ),
       hourlyCurve: Array.isArray(t.todayHourlyCurve) ? t.todayHourlyCurve : []
-    };
+    });
 
-    // Map of date -> ONLY verified real SAJ V2 logs (Purge any legacy simulated logs!)
+    // Map of date -> ONLY verified real SAJ V2 logs (Purge any legacy simulated logs & normalize importKWh!)
     const logMap = new Map();
     if (Array.isArray(currentSolarConfig.historicalDailyLogs)) {
       for (const item of currentSolarConfig.historicalDailyLogs) {
         if (item && item.date && item.isRealSajV2 === true) {
-          logMap.set(item.date, item);
+          logMap.set(item.date, normalizeHistoricalDayLog(item));
         }
       }
     }
@@ -178,19 +214,7 @@ export const syncSajCloudAndBackfillHistory = async ({
     if (Array.isArray(result.initialHistoryDays)) {
       for (const dayObj of result.initialHistoryDays) {
         if (dayObj && dayObj.hasData && dayObj.date) {
-          logMap.set(dayObj.date, {
-            date: dayObj.date,
-            isRealSajV2: true,
-            pvGenerationKWh: Number(dayObj.pvGenerationKWh || 0),
-            loadElectricityKWh: Number(dayObj.loadElectricityKWh || 0),
-            importKWh: Number(dayObj.importKWh || 0),
-            exportKWh: Number(dayObj.exportKWh || 0),
-            chargeBatteryKWh: Number(dayObj.chargeBatteryKWh || 0),
-            dischargeBatteryKWh: Number(dayObj.dischargeBatteryKWh || 0),
-            peakPvPowerW: Number(dayObj.peakPvPowerW || 0),
-            savedBaht: Number(dayObj.savedBaht || 0),
-            hourlyCurve: Array.isArray(dayObj.hourlyCurve) ? dayObj.hourlyCurve : []
-          });
+          logMap.set(dayObj.date, normalizeHistoricalDayLog(dayObj));
         }
       }
     }
@@ -303,19 +327,7 @@ export const syncSajCloudAndBackfillHistory = async ({
 
             for (const dayObj of daysArr) {
               if (dayObj && dayObj.hasData && dayObj.date) {
-                logMap.set(dayObj.date, {
-                  date: dayObj.date,
-                  isRealSajV2: true,
-                  pvGenerationKWh: Number(dayObj.pvGenerationKWh || 0),
-                  loadElectricityKWh: Number(dayObj.loadElectricityKWh || 0),
-                  importKWh: Number(dayObj.importKWh || 0),
-                  exportKWh: Number(dayObj.exportKWh || 0),
-                  chargeBatteryKWh: Number(dayObj.chargeBatteryKWh || 0),
-                  dischargeBatteryKWh: Number(dayObj.dischargeBatteryKWh || 0),
-                  peakPvPowerW: Number(dayObj.peakPvPowerW || 0),
-                  savedBaht: Number(dayObj.savedBaht || 0),
-                  hourlyCurve: Array.isArray(dayObj.hourlyCurve) ? dayObj.hourlyCurve : []
-                });
+                logMap.set(dayObj.date, normalizeHistoricalDayLog(dayObj));
                 foundInThisBatch += 1;
               }
             }

@@ -40,8 +40,17 @@ import { TENANT_COMPANIES, createEmptySolarConfig } from '../data/tenantData';
 import {
   syncSajCloudAndBackfillHistory,
   getSavedSajSessionTicket,
-  getSavedSajEmail
+  getSavedSajEmail,
+  normalizeHistoricalDayLog,
+  getThailandDateStr
 } from '../services/sajCloudService';
+
+const formatSlashDate = (isoStr) => {
+  if (!isoStr || typeof isoStr !== 'string') return '';
+  const parts = isoStr.slice(0, 10).split('-');
+  if (parts.length !== 3) return isoStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
 
 const COCKPIT_THEMES = {
   WEISSACH: {
@@ -342,7 +351,9 @@ export const HomeInverterView = () => {
   const [scrubHour, setScrubHour] = useState(() => new Date().getHours());
   const [simTariffBaht, setSimTariffBaht] = useState(4.72);
 
-  const [statPeriod, setStatPeriod] = useState('Day'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total'
+  const [statPeriod, setStatPeriod] = useState('Month'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total' | 'Custom'
+  const [customStartDate, setCustomStartDate] = useState(() => getThailandDateStr(30));
+  const [customEndDate, setCustomEndDate] = useState(() => getThailandDateStr(0));
   const [isSettingOpen, setIsSettingOpen] = useState(false);
   const [editForm, setEditForm] = useState(solarData);
   const [transientGuestPassword, setTransientGuestPassword] = useState('');
@@ -350,14 +361,16 @@ export const HomeInverterView = () => {
   const [testResult, setTestResult] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
   const [saveNotice, setSaveNotice] = useState(null);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   const theme = COCKPIT_THEMES[cockpitThemeKey] || COCKPIT_THEMES.WEISSACH;
 
-  // Only show verified real SAJ V2 historical logs (zero fake/simulated logs)
+  // Only show verified real SAJ V2 historical logs AND normalize Grid Import (importKWh) on every day
   const historicalLogs = useMemo(() => {
     const raw = Array.isArray(solarData.historicalDailyLogs) ? solarData.historicalDailyLogs : [];
-    return raw.filter((item) => item && item.date && item.isRealSajV2 !== false);
+    return raw
+      .filter((item) => item && item.date && item.isRealSajV2 !== false)
+      .map((item) => normalizeHistoricalDayLog(item))
+      .filter(Boolean);
   }, [solarData.historicalDailyLogs]);
 
   const [selectedHistoryDate, setSelectedHistoryDate] = useState('');
@@ -383,38 +396,68 @@ export const HomeInverterView = () => {
   const todayGenKWh = Number(solarData.todayEnergyKWh || 0);
   const totalGenKWh = Math.max(todayGenKWh, Number(solarData.totalEnergyKWh || 0));
   const loadKWh = Number(solarData.statLoadElectricityKWh || 0);
-  const importKWh = Number(solarData.statImportKWh || 0);
   const exportKWh = Number(solarData.statExportKWh || 0);
   const chargeBatKWh = Number(solarData.statChargeBatteryKWh || 0);
   const dischargeBatKWh = Number(solarData.statDischargeBatteryKWh || 0);
+  const todayBalancedImportKWh = Math.max(
+    0,
+    Number(
+      (loadKWh - Math.max(0, todayGenKWh - exportKWh - chargeBatKWh + dischargeBatKWh)).toFixed(2)
+    )
+  );
+  const importKWh = Math.max(Number(solarData.statImportKWh || 0), todayBalancedImportKWh);
+
+  // Filtered historical logs according to selected period or custom Start-End date range
+  const filteredHistoryLogs = useMemo(() => {
+    if (historicalLogs.length === 0) return [];
+    if (statPeriod === 'Custom') {
+      const start = customStartDate <= customEndDate ? customStartDate : customEndDate;
+      const end = customStartDate <= customEndDate ? customEndDate : customStartDate;
+      return historicalLogs.filter((item) => item.date >= start && item.date <= end);
+    }
+    if (statPeriod === 'Day') {
+      return historicalLogs.slice(-1);
+    }
+    const sliceCount =
+      statPeriod === 'Week'
+        ? 7
+        : statPeriod === 'Month'
+        ? 30
+        : statPeriod === 'Year'
+        ? 365
+        : historicalLogs.length;
+    return historicalLogs.slice(-sliceCount);
+  }, [historicalLogs, statPeriod, customStartDate, customEndDate]);
 
   // Calculate statistics strictly from real historical logs or today's verified counter
   const periodStats = useMemo(() => {
     if (historicalLogs.length > 0 && statPeriod !== 'Day') {
-      const sliceCount =
-        statPeriod === 'Week'
-          ? 7
-          : statPeriod === 'Month'
-          ? 30
-          : statPeriod === 'Year'
-          ? 365
-          : historicalLogs.length;
-      const subset = historicalLogs.slice(-sliceCount);
+      const subset = filteredHistoryLogs;
       const sum = (key) =>
         Number(subset.reduce((acc, item) => acc + Number(item[key] || 0), 0).toFixed(2));
       const pvGen =
         statPeriod === 'Total'
           ? Math.max(totalGenKWh, sum('pvGenerationKWh'))
           : sum('pvGenerationKWh');
+      const load = sum('loadElectricityKWh');
       const exp = sum('exportKWh');
+      const chg = sum('chargeBatteryKWh');
+      const dis = sum('dischargeBatteryKWh');
+      const rawImp = sum('importKWh');
+      const balancedImp = Math.max(
+        0,
+        Number((load - Math.max(0, pvGen - exp - chg + dis)).toFixed(2))
+      );
+      const imp = Math.max(rawImp, balancedImp);
+
       return {
         daysCount: subset.length,
         pvGen,
-        load: sum('loadElectricityKWh'),
-        imp: sum('importKWh'),
+        load,
+        imp,
         exp,
-        chg: sum('chargeBatteryKWh'),
-        dis: sum('dischargeBatteryKWh'),
+        chg,
+        dis,
         savedBaht: Math.round(Math.max(0, pvGen - exp) * simTariffBaht + exp * 2.2)
       };
     }
@@ -433,7 +476,8 @@ export const HomeInverterView = () => {
       savedBaht
     };
   }, [
-    historicalLogs,
+    historicalLogs.length,
+    filteredHistoryLogs,
     statPeriod,
     todayGenKWh,
     totalGenKWh,
@@ -724,160 +768,64 @@ export const HomeInverterView = () => {
   const treesEquivalent = Math.max(1, Math.round(co2ReducedKg / 9.5));
 
   return (
-    <div className="space-y-5 pb-14">
+    <div className="space-y-4 pb-14">
       {/* =================================================================== */}
-      {/* EXECUTIVE SUPERCAR TELEMETRY COCKPIT HEADER & THEME SWITCHER        */}
+      {/* MINIMALIST EXECUTIVE HEADER BAR (ALL SETTINGS HIDDEN IN 1 BUTTON)   */}
       {/* =================================================================== */}
-      <div className="relative bg-[#070b14] border border-slate-800/90 rounded-[30px] p-4 sm:p-6 shadow-[0_25px_70px_rgba(0,0,0,0.85)] overflow-hidden">
-        {/* Precision RPM Telemetry Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 px-3 py-2 bg-[#04070e] border border-slate-800/80 rounded-2xl">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-slate-400 uppercase">
-              TELEMETRY // {driveMode.code}
+      <div className="bg-[#070b14] border border-slate-800/90 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">
+            {currentCompany.name}
+          </h2>
+          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900 text-sky-400 border border-slate-800">
+            {solarData.inverterModel || 'H2-6K-LS2'}
+          </span>
+          {solarData.lastCloudSyncAt && (
+            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+              • อัปเดตล่าสุด {solarData.lastCloudSyncAt} ({autoSyncCountdown}s)
             </span>
-          </div>
-
-          {/* 18-Segment Precision Shift Indicator */}
-          <div className="flex-1 max-w-md hidden md:flex items-center justify-center gap-1 px-4">
-            {Array.from({ length: 18 }).map((_, idx) => {
-              const isOn = idx < activeShiftLeds;
-              const barStyle =
-                idx < 8
-                  ? 'bg-sky-400/90 shadow-[0_0_8px_rgba(56,189,248,0.5)]'
-                  : idx < 14
-                  ? 'bg-emerald-400/90 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                  : 'bg-amber-400/90 shadow-[0_0_8px_rgba(245,158,11,0.6)]';
-              return (
-                <div
-                  key={idx}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                    isOn ? barStyle : 'bg-slate-800/60'
-                  }`}
-                />
-              );
-            })}
-          </div>
-
-          {/* Interactive Cockpit Theme Switcher */}
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-            {Object.values(COCKPIT_THEMES).map((tItem) => (
-              <button
-                key={tItem.id}
-                type="button"
-                onClick={() => setCockpitThemeKey(tItem.id)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                  cockpitThemeKey === tItem.id
-                    ? 'bg-slate-800 text-white border border-slate-600 shadow'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {tItem.name}
-              </button>
-            ))}
-          </div>
+          )}
         </div>
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`px-3 py-0.5 rounded-full border text-[11px] font-bold flex items-center gap-1.5 ${theme.accentBadge}`}>
-                <Gauge className="w-3.5 h-3.5" /> EXECUTIVE SOLAR TELEMETRY
-              </span>
-              <span className="px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 font-mono text-xs font-bold">
-                {solarData.inverterModel || 'H2-6K-LS2'}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-lg bg-slate-900/80 border border-slate-800 text-amber-300/90 font-mono text-xs">
-                SN: {solarData.sajDeviceSn || 'H2A2602J2539E14713'}
-              </span>
-              {savedTicket ? (
-                <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono text-[11px] font-bold flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  LIVE AUTO-SYNC ({autoSyncCountdown}s) • จำสิทธิ์แล้ว ไม่ต้องใส่รหัสซ้ำ
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono text-[11px] font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> กรอกรหัส SAJ ครั้งเดียวเพื่อเปิดระบบเรียลไทม์อัตโนมัติ
-                </span>
-              )}
-            </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncSajCloudAndHistory}
+            disabled={isTesting}
+            className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+            title="ซิงก์ข้อมูลล่าสุดจาก SAJ Cloud"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+            <span>{isTesting ? 'กำลังซิงก์...' : 'ซิงก์ข้อมูล'}</span>
+          </button>
 
-            <div className="flex items-baseline gap-3">
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                {currentCompany.name}
-              </h2>
-              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-slate-900 text-sky-400 border border-slate-800">
-                {currentCompany.code}
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-400">
-              แหล่งข้อมูล:{' '}
-              <strong className="font-mono text-slate-200">
-                SAJ Elekeeper Cloud V2 (ข้อมูลจริง 100%)
-              </strong>{' '}
-              • ประวัติจริงในฐานข้อมูล:{' '}
-              <strong className="font-mono text-sky-400">{historicalLogs.length} วัน</strong>{' '}
-              {solarData.lastCloudSyncAt && (
-                <span>
-                  • อัปเดตล่าสุด:{' '}
-                  <strong className="font-mono text-emerald-400">{solarData.lastCloudSyncAt}</strong>
-                </span>
-              )}
-            </p>
-          </div>
-
-          {/* Sleek Executive Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleSyncSajCloudAndHistory}
-              disabled={isTesting}
-              className="px-4 sm:px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-slate-950 text-xs sm:text-sm font-black tracking-wide flex items-center gap-2 cursor-pointer shadow-[0_10px_25px_rgba(14,165,233,0.25)] transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
-              <span>
-                {isTesting
-                  ? 'กำลังดึงข้อมูลจริงจาก SAJ...'
-                  : 'ซิงก์ข้อมูลจริง SAJ + ดึงประวัติย้อนหลัง'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setEditForm(solarData);
-                setIsSettingOpen(!isSettingOpen);
-              }}
-              className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
-            >
-              <Sliders className="w-4 h-4 text-sky-400" />
-              <span>{isSettingOpen ? 'ซ่อนหน้าตั้งค่า' : 'ตั้งค่าบัญชี SAJ / เลือกจำนวนวันย้อนหลัง'}</span>
-            </button>
-          </div>
-        </div>
-
-        {saveNotice && (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-200">
-            ✅ {saveNotice}
-          </div>
-        )}
-
-        {testResult && (
-          <div
-            className={`mt-3 p-3 rounded-xl border text-xs font-bold ${
-              testResult.success
-                ? 'bg-sky-500/10 border-sky-500/30 text-sky-200'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+          <button
+            type="button"
+            onClick={() => {
+              setEditForm(solarData);
+              setIsSettingOpen(!isSettingOpen);
+            }}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              isSettingOpen
+                ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-lg'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
             }`}
           >
-            {testResult.message}
-          </div>
-        )}
+            <Sliders className="w-3.5 h-3.5" />
+            <span>{isSettingOpen ? 'ปิดตั้งค่า' : '⚙️ ตั้งค่า'}</span>
+          </button>
+        </div>
       </div>
 
+      {saveNotice && (
+        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-200">
+          ✅ {saveNotice}
+        </div>
+      )}
+
       {/* =================================================================== */}
-      {/* SAJ CLOUD AUTH & HISTORICAL BACKFILL DRAWER                         */}
+      {/* UNIFIED SETTINGS DRAWER (HIDDEN UNTIL USER CLICKS '⚙️ ตั้งค่า')      */}
       {/* =================================================================== */}
       {isSettingOpen && (
         <form
@@ -887,19 +835,71 @@ export const HomeInverterView = () => {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div>
               <h3 className="text-sm sm:text-base font-black text-sky-400">
-                🔐 เชื่อมต่อบัญชี SAJ Elekeeper เพื่อดึงค่าปัจจุบันและประวัติย้อนหลังตามจริง 100%
+                ⚙️ ตั้งค่าระบบ, ธีมหน้าปัด, เรตค่าไฟ และการเชื่อมต่อ SAJ Cloud
               </h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                กรอกรหัสผ่านแอป SAJ เพียงครั้งเดียว ระบบจะเข้ารหัส Session Ticket เพื่อใช้ดึงข้อมูลย้อนหลัง 30–365 วันโดยไม่เก็บรหัสผ่านไว้ในเครื่อง
+                SN: <strong className="font-mono text-amber-300">{solarData.sajDeviceSn || 'H2A2602J2539E14713'}</strong> • ประวัติสะสมในฐานข้อมูล: <strong className="font-mono text-sky-300">{historicalLogs.length} วัน</strong>
               </p>
             </div>
             <button
               type="button"
               onClick={() => setIsSettingOpen(false)}
-              className="text-slate-400 hover:text-white cursor-pointer"
+              className="px-3 py-1 rounded-lg bg-slate-900 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
             >
-              ✕ ปิดหน้าต่างนี้
+              ✕ ซ่อนหน้าตั้งค่า
             </button>
+          </div>
+
+          {testResult && (
+            <div
+              className={`p-3 rounded-xl border text-xs font-bold ${
+                testResult.success
+                  ? 'bg-sky-500/10 border-sky-500/30 text-sky-200'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+              }`}
+            >
+              {testResult.message}
+            </div>
+          )}
+
+          {/* Theme & Tariff Preferences inside Settings */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#04070e] border border-slate-800 rounded-2xl p-3.5">
+            <div>
+              <label className="block text-slate-300 font-bold mb-1.5">
+                🎨 เลือกโทนสีหน้าปัด (Cockpit Theme)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.values(COCKPIT_THEMES).map((tItem) => (
+                  <button
+                    key={tItem.id}
+                    type="button"
+                    onClick={() => setCockpitThemeKey(tItem.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                      cockpitThemeKey === tItem.id
+                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {tItem.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-bold mb-1.5">
+                💰 เรตค่าไฟฟ้าสำหรับคำนวณเงินประหยัด: <strong className="text-emerald-400 font-mono">฿{simTariffBaht.toFixed(2)} / หน่วย (kWh)</strong>
+              </label>
+              <input
+                type="range"
+                min="3.5"
+                max="6.5"
+                step="0.05"
+                value={simTariffBaht}
+                onChange={(e) => setSimTariffBaht(Number(e.target.value))}
+                className="w-full accent-sky-400 cursor-pointer"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -920,7 +920,7 @@ export const HomeInverterView = () => {
 
             <div>
               <label className="block text-sky-300 font-bold mb-1">
-                2. รหัสผ่านแอป SAJ (กรอกครั้งเดียว ระบบจำสิทธิ์ถาวร)
+                2. รหัสผ่านแอป SAJ (กรอกครั้งเดียวจำสิทธิ์ถาวร)
               </label>
               <input
                 type="password"
@@ -928,8 +928,8 @@ export const HomeInverterView = () => {
                 onChange={(e) => setTransientGuestPassword(e.target.value)}
                 placeholder={
                   savedTicket
-                    ? '✅ ผูกสิทธิ์สำเร็จแล้ว (ไม่ต้องกรอกรหัสซ้ำ กดซิงก์ได้เลย)'
-                    : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่ก่อนกดซิงก์'
+                    ? '✅ จำสิทธิ์แล้ว (ไม่ต้องกรอกซ้ำ)'
+                    : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่'
                 }
                 className="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2.5 text-sky-300 font-mono"
               />
@@ -950,17 +950,17 @@ export const HomeInverterView = () => {
 
             <div>
               <label className="block text-emerald-300 font-bold mb-1">
-                4. จำนวนวันย้อนหลังที่ต้องการดึงจาก SAJ
+                4. จำนวนวันย้อนหลังที่ดึงอัตโนมัติ
               </label>
               <select
                 value={backfillDays}
                 onChange={(e) => setBackfillDays(Number(e.target.value))}
                 className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2.5 text-emerald-300 font-bold"
               >
-                <option value={30}>ดึงข้อมูลจริงย้อนหลัง 30 วัน</option>
-                <option value={90}>ดึงข้อมูลจริงย้อนหลัง 90 วัน (3 เดือน)</option>
-                <option value={180}>ดึงข้อมูลจริงย้อนหลัง 180 วัน (6 เดือน)</option>
-                <option value={365}>ดึงข้อมูลจริงย้อนหลัง 365 วัน (1 ปีเต็ม)</option>
+                <option value={30}>ย้อนหลัง 30 วัน</option>
+                <option value={90}>ย้อนหลัง 90 วัน (3 เดือน)</option>
+                <option value={180}>ย้อนหลัง 180 วัน (6 เดือน)</option>
+                <option value={365}>ย้อนหลัง 365 วัน (1 ปีเต็ม)</option>
               </select>
             </div>
           </div>
@@ -981,7 +981,7 @@ export const HomeInverterView = () => {
                 disabled={isTesting}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-400 to-emerald-400 hover:from-sky-300 hover:to-emerald-300 text-slate-950 font-black cursor-pointer shadow-lg"
               >
-                ☁️ ดึงข้อมูลปัจจุบัน + ดึงประวัติจริงย้อนหลัง ({backfillDays} วัน) ทันที
+                ☁️ ซิงก์ข้อมูลปัจจุบัน + ดึงประวัติจริงย้อนหลัง ({backfillDays} วัน)
               </button>
               <button
                 type="submit"
@@ -1412,16 +1412,21 @@ export const HomeInverterView = () => {
             <h3 className="text-base font-black text-white flex items-center gap-2">
               <Activity className="w-4 h-4 text-sky-400" />
               <span>
-                สถิติพลังงานไฟฟ้าจริง ({statPeriod} • ข้อมูลจริง {periodStats.daysCount} วัน)
+                สถิติพลังงานไฟฟ้าจริง (
+                {statPeriod === 'Custom'
+                  ? `${formatSlashDate(customStartDate)} – ${formatSlashDate(customEndDate)}`
+                  : statPeriod}{' '}
+                • ข้อมูลจริง {periodStats.daysCount} วัน)
               </span>
             </h3>
-            <div className="flex bg-[#04070e] p-1 rounded-xl border border-slate-800">
+            <div className="flex flex-wrap bg-[#04070e] p-1 rounded-xl border border-slate-800">
               {[
                 { id: 'Day', label: 'วันนี้' },
                 { id: 'Week', label: '7 วัน' },
                 { id: 'Month', label: '30 วัน' },
                 { id: 'Year', label: 'รายปี' },
-                { id: 'Total', label: 'สะสมทั้งหมด' }
+                { id: 'Total', label: 'สะสมทั้งหมด' },
+                { id: 'Custom', label: '📅 เลือกช่วงวันที่' }
               ].map((p) => (
                 <button
                   key={p.id}
@@ -1438,6 +1443,41 @@ export const HomeInverterView = () => {
               ))}
             </div>
           </div>
+
+          {statPeriod === 'Custom' && (
+            <div className="bg-[#04070e] border border-sky-500/30 rounded-2xl p-3 flex flex-wrap items-end gap-3 text-xs">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">วันที่เริ่มต้น</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  max={customEndDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                />
+              </div>
+              <span className="text-slate-500 pb-2">ถึง</span>
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">วันที่สิ้นสุด</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  min={customStartDate}
+                  max={getThailandDateStr(0)}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                />
+              </div>
+              <div className="text-[11px] text-slate-400 pb-2">
+                พบข้อมูลจริง <strong className="text-sky-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
+                {historicalLogs.length > 0 && (
+                  <span>
+                    {' '}(มีข้อมูลตั้งแต่ {formatSlashDate(historicalLogs[0].date)})
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
@@ -1531,19 +1571,19 @@ export const HomeInverterView = () => {
             <h3 className="text-base font-black text-white flex items-center gap-2">
               <History className="w-4 h-4 text-sky-400" />
               <span>
-                📊 ประวัติการผลิตไฟจริงย้อนหลังจาก SAJ Cloud ({historicalLogs.length} วันที่มีข้อมูลจริง)
+                📊 กราฟรายวันตามช่วงที่เลือก ({(statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length} วัน)
               </span>
             </h3>
             <span className="text-xs text-slate-400">
-              แสดงเฉพาะวันที่ดึงจากเซิร์ฟเวอร์ SAJ จริงเท่านั้น (ไม่มีการจำลองตัวเลข)
+              ข้อมูลจริงจากเซิร์ฟเวอร์ SAJ ทั้งหมด {historicalLogs.length} วัน
             </span>
           </div>
 
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={historicalLogs.slice(-30)}>
+              <BarChart data={statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} />
+                <XAxis dataKey="date" tickFormatter={formatSlashDate} stroke="#94a3b8" fontSize={10} />
                 <YAxis stroke="#94a3b8" fontSize={11} />
                 <Tooltip
                   contentStyle={{
