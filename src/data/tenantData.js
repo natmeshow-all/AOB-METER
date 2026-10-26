@@ -1,7 +1,7 @@
 // Production Multi-Tenant Energy & Hardware Configuration Engine (V3)
 // 100% Real User Data Only — Zero Hardcoded Demo Data
 
-const STORAGE_KEY_COMPANIES = 'POWERVIEW_PROD_COMPANIES_V4';
+const STORAGE_KEY_COMPANIES = 'POWERVIEW_PROD_COMPANIES_V3';
 
 // Standard Modbus Register Presets for Industrial Power Meters & Solar Inverters
 export const METER_MODEL_PRESETS = {

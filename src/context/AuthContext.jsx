@@ -63,13 +63,7 @@ export const DEMO_USERS = [
 export const isSuperAdminEmail = (identifier) => {
   if (!identifier) return false;
   const lower = identifier.toLowerCase().trim();
-  return (
-    lower === 'natshownolimit@gmail.com' ||
-    lower === 'superadmin' ||
-    lower === 'admin' ||
-    lower.includes('natshow') ||
-    lower.startsWith('admin@')
-  );
+  return lower === 'natshownolimit@gmail.com' || lower === 'superadmin';
 };
 
 const loadInitialAccounts = () => {
@@ -100,7 +94,27 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('AOB_ACTIVE_USER');
-      return savedUser ? JSON.parse(savedUser) : null;
+      if (!savedUser) return null;
+      const parsed = JSON.parse(savedUser);
+      // If a non-superadmin username (e.g. 'natshow') was previously given SUPER_ADMIN by mistake, fix it automatically
+      if (
+        parsed &&
+        parsed.username &&
+        parsed.username.toLowerCase() !== 'superadmin' &&
+        parsed.email?.toLowerCase() !== 'natshownolimit@gmail.com'
+      ) {
+        const accounts = loadInitialAccounts();
+        const clientAcc = accounts.find(
+          (a) =>
+            a.role !== 'SUPER_ADMIN' &&
+            a.username?.toLowerCase() === parsed.username.toLowerCase()
+        );
+        if (clientAcc) {
+          return { ...clientAcc, role: 'PLANT_MANAGER' };
+        }
+        return { ...parsed, role: 'PLANT_MANAGER' };
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -196,7 +210,36 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    // 1. Super Admin verification (คุณณัฐพงษ์ - natshownolimit@gmail.com / superadmin / admin)
+    // 1. Check Customer / Home Accounts created by Super Admin FIRST
+    const matchedClientAccount = allAccounts.find(
+      (acc) =>
+        acc.role !== 'SUPER_ADMIN' &&
+        ((acc.username && acc.username.toLowerCase() === cleanId) ||
+          (acc.email &&
+            acc.email.toLowerCase() === cleanId &&
+            acc.email.toLowerCase() !== 'natshownolimit@gmail.com'))
+    );
+
+    if (matchedClientAccount) {
+      if (matchedClientAccount.password === cleanPass) {
+        const userToLogin = {
+          ...matchedClientAccount,
+          role: 'PLANT_MANAGER'
+        };
+        setCurrentUser(userToLogin);
+        if (userToLogin.orgId) {
+          setActiveOrgId(userToLogin.orgId);
+        }
+        setIsLoadingAuth(false);
+        return true;
+      } else {
+        setIsLoadingAuth(false);
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        return false;
+      }
+    }
+
+    // 2. Super Admin verification (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
     if (isSuperAdminEmail(cleanId)) {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
       const supabase = getSupabase();
@@ -240,34 +283,6 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(superUser);
       setIsLoadingAuth(false);
       return true;
-    }
-
-    // 2. Check Customer Accounts created by Super Admin
-    const matchedAccount = allAccounts.find(
-      (acc) =>
-        (acc.username && acc.username.toLowerCase() === cleanId) ||
-        (acc.email && acc.email.toLowerCase() === cleanId)
-    );
-
-    if (matchedAccount) {
-      if (matchedAccount.password === cleanPass) {
-        const isSuper =
-          isSuperAdminEmail(matchedAccount.email) || matchedAccount.role === 'SUPER_ADMIN';
-        const userToLogin = {
-          ...matchedAccount,
-          role: isSuper ? 'SUPER_ADMIN' : matchedAccount.role
-        };
-        setCurrentUser(userToLogin);
-        if (userToLogin.orgId) {
-          setActiveOrgId(userToLogin.orgId);
-        }
-        setIsLoadingAuth(false);
-        return true;
-      } else {
-        setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
-        return false;
-      }
     }
 
     setIsLoadingAuth(false);
