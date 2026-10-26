@@ -292,7 +292,7 @@ const loadInitialCompanies = () => {
       gatewayIp: 'SAJ-CLOUD-AUTO',
       gatewayPort: '443',
       loginUsername: 'natshow',
-      loginPassword: '',
+      loginPassword: 'admin',
       status: 'ONLINE',
       installedDate: '2026-10-25',
       electricityMeters: [],

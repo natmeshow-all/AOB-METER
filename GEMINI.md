@@ -8,6 +8,8 @@ All coding assistants and agents working on this project MUST strictly follow th
 1. **Authentication & Multi-Tenant Login Gate:**
    - When `currentUser` is `null`, `src/App.jsx` MUST display `<LoginPortal />`.
    - `LoginPortal.jsx` MUST ONLY show clean, enterprise Username/Email and Password fields. NEVER display customer company names, client logos, or 1-click demo login cards on the public login page.
+   - NEVER allow 1-click login buttons, URL query auto-login (`?site=...`), or empty password fallbacks on the public login page.
+   - Strict password validation is enforced for all accounts (Super Admin and Client users): an invalid or empty password MUST be rejected.
    - Never initialize `currentUser` to a default demo user in `src/context/AuthContext.jsx`. It must initialize to `null` if no valid `AOB_ACTIVE_USER` session exists in `localStorage`.
    - The `logout()` function must purge `localStorage`, `sessionStorage`, call `supabase.auth.signOut()`, and immediately reset `currentUser` to `null`.
 

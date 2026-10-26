@@ -251,6 +251,8 @@ export const AuthProvider = ({ children }) => {
     // 1. Super Admin verification FIRST (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
     if (isSuperAdminEmail(cleanId)) {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
+      const expectedSuperPass = superAccount.password || 'admin';
+
       const supabase = getSupabase();
       if (supabase && cleanId.includes('@')) {
         try {
@@ -275,6 +277,13 @@ export const AuthProvider = ({ children }) => {
         } catch {}
       }
 
+      // Strict Password Check for Super Admin
+      if (cleanPass !== expectedSuperPass) {
+        setIsLoadingAuth(false);
+        setAuthError('รหัสผ่านผู้ดูแลระบบ (Super Admin) ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+        return false;
+      }
+
       const superUser = {
         ...superAccount,
         id: 'user-super-admin',
@@ -284,10 +293,6 @@ export const AuthProvider = ({ children }) => {
         role: 'SUPER_ADMIN',
         password: cleanPass
       };
-
-      setAllAccounts((prev) =>
-        prev.map((a) => (a.role === 'SUPER_ADMIN' ? { ...a, password: cleanPass } : a))
-      );
 
       setCurrentUser(superUser);
       setIsLoadingAuth(false);
@@ -308,11 +313,8 @@ export const AuthProvider = ({ children }) => {
     );
 
     if (matchedClientAccount) {
-      if (
-        !matchedClientAccount.password ||
-        matchedClientAccount.isAutoRecovered ||
-        matchedClientAccount.password === cleanPass
-      ) {
+      const expectedClientPass = matchedClientAccount.password || 'admin';
+      if (cleanPass === expectedClientPass) {
         const userToLogin = {
           ...matchedClientAccount,
           password: cleanPass,
@@ -347,7 +349,8 @@ export const AuthProvider = ({ children }) => {
     );
 
     if (matchedComp) {
-      if (matchedComp.loginPassword && matchedComp.loginPassword !== cleanPass) {
+      const expectedCompPass = matchedComp.loginPassword || 'admin';
+      if (cleanPass !== expectedCompPass) {
         setIsLoadingAuth(false);
         setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return false;
