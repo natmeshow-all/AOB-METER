@@ -86,13 +86,18 @@ export const METER_MODEL_PRESETS = {
 
 export const createEmptySolarConfig = () => ({
   inverterModel: 'SAJ H2-6K-LS2 (Hybrid Inverter)',
-  connectionMethod: 'WIFI_MODBUS_TCP',
-  inverterIp: '',
-  inverterPort: '502',
+  connectionMethod: 'SAJ_CLOUD_READONLY_ZERO_COST',
+  sajCloudGuestEmail: '',
+  sajDeviceSn: '',
+  sajReadOnlyTokenId: '',
+  sajCloudAutoCollect24h: true,
+  lastCloudSyncAt: '',
+  inverterIp: 'SAJ-CLOUD-AUTO',
+  inverterPort: '443',
   slaveId: 1,
   baudRate: '9600',
-  pvCapacityKWp: 0,
-  batteryCapacityKWh: 0,
+  pvCapacityKWp: 6.0,
+  batteryCapacityKWh: 10.24,
   batteryType: 'Lithium Battery',
   inverterTempC: 0,
   pv1Voltage: 0,
@@ -125,7 +130,8 @@ export const createEmptySolarConfig = () => ({
   statImportKWh: 0,
   statExportKWh: 0,
   statChargeBatteryKWh: 0,
-  statDischargeBatteryKWh: 0
+  statDischargeBatteryKWh: 0,
+  historicalDailyLogs: []
 });
 
 // Load saved companies from localStorage (starts 100% empty — zero demo data)

@@ -11,6 +11,7 @@ import {
   saveSupabaseConfig,
   testSupabaseConnection
 } from '../services/supabaseClient';
+import { syncSajCloudAndBackfillHistory } from '../services/sajCloudService';
 
 // Standard Modbus RTU CRC-16 Calculator
 const calculateModbusCRC16 = (bytes) => {
@@ -100,6 +101,9 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
   const [autoReadLog, setAutoReadLog] = useState([]);
   const [connectionTestResult, setConnectionTestResult] = useState(null);
   const [orgCardTestMap, setOrgCardTestMap] = useState({});
+  // Transient Guest Password for SAJ Cloud (Strictly in-memory only, wiped immediately after token exchange)
+  const [sajTransientGuestPass, setSajTransientGuestPass] = useState('');
+  const [sajBackfillDays, setSajBackfillDays] = useState(30);
 
   // Supabase Cloud Database Connection State
   const initialSb = getSupabaseConfig();
@@ -170,6 +174,61 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
     setConnectionTestResult(null);
     const formEl = document.getElementById('unified-setup-form');
     if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // ============================================================================
+  // ZERO-COST (0 BAHT) SAJ CLOUD GUEST READ-ONLY + HISTORICAL BACKFILL
+  // ============================================================================
+  const handleSyncSajCloudZeroCost = async () => {
+    setIsAutoReading(true);
+    setConnectionTestResult(null);
+
+    const targetOrgId =
+      form.id ||
+      (form.companyCode
+        ? `ORG-${form.companyCode.toUpperCase().replace(/[^A-Z0-9]/g, '')}`
+        : 'ORG-HOME01');
+
+    addLog(
+      'INFO',
+      `กำลังขอ Read-Only Token จาก SAJ Cloud (Guest Mode) และดึงข้อมูลย้อนหลัง ${sajBackfillDays} วัน...`
+    );
+
+    const res = await syncSajCloudAndBackfillHistory({
+      orgId: targetOrgId,
+      companyName: form.companyName || 'บ้านโซลาร์ SAJ',
+      guestEmail: form.solarConfig.sajCloudGuestEmail || form.username || 'guest@saj-readonly.local',
+      transientPassword: sajTransientGuestPass,
+      deviceSn: form.solarConfig.sajDeviceSn || 'SAJ-H2-6K-LS2',
+      backfillDays: sajBackfillDays,
+      pvCapacityKWp: form.solarConfig.pvCapacityKWp || 6.0,
+      batteryCapacityKWh: form.solarConfig.batteryCapacityKWh || 10.24,
+      currentSolarConfig: form.solarConfig
+    });
+
+    // Immediately wipe transient password from React state (Zero Password Storage!)
+    setSajTransientGuestPass('');
+
+    if (res.success) {
+      setForm((prev) => ({
+        ...prev,
+        solarConfig: res.syncedSolarConfig
+      }));
+      addLog('SUCCESS', res.message);
+      setConnectionTestResult({
+        success: true,
+        testedAt: new Date().toLocaleTimeString('th-TH'),
+        message: res.message
+      });
+    } else {
+      addLog('ERROR', res.message);
+      setConnectionTestResult({
+        success: false,
+        testedAt: new Date().toLocaleTimeString('th-TH'),
+        message: res.message
+      });
+    }
+    setIsAutoReading(false);
   };
 
   // ============================================================================
@@ -808,11 +867,114 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm sm:text-base font-black text-emerald-400">
-                  ขั้นตอนที่ 3: เลือกรุ่นอินเวอร์เตอร์ & ดึงค่าจากเครื่องอัตโนมัติ (ไม่ต้องใช้ IP Address • ไม่ต้องกรอกค่าไฟเอง!)
+                  ขั้นตอนที่ 3: เชื่อมต่อ SAJ Cloud ฟรี 0 บาท (โหมด Guest ดูอย่างเดียว • ดึงข้อมูลเก่าย้อนหลัง + เก็บข้อมูลใหม่ 24 ชม.)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  *หมายเหตุ: โมดูล WiFi ของ SAJ ปิดการแสดง IP ในบ้านไว้ ดังนั้นเราจึงเชื่อมต่อผ่าน <strong>สาย RS485 (Slave ID #1)</strong> หรือ <strong>ส่งค่าขึ้น Cloud อัตโนมัติ</strong> โดยไม่ต้องรู้เลข IP เลยครับ
+                  ไม่ต้องซื้ออุปกรณ์เพิ่ม • ไม่ต้องหาเลข IP • ไม่เก็บรหัสผ่านไว้ในหน้าเว็บ (Zero Password Storage 100%)
                 </p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+                🛡️ ปลอดภัย 100% (Read-Only Guest Token)
+              </span>
+            </div>
+
+            {/* ZERO-COST SAJ CLOUD GUEST READ-ONLY & HISTORICAL BACKFILL BOX */}
+            <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-cyan-950/30 border border-emerald-500/40 rounded-2xl p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="block font-bold text-emerald-300 mb-1">
+                    1. อีเมลบัญชีสำรอง SAJ (Guest Read-Only)
+                  </label>
+                  <input
+                    type="email"
+                    value={form.solarConfig.sajCloudGuestEmail || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        solarConfig: {
+                          ...form.solarConfig,
+                          sajCloudGuestEmail: e.target.value
+                        }
+                      })
+                    }
+                    placeholder="เช่น myhome-guest@gmail.com"
+                    className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2.5 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-cyan-300 mb-1">
+                    2. รหัสผ่าน Guest (ใช้ขอ Token แล้วลบทิ้งทันที)
+                  </label>
+                  <input
+                    type="password"
+                    value={sajTransientGuestPass}
+                    onChange={(e) => setSajTransientGuestPass(e.target.value)}
+                    placeholder="ไม่บันทึกในเครื่อง (Zero Storage)"
+                    className="w-full bg-slate-950 border border-cyan-500/40 rounded-xl px-3 py-2.5 text-cyan-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    3. Serial Number (SN) อินเวอร์เตอร์ / แท่ง AIO3
+                  </label>
+                  <input
+                    type="text"
+                    value={form.solarConfig.sajDeviceSn || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        solarConfig: {
+                          ...form.solarConfig,
+                          sajDeviceSn: e.target.value
+                        }
+                      })
+                    }
+                    placeholder="เช่น H2S602J... (เว้นว่างให้อ่านอัตโนมัติได้)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-amber-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-amber-300 mb-1">
+                    4. ดึงข้อมูลเก่าย้อนหลัง (Historical Backfill)
+                  </label>
+                  <select
+                    value={sajBackfillDays}
+                    onChange={(e) => setSajBackfillDays(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-amber-300 font-bold"
+                  >
+                    <option value={30}>ย้อนหลัง 30 วันล่าสุด</option>
+                    <option value={90}>ย้อนหลัง 90 วัน (3 เดือน)</option>
+                    <option value={180}>ย้อนหลัง 180 วัน (6 เดือน)</option>
+                    <option value={365}>ย้อนหลัง 365 วัน (1 ปีเต็ม)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="text-[11px] text-slate-300">
+                  🔒 <strong>สถานะ Token ปัจจุบัน:</strong>{' '}
+                  {form.solarConfig.sajReadOnlyTokenId ? (
+                    <span className="font-mono text-emerald-400">
+                      ผูก Token สำเร็จ ({form.solarConfig.sajReadOnlyTokenId.slice(0, 18)}...) • ดึงข้อมูลเก่าแล้ว {(form.solarConfig.historicalDailyLogs || []).length} วัน
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">ยังไม่ได้กดดึง Token</span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSyncSajCloudZeroCost}
+                  disabled={isAutoReading}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 font-black text-xs sm:text-sm cursor-pointer shadow-lg shadow-emerald-500/20"
+                >
+                  {isAutoReading
+                    ? '⏳ กำลังซิงก์และดึงข้อมูลเก่า...'
+                    : `☁️ ดึงข้อมูลจาก SAJ Cloud ฟรี 0 บาท + ดึงข้อมูลเก่าย้อนหลัง (${sajBackfillDays} วัน)`}
+                </button>
               </div>
             </div>
 
@@ -820,7 +982,7 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-300 mb-1">
-                  1. เลือกรุ่นเครื่อง Solar Inverter
+                  รุ่นเครื่อง Solar Inverter
                 </label>
                 <select
                   value={form.solarConfig.inverterModel}
@@ -844,17 +1006,19 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
 
               <div>
                 <label className="block font-bold text-amber-300 mb-1">
-                  2. เลข Modbus Slave ID (ค่ามาตรฐาน = 1)
+                  ขนาดแผงโซลาร์รวม (kWp)
                 </label>
                 <input
                   type="number"
-                  min="1"
-                  max="247"
-                  value={form.solarConfig.slaveId}
+                  step="0.1"
+                  value={form.solarConfig.pvCapacityKWp || 6.0}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      solarConfig: { ...form.solarConfig, slaveId: Number(e.target.value) }
+                      solarConfig: {
+                        ...form.solarConfig,
+                        pvCapacityKWp: Number(e.target.value)
+                      }
                     })
                   }
                   className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-amber-300 font-mono font-bold"
@@ -862,22 +1026,8 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  3. ความเร็วพอร์ต RS485 (Baud Rate)
-                </label>
-                <select
-                  value={form.baudRate}
-                  onChange={(e) => setForm({ ...form, baudRate: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono"
-                >
-                  <option value="9600">9600 bps (มาตรฐาน SAJ)</option>
-                  <option value="115200">115200 bps</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  4. ความจุแบตเตอรี่ที่ติดตั้ง (kWh)
+                <label className="block font-bold text-emerald-300 mb-1">
+                  ความจุแบตเตอรี่ที่ติดตั้ง (kWh)
                 </label>
                 <input
                   type="number"
@@ -892,8 +1042,27 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                       }
                     })
                   }
-                  placeholder="เช่น 16.08"
+                  placeholder="เช่น 10.24 หรือ 16.08"
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-emerald-300 font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  Modbus Slave ID (กรณีต่อสายสำรอง)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="247"
+                  value={form.solarConfig.slaveId}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      solarConfig: { ...form.solarConfig, slaveId: Number(e.target.value) }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono"
                 />
               </div>
             </div>
@@ -902,31 +1071,29 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs font-bold text-slate-300">
-                  📊 ค่าไฟฟ้าที่ระบบดึงได้จากตัวเครื่องอัตโนมัติ (ไม่ต้องพิมพ์เอง — กดปุ่มเชื่อมต่อด้านขวาเพื่อดูดค่าเข้าฐานข้อมูล):
+                  📊 ค่าไฟฟ้าที่ระบบดึงได้อัตโนมัติ (Read-Only Telemetry — ไม่ต้องพิมพ์เอง):
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => handleAutoReadFromDevice('FORCE_USB')}
+                    onClick={handleSyncSajCloudZeroCost}
                     disabled={isAutoReading}
                     className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shadow-lg shadow-emerald-500/20"
                   >
-                    {isAutoReading
-                      ? '⏳ กำลังดูดค่าจากเครื่อง...'
-                      : '🔌 ดูดค่าจริงผ่านสาย USB-to-RS485 อัตโนมัติ'}
+                    ☁️ ซิงก์จาก SAJ Cloud ฟรี 0 บาท
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleAutoReadFromDevice('CLOUD')}
+                    onClick={() => handleAutoReadFromDevice('FORCE_USB')}
                     disabled={isAutoReading}
                     className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold text-xs cursor-pointer"
                   >
-                    ☁️ ดึงค่าล่าสุดจากฐานข้อมูล Cloud
+                    🔌 ดูดผ่านสาย USB-to-RS485
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center font-mono text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 text-center font-mono text-xs">
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
                   <span className="text-[10px] font-sans text-slate-400 block">
                     กำลังผลิต PV1 (Auto)
@@ -953,18 +1120,26 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                 </div>
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
                   <span className="text-[10px] font-sans text-slate-400 block">
-                    แรงดันไฟบ้าน (Grid V)
-                  </span>
-                  <strong className="text-base text-cyan-300">
-                    {form.solarConfig.gridAc1Voltage} V
-                  </strong>
-                </div>
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                  <span className="text-[10px] font-sans text-slate-400 block">
                     ผลิตได้วันนี้ (Today)
                   </span>
                   <strong className="text-base text-emerald-300">
                     {form.solarConfig.todayEnergyKWh} kWh
+                  </strong>
+                </div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                  <span className="text-[10px] font-sans text-slate-400 block">
+                    สะสมทั้งหมด (Total)
+                  </span>
+                  <strong className="text-base text-cyan-300">
+                    {form.solarConfig.totalEnergyKWh} kWh
+                  </strong>
+                </div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                  <span className="text-[10px] font-sans text-slate-400 block">
+                    ประวัติเก่าที่ดึงมาแล้ว
+                  </span>
+                  <strong className="text-base text-purple-300">
+                    {(form.solarConfig.historicalDailyLogs || []).length} วัน
                   </strong>
                 </div>
               </div>
