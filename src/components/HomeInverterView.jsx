@@ -171,17 +171,30 @@ export const HomeInverterView = () => {
     });
   }, [activeHistoryDay, totalPvPowerW, solarData.totalLoadPowerW]);
 
-  // One-click Zero-Cost SAJ Cloud Guest Read-Only Sync + Historical Backfill
+  // One-click Zero-Cost REAL SAJ Cloud V2 Sync (Zero Simulated Data!)
   const handleSyncSajCloudAndHistory = async () => {
+    const cleanSajUser = (editForm.sajCloudGuestEmail || solarData.sajCloudGuestEmail || '').trim();
+    const cleanSajPass = (transientGuestPassword || '').trim();
+
+    if (!cleanSajUser || !cleanSajPass) {
+      setIsSettingOpen(true);
+      setTestResult({
+        success: false,
+        message:
+          '⚠️ กรุณากรอก "1. อีเมล/ชื่อผู้ใช้แอป SAJ" และ "2. รหัสผ่านแอป SAJ" ในช่องด้านล่างก่อนกดซิงก์ (ระบบดึงข้อมูลจริงจากเซิร์ฟเวอร์ SAJ 100% ไม่มีการจำลองตัวเลข)'
+      });
+      return;
+    }
+
     setIsTesting(true);
     setTestResult(null);
 
     const res = await syncSajCloudAndBackfillHistory({
       orgId: currentCompany.id,
       companyName: currentCompany.name,
-      guestEmail: editForm.sajCloudGuestEmail || solarData.sajCloudGuestEmail || 'guest@saj-readonly.local',
-      transientPassword: transientGuestPassword,
-      deviceSn: editForm.sajDeviceSn || solarData.sajDeviceSn || 'SAJ-H2-6K-LS2',
+      guestEmail: cleanSajUser,
+      transientPassword: cleanSajPass,
+      deviceSn: editForm.sajDeviceSn || solarData.sajDeviceSn || '',
       backfillDays,
       pvCapacityKWp: editForm.pvCapacityKWp || solarData.pvCapacityKWp || 6.0,
       batteryCapacityKWh: editForm.batteryCapacityKWh || solarData.batteryCapacityKWh || 10.24,

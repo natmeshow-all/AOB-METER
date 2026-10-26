@@ -177,9 +177,22 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
   };
 
   // ============================================================================
-  // ZERO-COST (0 BAHT) SAJ CLOUD GUEST READ-ONLY + HISTORICAL BACKFILL
+  // ZERO-COST (0 BAHT) REAL SAJ CLOUD V2 SYNC (NO SIMULATED DATA!)
   // ============================================================================
   const handleSyncSajCloudZeroCost = async () => {
+    const cleanSajUser = (form.solarConfig.sajCloudGuestEmail || '').trim();
+    const cleanSajPass = (sajTransientGuestPass || '').trim();
+
+    if (!cleanSajUser || !cleanSajPass) {
+      setConnectionTestResult({
+        success: false,
+        testedAt: new Date().toLocaleTimeString('th-TH'),
+        message:
+          '⚠️ กรุณากรอกทั้ง "1. อีเมล/ชื่อผู้ใช้แอป SAJ" และ "2. รหัสผ่านแอป SAJ" ในขั้นตอนที่ 3 ก่อนกดดึงข้อมูล (ระบบดึงข้อมูลจริงจากเซิร์ฟเวอร์ SAJ 100% ไม่มีการสุ่มหรือจำลองตัวเลข)'
+      });
+      return;
+    }
+
     setIsAutoReading(true);
     setConnectionTestResult(null);
 
@@ -191,15 +204,15 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
 
     addLog(
       'INFO',
-      `กำลังขอ Read-Only Token จาก SAJ Cloud (Guest Mode) และดึงข้อมูลย้อนหลัง ${sajBackfillDays} วัน...`
+      `กำลังล็อกอินเข้าเซิร์ฟเวอร์ SAJ Elekeeper V2 จริงด้วยบัญชี "${cleanSajUser}"...`
     );
 
     const res = await syncSajCloudAndBackfillHistory({
       orgId: targetOrgId,
       companyName: form.companyName || 'บ้านโซลาร์ SAJ',
-      guestEmail: form.solarConfig.sajCloudGuestEmail || form.username || 'guest@saj-readonly.local',
-      transientPassword: sajTransientGuestPass,
-      deviceSn: form.solarConfig.sajDeviceSn || 'SAJ-H2-6K-LS2',
+      guestEmail: cleanSajUser,
+      transientPassword: cleanSajPass,
+      deviceSn: form.solarConfig.sajDeviceSn || '',
       backfillDays: sajBackfillDays,
       pvCapacityKWp: form.solarConfig.pvCapacityKWp || 6.0,
       batteryCapacityKWh: form.solarConfig.batteryCapacityKWh || 10.24,
