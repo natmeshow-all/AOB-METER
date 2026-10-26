@@ -163,6 +163,31 @@ const loadInitialCompanies = () => {
     console.warn('Failed to load production companies:', e);
   }
 
+  // Sanitize all loaded organizations: strip any legacy simulated historical logs (!item.isRealSajV2)
+  // and replace old placeholder SN 'SAJ-H2-6K-LS2' with real inverter SN 'H2A2602J2539E14713'
+  Object.keys(merged).forEach((k) => {
+    const comp = merged[k];
+    if (comp?.solarConfig) {
+      const rawLogs = Array.isArray(comp.solarConfig.historicalDailyLogs)
+        ? comp.solarConfig.historicalDailyLogs
+        : [];
+      const realLogsOnly = rawLogs.filter((item) => item && item.isRealSajV2 === true);
+      const cleanSn =
+        !comp.solarConfig.sajDeviceSn || comp.solarConfig.sajDeviceSn === 'SAJ-H2-6K-LS2'
+          ? 'H2A2602J2539E14713'
+          : comp.solarConfig.sajDeviceSn;
+
+      merged[k] = {
+        ...comp,
+        solarConfig: {
+          ...comp.solarConfig,
+          sajDeviceSn: cleanSn,
+          historicalDailyLogs: realLogsOnly
+        }
+      };
+    }
+  });
+
   // Ensure BANNAT (NAT01) Home Solar site is always preserved and set to HOME_SOLAR
   const existingBannatKey = Object.keys(merged).find(
     (k) =>
