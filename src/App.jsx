@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   ArrowLeft,
   LogOut,
-  Sun
+  Sun,
+  Sliders,
+  RefreshCw
 } from 'lucide-react';
 
 export function App() {
@@ -67,13 +69,21 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOpenMobileSettings = () => {
+    window.dispatchEvent(new CustomEvent('OPEN_SOLAR_SETTINGS'));
+  };
+
+  const handleTriggerMobileSync = () => {
+    window.dispatchEvent(new CustomEvent('TRIGGER_SOLAR_SYNC'));
+  };
+
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
       {/* Top App Header */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-5 pb-24 sm:pb-10 space-y-4">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-3 sm:py-5 pb-24 sm:pb-10 space-y-4">
         {/* SUPER ADMIN ALL-IN-ONE CONSOLE */}
         {isSuperAdmin && activeTab === 'super-admin' && (
           <SuperAdminConsole onInspectTenant={() => setActiveTab('overview')} />
@@ -101,15 +111,15 @@ export function App() {
         )}
       </main>
 
-      {/* Mobile App Sticky Bottom Navigation Bar (Adapts cleanly by User Type) */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+      {/* Mobile App Native Sticky Bottom Navigation Bar */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070b14]/90 backdrop-blur-2xl border-t border-slate-800/80 px-3 py-2 flex items-center justify-around shadow-[0_-10px_30px_rgba(0,0,0,0.8)] pb-safe">
         {isSuperAdmin && (
           <button
             onClick={() => setActiveTab('super-admin')}
-            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
               activeTab === 'super-admin'
-                ? 'text-amber-400 bg-amber-500/10 font-bold'
-                : 'text-slate-400'
+                ? 'text-amber-400 bg-amber-500/15 font-bold shadow-sm'
+                : 'text-slate-400 active:scale-95'
             }`}
           >
             <ShieldCheck className="w-5 h-5" />
@@ -118,60 +128,81 @@ export function App() {
         )}
 
         {isHomeSolarSite ? (
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
-              activeTab !== 'super-admin'
-                ? 'text-emerald-400 bg-emerald-500/10 font-bold'
-                : 'text-slate-400'
-            }`}
-          >
-            <Sun className="w-5 h-5" />
-            <span>อินเวอร์เตอร์บ้าน</span>
-          </button>
+          <>
+            <button
+              onClick={() => {
+                if (activeTab === 'super-admin') setActiveTab('overview');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab !== 'super-admin'
+                  ? 'text-emerald-400 bg-emerald-500/15 font-bold shadow-sm'
+                  : 'text-slate-400 active:scale-95'
+              }`}
+            >
+              <Sun className="w-5 h-5" />
+              <span>หน้าปัดโซลาร์</span>
+            </button>
+
+            <button
+              onClick={handleTriggerMobileSync}
+              className="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl text-[10px] font-semibold text-sky-400 active:scale-90 transition-all cursor-pointer"
+            >
+              <RefreshCw className="w-5 h-5" />
+              <span>ซิงก์ข้อมูล</span>
+            </button>
+
+            <button
+              onClick={handleOpenMobileSettings}
+              className="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl text-[10px] font-semibold text-slate-300 active:scale-90 transition-all cursor-pointer"
+            >
+              <Sliders className="w-5 h-5" />
+              <span>⚙️ ตั้งค่า</span>
+            </button>
+          </>
         ) : (
           <>
             <button
               onClick={() => setActiveTab('overview')}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
                 activeTab === 'overview'
-                  ? 'text-blue-400 bg-blue-500/10 font-bold'
+                  ? 'text-blue-400 bg-blue-500/15 font-bold'
                   : 'text-slate-400'
               }`}
             >
               <Activity className="w-5 h-5" />
-              <span>1. ภาพรวมมิเตอร์</span>
+              <span>ภาพรวม</span>
             </button>
 
             <button
               onClick={() => setActiveTab('meter-detail')}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
                 activeTab === 'meter-detail'
-                  ? 'text-blue-400 bg-blue-500/10 font-bold'
+                  ? 'text-blue-400 bg-blue-500/15 font-bold'
                   : 'text-slate-400'
               }`}
             >
               <Gauge className="w-5 h-5" />
-              <span>2. รายมิเตอร์</span>
+              <span>รายมิเตอร์</span>
             </button>
 
             <button
               onClick={() => setActiveTab('report')}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
                 activeTab === 'report'
-                  ? 'text-blue-400 bg-blue-500/10 font-bold'
+                  ? 'text-blue-400 bg-blue-500/15 font-bold'
                   : 'text-slate-400'
               }`}
             >
               <BarChart3 className="w-5 h-5" />
-              <span>3. รายงาน</span>
+              <span>รายงาน</span>
             </button>
           </>
         )}
 
         <button
           onClick={logout}
-          className="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-[10px] font-semibold text-rose-400 cursor-pointer"
+          className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-2xl text-[10px] font-semibold text-rose-400 hover:text-rose-300 active:scale-95 cursor-pointer"
           title="ออกจากระบบ"
         >
           <LogOut className="w-5 h-5" />

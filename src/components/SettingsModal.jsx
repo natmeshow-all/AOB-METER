@@ -117,10 +117,16 @@ export const SettingsModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Backdrop click to close */}
+      <div className="fixed inset-0 bg-transparent" onClick={onClose} />
+      <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-t-[32px] sm:rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-hidden shadow-2xl flex flex-col pb-safe">
+        {/* Mobile Drag Indicator */}
+        <div className="sm:hidden pt-3 pb-1 flex justify-center bg-slate-900">
+          <div className="w-12 h-1.5 bg-slate-700/80 rounded-full" />
+        </div>
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 backdrop-blur-xl">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-slate-800 text-amber-400 rounded-lg">
               <Settings className="w-5 h-5" />

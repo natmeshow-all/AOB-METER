@@ -421,6 +421,7 @@ export const HomeInverterView = () => {
     }
   };
   const [isSettingOpen, setIsSettingOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('tariff'); // 'tariff' | 'cloud' | 'theme'
   const [editForm, setEditForm] = useState(solarData);
   const [transientGuestPassword, setTransientGuestPassword] = useState('');
   const [backfillDays, setBackfillDays] = useState(90);
@@ -852,12 +853,31 @@ export const HomeInverterView = () => {
   }, [savedTicket, executeSajSync]);
 
   // Manual One-click REAL SAJ Cloud V2 Sync + Full Historical Backfill
-  const handleSyncSajCloudAndHistory = async () => {
+  const handleSyncSajCloudAndHistory = useCallback(async () => {
     await executeSajSync({ silent: false, skipBackfillIfCached: false });
-  };
+  }, [executeSajSync]);
+
+  // Listen to mobile bottom bar actions
+  useEffect(() => {
+    const handleOpenSettings = () => {
+      setEditForm(solarData);
+      setIsSettingOpen(true);
+    };
+    const handleTriggerSync = () => {
+      handleSyncSajCloudAndHistory();
+    };
+
+    window.addEventListener('OPEN_SOLAR_SETTINGS', handleOpenSettings);
+    window.addEventListener('TRIGGER_SOLAR_SYNC', handleTriggerSync);
+
+    return () => {
+      window.removeEventListener('OPEN_SOLAR_SETTINGS', handleOpenSettings);
+      window.removeEventListener('TRIGGER_SOLAR_SYNC', handleTriggerSync);
+    };
+  }, [solarData, handleSyncSajCloudAndHistory]);
 
   const handleSaveSettingsToDb = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setTransientGuestPassword('');
     updateOrganization(currentCompany.id, {
       gatewayIp: 'SAJ-CLOUD-AUTO',
@@ -981,251 +1001,397 @@ export const HomeInverterView = () => {
         </div>
       </div>
 
-      {saveNotice && (
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-200">
-          ✅ {saveNotice}
+      {/* =================================================================== */}
+      {/* FLOATING MOBILE-APP STATUS TOAST / SYNC MODAL                       */}
+      {/* =================================================================== */}
+      {(isTesting || saveNotice || (testResult && !testResult.dismissed)) && (
+        <div className="fixed top-3 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-[92%] sm:max-w-md pointer-events-auto transition-all duration-300">
+          <div
+            className={`p-3.5 sm:p-4 rounded-2xl shadow-[0_15px_35px_rgba(0,0,0,0.8)] backdrop-blur-2xl border flex items-start justify-between gap-3 ${
+              isTesting
+                ? 'bg-slate-900/95 border-sky-500/60 text-sky-200 shadow-sky-500/10'
+                : saveNotice
+                ? 'bg-slate-900/95 border-emerald-500/60 text-emerald-200 shadow-emerald-500/10'
+                : testResult?.success
+                ? 'bg-slate-900/95 border-emerald-500/60 text-emerald-200 shadow-emerald-500/10'
+                : 'bg-slate-900/95 border-amber-500/60 text-amber-200 shadow-amber-500/10'
+            }`}
+          >
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="mt-0.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800 shrink-0">
+                {isTesting ? (
+                  <RefreshCw className="w-4 h-4 text-sky-400 animate-spin" />
+                ) : saveNotice || testResult?.success ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Lock className="w-4 h-4 text-amber-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-2">
+                  <span>
+                    {isTesting
+                      ? 'กำลังซิงก์ข้อมูล SAJ Cloud...'
+                      : saveNotice
+                      ? 'บันทึกสำเร็จ'
+                      : testResult?.success
+                      ? 'ซิงก์ข้อมูลเรียบร้อย'
+                      : 'แจ้งเตือนระบบ'}
+                  </span>
+                  {isTesting && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      LIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 leading-relaxed break-words">
+                  {isTesting
+                    ? 'กำลังดึงข้อมูล Real-time และประวัติย้อนหลังเข้าสู่ฐานข้อมูล...'
+                    : saveNotice || testResult?.message}
+                </p>
+                {!isTesting && testResult && !testResult.success && testResult.needsPassword && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingOpen(true);
+                      setSettingsTab('cloud');
+                      setTestResult(null);
+                    }}
+                    className="mt-2 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>ใส่รหัสผ่านในหน้าตั้งค่า</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {!isTesting && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSaveNotice(null);
+                  setTestResult(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-all shrink-0"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {/* =================================================================== */}
-      {/* UNIFIED SETTINGS DRAWER (HIDDEN UNTIL USER CLICKS '⚙️ ตั้งค่า')      */}
+      {/* GORGEOUS NATIVE MOBILE-APP SETTINGS MODAL / BOTTOM SHEET            */}
       {/* =================================================================== */}
       {isSettingOpen && (
-        <form
-          onSubmit={handleSaveSettingsToDb}
-          className="bg-[#080d19] border border-sky-500/30 rounded-3xl p-5 space-y-4 text-xs shadow-2xl"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <h3 className="text-sm sm:text-base font-black text-sky-400">
-                ⚙️ ตั้งค่าระบบ, ธีมหน้าปัด, เรตค่าไฟ และการเชื่อมต่อ SAJ Cloud
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                SN: <strong className="font-mono text-amber-300">{solarData.sajDeviceSn || 'H2A2602J2539E14713'}</strong> • ประวัติสะสมในฐานข้อมูล: <strong className="font-mono text-sky-300">{historicalLogs.length} วัน</strong>
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSettingOpen(false)}
-              className="px-3 py-1 rounded-lg bg-slate-900 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
-            >
-              ✕ ซ่อนหน้าตั้งค่า
-            </button>
-          </div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
+          {/* Backdrop click to close */}
+          <div
+            className="fixed inset-0 bg-transparent"
+            onClick={() => setIsSettingOpen(false)}
+          />
 
-          {testResult && (
-            <div
-              className={`p-3 rounded-xl border text-xs font-bold ${
-                testResult.success
-                  ? 'bg-sky-500/10 border-sky-500/30 text-sky-200'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
-              }`}
-            >
-              {testResult.message}
+          <div className="relative z-10 w-full sm:max-w-2xl bg-[#080d19] border border-sky-500/30 rounded-t-[32px] sm:rounded-[32px] max-h-[92vh] flex flex-col shadow-[0_-20px_60px_rgba(0,0,0,0.9)] overflow-hidden pb-safe">
+            {/* Mobile Drag Indicator */}
+            <div className="sm:hidden pt-3 pb-1 flex justify-center bg-slate-900/90">
+              <div className="w-12 h-1.5 bg-slate-700/80 rounded-full" />
             </div>
-          )}
 
-          {/* Theme & Tariff Preferences inside Settings */}
-          <div className="space-y-3 bg-[#04070e] border border-slate-800 rounded-2xl p-3.5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-3 border-b border-slate-800/80">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">
-                  🎨 เลือกโทนสีหน้าปัด (Cockpit Theme)
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.values(COCKPIT_THEMES).map((tItem) => (
-                    <button
-                      key={tItem.id}
-                      type="button"
-                      onClick={() => setCockpitThemeKey(tItem.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                        cockpitThemeKey === tItem.id
-                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
-                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                      }`}
-                    >
-                      {tItem.name}
-                    </button>
-                  ))}
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800/90 flex items-center justify-between bg-slate-900/90 backdrop-blur-xl shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-sky-400">
+                  <Sliders className="w-5 h-5" />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">
-                  💰 เรตรับซื้อไฟคืน (Export): <strong className="text-sky-300 font-mono">฿{tariffSettings.exportRate || DEFAULT_EXPORT_RATE} / หน่วย</strong>
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    value={tariffSettings.exportRate || DEFAULT_EXPORT_RATE}
-                    onChange={(e) =>
-                      updateTariffSettings({
-                        ...tariffSettings,
-                        exportRate: Number(e.target.value) || 0
-                      })
-                    }
-                    className="w-28 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-sky-300 font-mono font-bold"
-                  />
-                  <span className="text-[11px] text-slate-400">บาท/kWh (โครงการโซลาร์ภาคประชาชน ฿2.20)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Stepped Tariff Tier Editor */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
                 <div>
-                  <label className="block text-amber-300 font-bold">
-                    ⚡ กำหนดอัตราค่าไฟฟ้าแบบขั้นบันได (Progressive Tariff)
-                  </label>
-                  <span className="text-[10px] text-slate-400">
-                    คำนวณแยกตามเดือนจริง: 0–200 หน่วยแรกคิดหน่วยละ 3 บาท และ 201 หน่วยขึ้นไปคิดเป็นขั้นบันได
-                  </span>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    ⚙️ ตั้งค่าระบบ & จัดการ SAJ Cloud
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    SN: <strong className="font-mono text-amber-300">{solarData.sajDeviceSn || 'H2A2602J2539E14713'}</strong> • ประวัติสะสม: <strong className="font-mono text-sky-300">{historicalLogs.length} วัน</strong>
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateTariffSettings({
-                      tiers: DEFAULT_TARIFF_TIERS,
-                      exportRate: DEFAULT_EXPORT_RATE
-                    })
-                  }
-                  className="text-[10px] font-bold text-sky-400 hover:text-sky-200 underline cursor-pointer"
-                >
-                  ↺ รีเซ็ตเป็นค่ามาตรฐาน
-                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                {tariffSettings.tiers.map((tier, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1.5 text-xs font-mono"
-                  >
-                    <div className="text-[10px] font-sans font-bold text-slate-300 flex items-center justify-between">
-                      <span>ขั้นที่ {idx + 1}</span>
-                      <span className="text-amber-400">
-                        {idx === 0
-                          ? `0 – ${tier.upTo} หน่วย`
-                          : tier.upTo
-                          ? `${tariffSettings.tiers[idx - 1].upTo + 1} – ${tier.upTo} หน่วย`
-                          : `${tariffSettings.tiers[idx - 1].upTo + 1} หน่วยขึ้นไป`}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-sans text-slate-400">คิดหน่วยละ:</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={tier.rate}
-                        onChange={(e) => {
-                          const newTiers = [...tariffSettings.tiers];
-                          newTiers[idx] = { ...newTiers[idx], rate: Number(e.target.value) || 0 };
-                          updateTariffSettings({ ...tariffSettings, tiers: newTiers });
-                        }}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-emerald-400 font-black text-right"
-                      />
-                      <span className="text-[11px] font-sans text-slate-400">฿</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-slate-300 font-bold mb-1">
-                1. อีเมล/ชื่อผู้ใช้แอป SAJ (Elekeeper)
-              </label>
-              <input
-                type="text"
-                value={editForm.sajCloudGuestEmail || ''}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, sajCloudGuestEmail: e.target.value })
-                }
-                placeholder="เช่น natshownolimit@gmail.com"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sky-300 font-bold mb-1">
-                2. รหัสผ่านแอป SAJ (กรอกครั้งเดียวจำสิทธิ์ถาวร)
-              </label>
-              <input
-                type="password"
-                value={transientGuestPassword}
-                onChange={(e) => setTransientGuestPassword(e.target.value)}
-                placeholder={
-                  savedTicket
-                    ? '✅ จำสิทธิ์แล้ว (ไม่ต้องกรอกซ้ำ)'
-                    : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่'
-                }
-                className="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2.5 text-sky-300 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-300 font-bold mb-1">
-                3. Serial Number (SN) เครื่อง SAJ
-              </label>
-              <input
-                type="text"
-                value={editForm.sajDeviceSn || ''}
-                onChange={(e) => setEditForm({ ...editForm, sajDeviceSn: e.target.value })}
-                placeholder="H2A2602J2539E14713"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-amber-300 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-emerald-300 font-bold mb-1">
-                4. จำนวนวันย้อนหลังที่ดึงอัตโนมัติ
-              </label>
-              <select
-                value={backfillDays}
-                onChange={(e) => setBackfillDays(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2.5 text-emerald-300 font-bold"
-              >
-                <option value={30}>ย้อนหลัง 30 วัน</option>
-                <option value={90}>ย้อนหลัง 90 วัน (3 เดือน)</option>
-                <option value={180}>ย้อนหลัง 180 วัน (6 เดือน)</option>
-                <option value={365}>ย้อนหลัง 365 วัน (1 ปีเต็ม)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={handleAutoReadUsbSerial}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold cursor-pointer"
-            >
-              🔌 อ่านผ่านสาย USB-to-RS485
-            </button>
-
-            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={handleSyncSajCloudAndHistory}
-                disabled={isTesting}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-400 to-emerald-400 hover:from-sky-300 hover:to-emerald-300 text-slate-950 font-black cursor-pointer shadow-lg"
+                onClick={() => setIsSettingOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all text-sm font-bold"
               >
-                ☁️ ซิงก์ข้อมูลปัจจุบัน + ดึงประวัติจริงย้อนหลัง ({backfillDays} วัน)
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 font-bold cursor-pointer"
-              >
-                💾 บันทึกการตั้งค่า
+                ✕
               </button>
             </div>
+
+            {/* Tabs Navigation */}
+            <div className="flex border-b border-slate-800/80 bg-[#04070e] px-4 pt-2 gap-2 overflow-x-auto no-scrollbar shrink-0">
+              {[
+                { id: 'tariff', label: '⚡ เรตค่าไฟขั้นบันได', icon: Zap },
+                { id: 'cloud', label: '☁️ บัญชี SAJ Cloud', icon: CloudDownload },
+                { id: 'theme', label: '🎨 ธีมหน้าปัดรถหรู', icon: Sparkles }
+              ].map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSettingsTab(tab.id)}
+                    className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                      settingsTab === tab.id
+                        ? 'border-sky-400 text-sky-300 font-extrabold'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Modal Body */}
+            <form
+              onSubmit={handleSaveSettingsToDb}
+              className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs"
+            >
+              {/* TAB 1: TARIFF */}
+              {settingsTab === 'tariff' && (
+                <div className="space-y-4">
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-amber-300 font-bold text-sm">
+                          ⚡ อัตราค่าไฟฟ้าแบบขั้นบันได (Progressive Tariff)
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          0–200 หน่วยแรกคิดหน่วยละ 3 บาท และ 201 หน่วยขึ้นไปคิดเป็นขั้นบันได
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTariffSettings({
+                            tiers: DEFAULT_TARIFF_TIERS,
+                            exportRate: DEFAULT_EXPORT_RATE
+                          })
+                        }
+                        className="text-[10px] font-bold text-sky-400 hover:text-sky-200 underline cursor-pointer"
+                      >
+                        ↺ รีเซ็ตมาตรฐาน
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {tariffSettings.tiers.map((tier, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-1.5 text-xs font-mono"
+                        >
+                          <div className="text-[11px] font-sans font-bold text-slate-300 flex items-center justify-between">
+                            <span>ขั้นที่ {idx + 1}</span>
+                            <span className="text-amber-400">
+                              {idx === 0
+                                ? `0 – ${tier.upTo} หน่วย`
+                                : tier.upTo
+                                ? `${tariffSettings.tiers[idx - 1].upTo + 1} – ${tier.upTo} หน่วย`
+                                : `${tariffSettings.tiers[idx - 1].upTo + 1} หน่วยขึ้นไป`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-sans text-slate-400">หน่วยละ:</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={tier.rate}
+                              onChange={(e) => {
+                                const newTiers = [...tariffSettings.tiers];
+                                newTiers[idx] = { ...newTiers[idx], rate: Number(e.target.value) || 0 };
+                                updateTariffSettings({ ...tariffSettings, tiers: newTiers });
+                              }}
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-emerald-400 font-black text-right"
+                            />
+                            <span className="text-[11px] font-sans text-slate-400">฿</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Export Rate */}
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <label className="block text-slate-200 font-bold mb-0.5">
+                        💰 เรตรับซื้อไฟคืนเข้าสายส่ง (Export Rate)
+                      </label>
+                      <p className="text-[11px] text-slate-400">
+                        โครงการโซลาร์ภาคประชาชน อัตรามาตรฐาน ฿2.20 / kWh
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        value={tariffSettings.exportRate || DEFAULT_EXPORT_RATE}
+                        onChange={(e) =>
+                          updateTariffSettings({
+                            ...tariffSettings,
+                            exportRate: Number(e.target.value) || 0
+                          })
+                        }
+                        className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-sky-300 font-mono font-bold text-center"
+                      />
+                      <span className="text-xs text-slate-400">บาท/หน่วย</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: SAJ CLOUD */}
+              {settingsTab === 'cloud' && (
+                <div className="space-y-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">
+                        1. อีเมล/ชื่อผู้ใช้แอป SAJ (Elekeeper)
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.sajCloudGuestEmail || ''}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, sajCloudGuestEmail: e.target.value })
+                        }
+                        placeholder="เช่น natshownolimit@gmail.com"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sky-300 font-bold mb-1 flex items-center justify-between">
+                        <span>2. รหัสผ่านแอป SAJ</span>
+                        {savedTicket && (
+                          <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                            ✅ มี Ticket ถาวรแล้ว
+                          </span>
+                        )}
+                      </label>
+                      <input
+                        type="password"
+                        value={transientGuestPassword}
+                        onChange={(e) => setTransientGuestPassword(e.target.value)}
+                        placeholder={
+                          savedTicket
+                            ? '✅ จำสิทธิ์แล้ว (ไม่ต้องกรอกซ้ำ)'
+                            : 'กรอกรหัสผ่านแอป SAJ ครั้งเดียวที่นี่'
+                        }
+                        className="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2.5 text-sky-300 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">
+                        3. Serial Number (SN) เครื่อง SAJ
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.sajDeviceSn || ''}
+                        onChange={(e) => setEditForm({ ...editForm, sajDeviceSn: e.target.value })}
+                        placeholder="H2A2602J2539E14713"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-amber-300 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-emerald-300 font-bold mb-1">
+                        4. จำนวนวันย้อนหลังที่ดึงอัตโนมัติ
+                      </label>
+                      <select
+                        value={backfillDays}
+                        onChange={(e) => setBackfillDays(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2.5 text-emerald-300 font-bold"
+                      >
+                        <option value={30}>ย้อนหลัง 30 วัน</option>
+                        <option value={90}>ย้อนหลัง 90 วัน (3 เดือน)</option>
+                        <option value={180}>ย้อนหลัง 180 วัน (6 เดือน)</option>
+                        <option value={365}>ย้อนหลัง 365 วัน (1 ปีเต็ม)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: THEME */}
+              {settingsTab === 'theme' && (
+                <div className="space-y-3">
+                  <label className="block text-slate-300 font-bold text-sm">
+                    🎨 เลือกโทนสีหน้าปัดไมล์รถหรู (Cockpit Theme)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.values(COCKPIT_THEMES).map((tItem) => (
+                      <button
+                        key={tItem.id}
+                        type="button"
+                        onClick={() => setCockpitThemeKey(tItem.id)}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                          cockpitThemeKey === tItem.id
+                            ? 'bg-sky-500/15 border-sky-400 shadow-lg text-white'
+                            : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{tItem.name}</div>
+                        <div className="text-[10px] font-mono text-slate-500 mt-0.5">{tItem.tag}</div>
+                        <div className="flex gap-1.5 mt-2.5">
+                          <span
+                            className="w-4 h-4 rounded-full border border-white/20"
+                            style={{ backgroundColor: tItem.pvPrimary }}
+                          />
+                          <span
+                            className="w-4 h-4 rounded-full border border-white/20"
+                            style={{ backgroundColor: tItem.battPrimary }}
+                          />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </form>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 border-t border-slate-800/90 bg-[#060a14] flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleAutoReadUsbSerial}
+                className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold cursor-pointer text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+              >
+                <Cpu className="w-3.5 h-3.5 text-sky-400" />
+                <span>USB-RS485</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncSajCloudAndHistory}
+                  disabled={isTesting}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold cursor-pointer text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+                  <span>{isTesting ? 'กำลังซิงก์...' : 'ซิงก์ข้อมูลทันที'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSettingsToDb}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-slate-950 font-black cursor-pointer text-xs shadow-lg shadow-sky-500/20 active:scale-95 transition-all"
+                >
+                  💾 บันทึกการตั้งค่า
+                </button>
+              </div>
+            </div>
           </div>
-        </form>
+        </div>
       )}
 
       {/* =================================================================== */}
@@ -1653,22 +1819,22 @@ export const HomeInverterView = () => {
                 • ข้อมูลจริง {periodStats.daysCount} วัน)
               </span>
             </h3>
-            <div className="flex flex-wrap bg-[#04070e] p-1 rounded-xl border border-slate-800">
+            <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#04070e] p-1 rounded-xl border border-slate-800">
               {[
                 { id: 'Day', label: 'วันนี้' },
                 { id: 'Week', label: '7 วัน' },
                 { id: 'Month', label: '30 วัน' },
                 { id: 'Year', label: 'รายปี' },
                 { id: 'Total', label: 'สะสมทั้งหมด' },
-                { id: 'Custom', label: '📅 เลือกช่วงวันที่' }
+                { id: 'Custom', label: '📅 ช่วงวันที่' }
               ].map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setStatPeriod(p.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
+                  className={`py-1.5 px-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all text-center cursor-pointer active:scale-95 ${
                     statPeriod === p.id
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -1679,30 +1845,32 @@ export const HomeInverterView = () => {
           </div>
 
           {statPeriod === 'Custom' && (
-            <div className="bg-[#04070e] border border-sky-500/30 rounded-2xl p-3 flex flex-wrap items-end gap-3 text-xs">
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">วันที่เริ่มต้น</label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  max={customEndDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
-                />
+            <div className="bg-[#04070e] border border-sky-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5">
+                <div className="flex-1">
+                  <label className="block text-slate-400 font-bold mb-1">วันที่เริ่มต้น</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    max={customEndDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                  />
+                </div>
+                <span className="text-slate-500 text-center self-center py-0.5 sm:pb-2">ถึง</span>
+                <div className="flex-1">
+                  <label className="block text-slate-400 font-bold mb-1">วันที่สิ้นสุด</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    min={customStartDate}
+                    max={getThailandDateStr(0)}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                  />
+                </div>
               </div>
-              <span className="text-slate-500 pb-2">ถึง</span>
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">วันที่สิ้นสุด</label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  min={customStartDate}
-                  max={getThailandDateStr(0)}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
-                />
-              </div>
-              <div className="text-[11px] text-slate-400 pb-2">
+              <div className="text-[11px] text-slate-400 pt-1">
                 พบข้อมูลจริง <strong className="text-sky-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
                 {historicalLogs.length > 0 && (
                   <span>
@@ -1795,22 +1963,22 @@ export const HomeInverterView = () => {
           </div>
 
           {/* Monthly Billing Breakdown Table */}
-          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 space-y-2 overflow-hidden">
-            <div className="text-xs font-bold text-slate-300 flex items-center justify-between pb-1 border-b border-slate-800">
-              <span>รอบเดือน</span>
+          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 space-y-2 overflow-hidden">
+            <div className="grid grid-cols-4 text-[10px] sm:text-xs font-bold text-slate-400 pb-1.5 border-b border-slate-800 text-right">
+              <span className="text-left text-slate-300">รอบเดือน</span>
               <span>ดึงไฟ (kWh)</span>
-              <span>จ่ายการไฟฟ้า</span>
+              <span className="text-rose-400">จ่ายการไฟฟ้า</span>
               <span className="text-emerald-400">ประหยัดได้</span>
             </div>
-            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-0.5">
               {Array.isArray(periodStats.monthlyBreakdown) && periodStats.monthlyBreakdown.length > 0 ? (
                 periodStats.monthlyBreakdown.map((m) => (
                   <div
                     key={m.month}
-                    className="flex items-center justify-between text-[11px] font-mono py-1 px-2 rounded-lg bg-slate-900/60 border border-slate-800/60 hover:border-slate-700"
+                    className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2 rounded-xl bg-slate-900/60 border border-slate-800/60 hover:border-slate-700 text-right"
                   >
-                    <span className="font-sans font-bold text-slate-200">
-                      {formatThaiMonth(m.month)} <span className="text-[10px] text-slate-500 font-normal">({m.days}วัน)</span>
+                    <span className="font-sans font-bold text-slate-200 text-left truncate">
+                      {formatThaiMonth(m.month)}
                     </span>
                     <span className="text-amber-300">{m.imp.toLocaleString()}</span>
                     <span className="text-rose-400 font-bold">{formatBaht(m.importBill)}</span>
@@ -1821,9 +1989,9 @@ export const HomeInverterView = () => {
                 <div className="text-center text-xs text-slate-500 py-2">ไม่มีข้อมูลเดือนที่เลือก</div>
               )}
             </div>
-            <div className="flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-800 font-mono">
-              <span className="text-slate-300 font-sans">รวมยอดที่เลือก:</span>
-              <span className="text-amber-300">{periodStats.imp.toLocaleString()} kWh</span>
+            <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold pt-2 border-t border-slate-800 font-mono text-right">
+              <span className="text-slate-300 font-sans text-left">รวมยอด:</span>
+              <span className="text-amber-300">{periodStats.imp.toLocaleString()}</span>
               <span className="text-rose-400">{formatBaht(periodStats.gridBill || 0)}</span>
               <span className="text-emerald-400">{formatBaht(periodStats.savedBaht || 0)}</span>
             </div>
