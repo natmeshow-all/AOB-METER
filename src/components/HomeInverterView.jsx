@@ -52,14 +52,17 @@ const formatSlashDate = (isoStr) => {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
-// Residential stepped (progressive) electricity tariff — editable in ⚙️ ตั้งค่า
-const TARIFF_STORAGE_KEY = 'POWERVIEW_TARIFF_TIERS_V1';
+// Residential stepped (progressive) electricity tariff + PEA Ft + VAT 7% — editable in ⚙️ ตั้งค่า
+const TARIFF_STORAGE_KEY = 'POWERVIEW_TARIFF_TIERS_V2';
 const DEFAULT_TARIFF_TIERS = [
   { upTo: 200, rate: 3.0 },
   { upTo: 400, rate: 4.22 },
   { upTo: null, rate: 4.42 }
 ];
 const DEFAULT_EXPORT_RATE = 2.2;
+const DEFAULT_FT_RATE = 0.3972; // ค่า Ft การไฟฟ้าส่วนภูมิภาค (กฟภ.) บาท/หน่วย
+const DEFAULT_SERVICE_FEE = 24.62; // ค่าบริการรายเดือน กฟภ. บาท/เดือน
+const DEFAULT_VAT_PCT = 7; // ภาษีมูลค่าเพิ่ม 7%
 
 const loadTariffSettings = () => {
   try {
@@ -69,18 +72,27 @@ const loadTariffSettings = () => {
       if (Array.isArray(parsed?.tiers) && parsed.tiers.length > 0) {
         return {
           tiers: parsed.tiers,
-          exportRate: Number(parsed.exportRate ?? DEFAULT_EXPORT_RATE)
+          exportRate: Number(parsed.exportRate ?? DEFAULT_EXPORT_RATE),
+          ftRate: Number(parsed.ftRate ?? DEFAULT_FT_RATE),
+          serviceFee: Number(parsed.serviceFee ?? DEFAULT_SERVICE_FEE),
+          vatPct: Number(parsed.vatPct ?? DEFAULT_VAT_PCT)
         };
       }
     }
   } catch {
     // ignore malformed storage
   }
-  return { tiers: DEFAULT_TARIFF_TIERS, exportRate: DEFAULT_EXPORT_RATE };
+  return {
+    tiers: DEFAULT_TARIFF_TIERS,
+    exportRate: DEFAULT_EXPORT_RATE,
+    ftRate: DEFAULT_FT_RATE,
+    serviceFee: DEFAULT_SERVICE_FEE,
+    vatPct: DEFAULT_VAT_PCT
+  };
 };
 
 /**
- * Calculates a monthly stepped electricity bill (e.g. 0–200 units @ 3 baht, 201–400 @ 4.22, 401+ @ 4.42).
+ * Calculates base tiered energy charge (e.g. 0–200 units @ 3฿, 201–400 @ 4.22฿, 401+ @ 4.42฿)
  */
 export const calcTieredBill = (kwh, tiers = DEFAULT_TARIFF_TIERS) => {
   let remaining = Math.max(0, Number(kwh) || 0);
@@ -95,6 +107,49 @@ export const calcTieredBill = (kwh, tiers = DEFAULT_TARIFF_TIERS) => {
     prevCap = cap;
   }
   return Number(total.toFixed(2));
+};
+
+/**
+ * Calculates full PEA bill:
+ * 1. Base tiered energy charge
+ * 2. Ft charge (Ft x units)
+ * 3. Monthly service fee
+ * 4. VAT 7%
+ */
+export const calcFullPeaBill = (kwh, settings = {}) => {
+  const units = Math.max(0, Number(kwh) || 0);
+  if (units <= 0) {
+    return {
+      units: 0,
+      baseEnergy: 0,
+      ftCharge: 0,
+      serviceFee: 0,
+      subtotalBeforeVat: 0,
+      vatBaht: 0,
+      totalBill: 0
+    };
+  }
+
+  const tiers = settings.tiers || DEFAULT_TARIFF_TIERS;
+  const ftRate = Number(settings.ftRate ?? DEFAULT_FT_RATE);
+  const serviceFee = Number(settings.serviceFee ?? DEFAULT_SERVICE_FEE);
+  const vatPct = Number(settings.vatPct ?? DEFAULT_VAT_PCT);
+
+  const baseEnergy = calcTieredBill(units, tiers);
+  const ftCharge = Number((units * ftRate).toFixed(2));
+  const subtotalBeforeVat = Number((baseEnergy + ftCharge + serviceFee).toFixed(2));
+  const vatBaht = Number((subtotalBeforeVat * (vatPct / 100)).toFixed(2));
+  const totalBill = Number((subtotalBeforeVat + vatBaht).toFixed(2));
+
+  return {
+    units,
+    baseEnergy,
+    ftCharge,
+    serviceFee,
+    subtotalBeforeVat,
+    vatBaht,
+    totalBill
+  };
 };
 
 const THAI_MONTHS = [
@@ -559,17 +614,19 @@ export const HomeInverterView = () => {
         b.imp += Math.max(Number(log.importKWh || 0), dayBalancedImp);
       });
 
-      // Calculate bill & savings per month using tiered rates
+      // Calculate bill & savings per month using tiered rates + PEA Ft + VAT 7%
       const monthlyBreakdown = Array.from(monthBuckets.values())
         .sort((a, b) => a.month.localeCompare(b.month))
         .map((m) => {
-          const importBill = calcTieredBill(m.imp, tariffSettings.tiers);
-          const hypotheticalBillWithoutSolar = calcTieredBill(m.load, tariffSettings.tiers);
-          const exportIncome = Number((m.exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
-          // Saved = (What you would have paid to Grid for Load) - (What you actually paid for Grid Import) + Export Income
+          const importBillDetails = calcFullPeaBill(m.imp, tariffSettings);
+          const hypotheticalBillDetails = calcFullPeaBill(m.load, tariffSettings);
+          const exportIncome = Number(
+            (m.exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2)
+          );
+          // Saved = (What you would have paid to Grid with Ft & VAT 7%) - (What you actually paid for Import with Ft & VAT 7%) + Export Income
           const savedBaht = Math.max(
             0,
-            Number((hypotheticalBillWithoutSolar - importBill + exportIncome).toFixed(2))
+            Number((hypotheticalBillDetails.totalBill - importBillDetails.totalBill + exportIncome).toFixed(2))
           );
           return {
             ...m,
@@ -577,8 +634,9 @@ export const HomeInverterView = () => {
             load: Number(m.load.toFixed(2)),
             imp: Number(m.imp.toFixed(2)),
             exp: Number(m.exp.toFixed(2)),
-            importBill,
-            hypotheticalBillWithoutSolar,
+            importBill: importBillDetails.totalBill,
+            importBillDetails,
+            hypotheticalBillWithoutSolar: hypotheticalBillDetails.totalBill,
             exportIncome,
             savedBaht
           };
@@ -606,12 +664,12 @@ export const HomeInverterView = () => {
     }
 
     const pvGen = statPeriod === 'Total' ? totalGenKWh : todayGenKWh;
-    const todayImportBill = calcTieredBill(importKWh, tariffSettings.tiers);
-    const todayWithoutSolar = calcTieredBill(loadKWh, tariffSettings.tiers);
+    const todayImportBillDetails = calcFullPeaBill(importKWh, tariffSettings);
+    const todayWithoutSolarDetails = calcFullPeaBill(loadKWh, tariffSettings);
     const todayExportIncome = Number((exportKWh * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
     const todaySavedBaht = Math.max(
       0,
-      Number((todayWithoutSolar - todayImportBill + todayExportIncome).toFixed(2))
+      Number((todayWithoutSolarDetails.totalBill - todayImportBillDetails.totalBill + todayExportIncome).toFixed(2))
     );
 
     return {
@@ -622,7 +680,7 @@ export const HomeInverterView = () => {
       exp: exportKWh,
       chg: chargeBatKWh,
       dis: dischargeBatKWh,
-      gridBill: todayImportBill,
+      gridBill: todayImportBillDetails.totalBill,
       savedBaht: todaySavedBaht || Math.round(Math.max(0, pvGen - exportKWh) * simTariffBaht + exportKWh * 2.2),
       monthlyBreakdown: [
         {
@@ -632,7 +690,8 @@ export const HomeInverterView = () => {
           load: loadKWh,
           imp: importKWh,
           exp: exportKWh,
-          importBill: todayImportBill,
+          importBill: todayImportBillDetails.totalBill,
+          importBillDetails: todayImportBillDetails,
           exportIncome: todayExportIncome,
           savedBaht: todaySavedBaht
         }
@@ -1169,7 +1228,10 @@ export const HomeInverterView = () => {
                         onClick={() =>
                           updateTariffSettings({
                             tiers: DEFAULT_TARIFF_TIERS,
-                            exportRate: DEFAULT_EXPORT_RATE
+                            exportRate: DEFAULT_EXPORT_RATE,
+                            ftRate: DEFAULT_FT_RATE,
+                            serviceFee: DEFAULT_SERVICE_FEE,
+                            vatPct: DEFAULT_VAT_PCT
                           })
                         }
                         className="text-[10px] font-bold text-sky-400 hover:text-sky-200 underline cursor-pointer"
@@ -1212,6 +1274,90 @@ export const HomeInverterView = () => {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* PEA Ft Rate, Monthly Service Fee, VAT 7% */}
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="text-slate-200 font-bold text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-cyan-300">
+                        ⚡ ค่า Ft การไฟฟ้า (PEA Ft) และ ภาษี VAT 7% (คิดครบตามบิลจริง)
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-normal">ตามประกาศ กฟภ.</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* Ft Rate */}
+                      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-1 text-xs">
+                        <label className="block text-slate-400 text-[11px] font-bold">
+                          ค่า Ft (บาท/หน่วย)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={tariffSettings.ftRate ?? DEFAULT_FT_RATE}
+                            onChange={(e) =>
+                              updateTariffSettings({
+                                ...tariffSettings,
+                                ftRate: Number(e.target.value) || 0
+                              })
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-cyan-300 font-mono font-bold text-right"
+                          />
+                          <span className="text-[11px] text-slate-400">฿</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">มาตรฐาน 0.3972 ฿</p>
+                      </div>
+
+                      {/* Service Fee */}
+                      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-1 text-xs">
+                        <label className="block text-slate-400 text-[11px] font-bold">
+                          ค่าบริการ กฟภ. (บาท/เดือน)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE}
+                            onChange={(e) =>
+                              updateTariffSettings({
+                                ...tariffSettings,
+                                serviceFee: Number(e.target.value) || 0
+                              })
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-amber-300 font-mono font-bold text-right"
+                          />
+                          <span className="text-[11px] text-slate-400">฿</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">มาตรฐาน 24.62 ฿</p>
+                      </div>
+
+                      {/* VAT % */}
+                      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-1 text-xs">
+                        <label className="block text-slate-400 text-[11px] font-bold">
+                          ภาษีมูลค่าเพิ่ม (VAT %)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={tariffSettings.vatPct ?? DEFAULT_VAT_PCT}
+                            onChange={(e) =>
+                              updateTariffSettings({
+                                ...tariffSettings,
+                                vatPct: Number(e.target.value) || 0
+                              })
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-400 font-mono font-bold text-right"
+                          />
+                          <span className="text-[11px] text-slate-400">%</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">มาตรฐาน 7%</p>
+                      </div>
                     </div>
                   </div>
 
@@ -1904,7 +2050,7 @@ export const HomeInverterView = () => {
             <div className="bg-[#04070e] border border-rose-500/40 rounded-2xl p-3.5">
               <div className="text-xs text-rose-300 font-bold flex items-center justify-between">
                 <span>⚡ จ่ายให้การไฟฟ้า</span>
-                <span className="text-[10px] text-rose-400/80 font-normal">ขั้นบันได</span>
+                <span className="text-[10px] text-rose-400 font-mono font-normal">รวม Ft+VAT 7%</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
                 {formatBaht(periodStats.gridBill || 0)}
@@ -1950,11 +2096,11 @@ export const HomeInverterView = () => {
                 <span>สรุปค่าไฟฟ้าและเงินที่ประหยัดได้</span>
               </span>
               <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-md">
-                อัตราก้าวหน้า 0-200หน่วย @ ฿3
+                รวม Ft ({tariffSettings.ftRate ?? DEFAULT_FT_RATE}฿) + VAT 7%
               </span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              คิดคำนวณแยกตามเดือนจริง และหักลบรายได้ขายไฟคืน ({tariffSettings.exportRate || DEFAULT_EXPORT_RATE}฿/หน่วย)
+              คิดคำนวณแยกตามเดือนจริง (ฐานขั้นบันได + Ft + บริการ + VAT 7%) และหักรายได้ขายไฟคืน ({tariffSettings.exportRate || DEFAULT_EXPORT_RATE}฿/หน่วย)
             </p>
           </div>
 
@@ -1990,6 +2136,9 @@ export const HomeInverterView = () => {
               <span className="text-amber-300">{periodStats.imp.toLocaleString()}</span>
               <span className="text-rose-400">{formatBaht(periodStats.gridBill || 0)}</span>
               <span className="text-emerald-400">{formatBaht(periodStats.savedBaht || 0)}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-mono pt-1 text-center">
+              * รวม: ฐานขั้นบันได + Ft ฿{tariffSettings.ftRate ?? DEFAULT_FT_RATE}/หน่วย + บริการ ฿{tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE} + VAT {tariffSettings.vatPct ?? DEFAULT_VAT_PCT}%
             </div>
           </div>
 
