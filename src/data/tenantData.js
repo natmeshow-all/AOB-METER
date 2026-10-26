@@ -395,3 +395,61 @@ export const generateYearlyData = (companyId) => {
     };
   });
 };
+
+export const generateDailyData = (companyId, daysInMonth = 30) => {
+  const company = TENANT_COMPANIES[companyId];
+  const baseTotalKW = (company?.electricityMeters || []).reduce(
+    (acc, m) => acc + (Number(m.liveKW ?? m.baseKW) || 0),
+    0
+  );
+  const baseDailyKWh = baseTotalKW * 18;
+
+  const days = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayOfWeek = d % 7;
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const multiplier = isWeekend ? 0.68 : 1.0;
+
+    const totalKWh = Math.round(baseDailyKWh * multiplier);
+    const peakKW = Math.round(baseTotalKW * 1.05);
+    const onPeakKWh = Math.round(totalKWh * 0.65);
+    const offPeakKWh = totalKWh - onPeakKWh;
+
+    days.push({
+      day: d,
+      dateLabel: `${d}`,
+      isWeekend,
+      totalKWh,
+      peakKW,
+      onPeakKWh,
+      offPeakKWh,
+      powerFactor: 0.95
+    });
+  }
+  return days;
+};
+
+export const generateMonthlyData = (companyId) => {
+  const company = TENANT_COMPANIES[companyId];
+  const baseTotalKW = (company?.electricityMeters || []).reduce(
+    (acc, m) => acc + (Number(m.liveKW ?? m.baseKW) || 0),
+    0
+  );
+  const baseMonthlyKWh = baseTotalKW * 18 * 28;
+
+  const monthNames = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+  ];
+
+  return monthNames.map((name, idx) => {
+    const totalKWh = Math.round(baseMonthlyKWh);
+    const peakKW = Math.round(baseTotalKW * 1.08);
+    return {
+      month: name,
+      monthNum: idx + 1,
+      totalKWh,
+      peakKW
+    };
+  });
+};
