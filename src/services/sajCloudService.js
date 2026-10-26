@@ -130,15 +130,6 @@ export const syncSajCloudAndBackfillHistory = async ({
   const cleanPass = (transientPassword || '').trim();
   const savedTicket = getSavedSajSessionTicket(currentSolarConfig);
 
-  if (!cleanPass && !savedTicket) {
-    return {
-      success: false,
-      needsPassword: true,
-      message:
-        '🔑 กรุณากรอก "รหัสผ่านแอป SAJ (Elekeeper)" เพียงครั้งเดียวในช่องรหัสผ่าน เพื่อเปิดระบบดึงข้อมูลเรียลไทม์และประวัติย้อนหลังอัตโนมัติ (หลังจากผูกสำเร็จแล้ว ไม่ต้องกรอกรหัสซ้ำอีก)'
-    };
-  }
-
   try {
     if (onProgress) {
       onProgress('🔐 กำลังเชื่อมต่อเซิร์ฟเวอร์ SAJ (iop.saj-electric.com) แบบเรียลไทม์...');

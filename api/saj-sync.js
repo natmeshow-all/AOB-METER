@@ -594,8 +594,16 @@ async function fetchSingleHistoricalDay({
 /**
  * Fetches a batch of 5 historical dates in parallel from SAJ.
  */
+// Server-level in-memory ticket & telemetry bridge across all devices
+let serverGlobalSessionTicket = null;
+let serverGlobalLastResult = null;
+
 export async function executeSajHistoricalBatch({ sessionTicket, dates = [] }) {
-  const session = decodeSessionTicket(sessionTicket);
+  const effectiveTicket = sessionTicket || serverGlobalSessionTicket;
+  if (!effectiveTicket) {
+    return { success: false, message: 'No session ticket available', days: [] };
+  }
+  const session = decodeSessionTicket(effectiveTicket);
   const authToken = await ensureValidAuthToken(session);
   const { baseUrl, plantUid, deviceSn, deviceType } = session;
 
@@ -639,9 +647,10 @@ export async function executeRealSajCloudSync({
   let encryptedPassword = null;
 
   // 1. Check if we have a saved encrypted sessionTicket (allows 100% passwordless auto-sync & token renewal!)
-  if (sessionTicket && (!password || !password.trim())) {
+  const effectiveTicket = sessionTicket || serverGlobalSessionTicket;
+  if (effectiveTicket && (!password || !password.trim())) {
     try {
-      const decoded = decodeSessionTicket(sessionTicket);
+      const decoded = decodeSessionTicket(effectiveTicket);
       if (decoded?.baseUrl) {
         activeRegion =
           SAJ_REGIONS.find((r) => r.base === decoded.baseUrl) || SAJ_REGIONS[0];
@@ -658,6 +667,13 @@ export async function executeRealSajCloudSync({
   if (!authToken || !activeRegion) {
     const cleanPass = (password || '').trim();
     if (!cleanUser || (!cleanPass && !encryptedPassword)) {
+      if (serverGlobalLastResult) {
+        return {
+          ...serverGlobalLastResult,
+          cachedFromCloudBridge: true,
+          updatedAt: new Date().toLocaleTimeString('th-TH')
+        };
+      }
       return {
         success: false,
         needsPassword: true,
@@ -972,7 +988,9 @@ export async function executeRealSajCloudSync({
 
   const initialHistoryDays = recentDayResults.filter((d) => d && d.hasData);
 
-  return {
+  serverGlobalSessionTicket = newSessionTicket;
+
+  const result = {
     success: true,
     sessionTicket: newSessionTicket,
     region: activeRegion.name,
@@ -1020,6 +1038,9 @@ export async function executeRealSajCloudSync({
       rawRecordCount: rawRecords.length
     }
   };
+
+  serverGlobalLastResult = result;
+  return result;
 }
 
 export default async function handler(req, res) {

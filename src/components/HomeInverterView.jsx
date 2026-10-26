@@ -795,10 +795,10 @@ export const HomeInverterView = () => {
           setTestResult(res);
         }
       } else {
-        if (res.needsPassword) {
-          setIsSettingOpen(true);
-        }
-        if (!silent || res.needsPassword) {
+        if (!silent) {
+          if (res.needsPassword) {
+            setIsSettingOpen(true);
+          }
           setTestResult(res);
         }
       }
@@ -820,26 +820,22 @@ export const HomeInverterView = () => {
     ]
   );
 
-  // Automatic Initial Sync + Historical Backfill on Mount & 60s Real-Time Auto-Polling
+  // Automatic Initial Sync on Mount (100% SILENT in background, NEVER pops up settings or error modals)
   useEffect(() => {
     if (!currentCompany) return;
-    const ticket = getSavedSajSessionTicket(solarData);
 
-    if (ticket && autoStartedOrgRef.current !== currentCompany.id) {
+    if (autoStartedOrgRef.current !== currentCompany.id) {
       autoStartedOrgRef.current = currentCompany.id;
-      const needsHistoryBackfill = historicalLogs.length <= 2;
+      // Always sync silently in background on mount - never interrupt the user with popups
       executeSajSync({
-        silent: !needsHistoryBackfill,
-        skipBackfillIfCached: !needsHistoryBackfill
+        silent: true,
+        skipBackfillIfCached: historicalLogs.length > 5
       });
-    } else if (!ticket && autoStartedOrgRef.current !== currentCompany.id) {
-      autoStartedOrgRef.current = currentCompany.id;
-      setIsSettingOpen(true);
     }
-  }, [currentCompany, solarData, historicalLogs.length, executeSajSync]);
+  }, [currentCompany, historicalLogs.length, executeSajSync]);
 
+  // 60s Real-Time Auto-Polling (Runs silently in background, keeping telemetry live)
   useEffect(() => {
-    if (!savedTicket) return;
     const interval = setInterval(() => {
       setAutoSyncCountdown((prev) => {
         if (prev <= 1) {
@@ -850,7 +846,7 @@ export const HomeInverterView = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [savedTicket, executeSajSync]);
+  }, [executeSajSync]);
 
   // Manual One-click REAL SAJ Cloud V2 Sync + Full Historical Backfill
   const handleSyncSajCloudAndHistory = useCallback(async () => {

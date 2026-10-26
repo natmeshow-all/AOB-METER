@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Zap,
   Lock,
@@ -10,20 +10,49 @@ import {
   EyeOff,
   ArrowRight,
   Cpu,
-  Activity
+  Activity,
+  Sun,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPortal = () => {
   const { loginWithCredentials, isLoadingAuth, authError, setAuthError } = useAuth();
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState('natshow');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Auto-login if URL has ?site=bannat / ?auto=1 / ?login=natshow or remembered
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const site = (params.get('site') || params.get('auto') || params.get('login') || '').toLowerCase();
+      const isAutoSaved = localStorage.getItem('POWERVIEW_AUTO_BANNAT') === 'true';
+      if (site === 'bannat' || site === 'natshow' || site === 'nat01' || site === '1' || site === 'true' || isAutoSaved) {
+        loginWithCredentials('natshow', 'admin');
+      }
+    } catch {}
+  }, [loginWithCredentials]);
+
+  const handleFastLoginBannat = async () => {
+    if (rememberMe) {
+      try {
+        localStorage.setItem('POWERVIEW_AUTO_BANNAT', 'true');
+      } catch {}
+    }
+    await loginWithCredentials('natshow', 'admin');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!identifier.trim() || !password.trim()) return;
-    await loginWithCredentials(identifier, password);
+    if (!identifier.trim()) return;
+    if (rememberMe && (identifier.toLowerCase() === 'natshow' || identifier.toLowerCase() === 'bannat')) {
+      try {
+        localStorage.setItem('POWERVIEW_AUTO_BANNAT', 'true');
+      } catch {}
+    }
+    await loginWithCredentials(identifier, password || 'admin');
   };
 
   return (
@@ -92,6 +121,40 @@ export const LoginPortal = () => {
               </div>
             )}
 
+            {/* 1-Tap Fast Login for BANNAT Home Solar Site */}
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={handleFastLoginBannat}
+                disabled={isLoadingAuth}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-sky-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-sky-500/30 border border-emerald-500/50 hover:border-emerald-400 text-white font-bold flex items-center justify-between shadow-[0_10px_25px_rgba(16,185,129,0.15)] active:scale-95 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                    <Sun className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                      <span>⚡ เข้าสู่ระบบทันที: BANNAT</span>
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                        1-TAP
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      แตะเพื่อดูหน้าปัดโซลาร์ทันที (ไม่ต้องพิมพ์รหัส)
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <div className="flex items-center gap-3 mt-4">
+                <div className="h-px bg-slate-800 flex-1" />
+                <span className="text-[10px] text-slate-500 font-medium">หรือ เข้าสู่ระบบด้วยตนเอง</span>
+                <div className="h-px bg-slate-800 flex-1" />
+              </div>
+            </div>
+
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
               <div>
@@ -123,7 +186,6 @@ export const LoginPortal = () => {
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
@@ -146,6 +208,18 @@ export const LoginPortal = () => {
                     )}
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded bg-slate-950 border-slate-700 text-blue-500 accent-blue-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span>จดจำการเข้าสู่ระบบบนเครื่องนี้ (จำถาวร)</span>
+                </label>
               </div>
 
               <div className="pt-2">

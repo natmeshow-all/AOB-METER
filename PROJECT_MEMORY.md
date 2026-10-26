@@ -113,6 +113,19 @@
 
 ---
 
+### ⚠️ บทเรียนที่ 11: การเข้าสู่ระบบเครื่องไหนก็ได้โดยไม่ต้องพิมพ์ User หรือรหัส SAJ และไม่ต้องกดซิงก์เอง
+- **ข้อผิดพลาดเดิม:** 
+  1. เมื่อเปิดแอปบนเครื่องใหม่หรือมือถือ ผู้ใช้ต้องมานั่งพิมพ์ชื่อผู้ใช้และรหัสผ่านทุกครั้ง
+  2. เมื่อเข้ามาแล้ว หน้าต่างตั้งค่า SAJ เด้งขึ้นมาบังคับให้ใส่รหัสผ่าน SAJ อีก เพราะ `sessionTicket` เคยเก็บไว้แค่ใน `localStorage` ของเครื่องเดิม
+  3. กราฟและตัวเลขว่างเปล่า ทำให้ผู้ใช้ต้องคอยกดปุ่ม "ซิงก์ข้อมูล" เองทุกรอบ
+- **กฎเหล็กถาวร:**
+  - **1-Tap Fast Login:** บนหน้า [`LoginPortal.jsx`](file:///c:/Users/natsh/Documents/AOB/NEW-AI/src/components/LoginPortal.jsx) ต้องมีปุ่มเด่น `⚡ เข้าสู่ระบบทันที: BANNAT (1-TAP)` แตะครั้งเดียวเข้าหน้าจอโซลาร์ได้ทันทีโดยไม่ต้องสัมผัสแป้นพิมพ์ พร้อมรองรับ `?site=bannat` เข้าตรงอัตโนมัติ
+  - **Zero Password Prompt on Mount:** ใน [`HomeInverterView.jsx`](file:///c:/Users/natsh/Documents/AOB/NEW-AI/src/components/HomeInverterView.jsx) **ห้ามรัน `setIsSettingOpen(true)` ตอนเปิดหน้าเว็บเด็ดขาด** ไม่ว่ากรณีใดก็ตาม
+  - **Instant 0.00s Rendering:** ใน [`tenantData.js`](file:///c:/Users/natsh/Documents/AOB/NEW-AI/src/data/tenantData.js) ต้องมีข้อมูล Baseline Real-time, 24-Hour Dyno Curve และประวัติ 30 วันที่ผ่านการคำนวณขั้นบันไดติดตั้งมาพร้อมรัน ทำให้เปิดเครื่องไหนปุ๊บ มาตรวัดและกราฟติดทันที 0 วินาที
+  - **Silent Background Auto-Sync:** ระบบตั้งเวลา Polling ดึงข้อมูลใหม่ทุก 60 วินาทีอย่างเงียบๆ (`silent: true`) ไม่แสดงป๊อปอัป ไม่บล็อกหน้าจอ ข้อมูลจะอัปเดตสดอย่างต่อเนื่องโดยที่ผู้ใช้ไม่ต้องกดปุ่มซิงก์เองเลย
+
+---
+
 ## 3. ระบบความปลอดภัยและสิทธิ์ผู้ใช้ (Multi-Tenant & Super Admin)
 
 ### โครงสร้างระดับสิทธิ์ (Role Hierarchy):
