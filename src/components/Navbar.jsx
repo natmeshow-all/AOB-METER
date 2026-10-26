@@ -99,9 +99,9 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
             </div>
           </div>
 
-          {/* Right: Super Admin Toggle (if Super Admin) & Logout Button */}
+          {/* Right: Desktop-Only Super Admin Toggle & Logout (On Mobile, actions are unified exclusively in the Bottom Menu Bar) */}
           {currentUser && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               {isSuperAdmin && (
                 <button
                   onClick={() =>
@@ -114,7 +114,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                   }`}
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">
+                  <span>
                     {activeTab === 'super-admin' ? 'ดูหน้าแดชบอร์ด' : 'ตั้งค่าระบบ (Admin)'}
                   </span>
                 </button>
@@ -125,7 +125,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                 title="ออกจากระบบ"
               >
                 <LogOut className="w-4 h-4 text-rose-400" />
-                <span className="hidden sm:inline">ออกจากระบบ</span>
+                <span>ออกจากระบบ</span>
               </button>
             </div>
           )}

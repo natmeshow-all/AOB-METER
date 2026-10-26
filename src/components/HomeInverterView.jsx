@@ -931,6 +931,13 @@ export const HomeInverterView = () => {
     };
   }, [solarData, handleSyncSajCloudAndHistory]);
 
+  // Broadcast sync animation state to mobile bottom navigation bar
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('SOLAR_SYNC_STATUS', { detail: { isSyncing: isTesting } })
+    );
+  }, [isTesting]);
+
   const handleSaveSettingsToDb = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setTransientGuestPassword('');
@@ -1008,25 +1015,28 @@ export const HomeInverterView = () => {
   return (
     <div className="space-y-4 pb-14">
       {/* =================================================================== */}
-      {/* MINIMALIST EXECUTIVE HEADER BAR (ALL SETTINGS HIDDEN IN 1 BUTTON)   */}
+      {/* MINIMALIST EXECUTIVE STATUS BAR (ACTIONS UNIFIED IN MOBILE BAR)    */}
       {/* =================================================================== */}
-      <div className="bg-[#070b14] border border-slate-800/90 rounded-2xl px-4 py-3 shadow-lg flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">
-            {currentCompany.name}
-          </h2>
-          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900 text-sky-400 border border-slate-800">
-            {solarData.inverterModel || 'H2-6K-LS2'}
-          </span>
+      <div className="bg-[#070b14] border border-slate-800/90 rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 shadow-lg flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <h2 className="text-base sm:text-xl font-black tracking-tight text-white">
+              {currentCompany.name}
+            </h2>
+            <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900 text-sky-400 border border-slate-800">
+              {solarData.inverterModel || 'H2-6K-LS2'}
+            </span>
+          </div>
           {solarData.lastCloudSyncAt && (
-            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-              • อัปเดตล่าสุด {solarData.lastCloudSyncAt} ({autoSyncCountdown}s)
+            <span className="text-[11px] text-slate-400 font-mono">
+              • ซิงก์ล่าสุด {solarData.lastCloudSyncAt.slice(-8)} ({autoSyncCountdown}s)
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Desktop-Only Action Buttons (On Mobile, Sync & Settings are unified in the 1-thumb Bottom Menu Bar) */}
+        <div className="hidden sm:flex items-center gap-2">
           <button
             type="button"
             onClick={handleSyncSajCloudAndHistory}
@@ -2023,63 +2033,69 @@ export const HomeInverterView = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-sky-300 font-bold">☀️ ผลิตไฟโซลาร์ (PV Gen)</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-sky-300 font-bold truncate">☀️ ผลิตไฟโซลาร์ (PV)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.pvGen.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-indigo-300 font-bold">🏠 ไฟที่ใช้ในบ้านรวม (Load)</div>
+
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-indigo-300 font-bold truncate">🏠 ใช้ไฟในบ้านรวม (Load)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.load.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
-            <div className="bg-[#04070e] border border-emerald-500/30 rounded-2xl p-3.5">
+
+            <div className="bg-[#04070e] border border-emerald-500/30 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
               <div className="text-xs text-emerald-300 font-bold flex items-center justify-between">
-                <span>💰 ประหยัดค่าไฟได้</span>
+                <span>💰 ประหยัดได้</span>
                 <span className="text-[10px] text-emerald-400/80 font-normal">สุทธิ</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
                 {formatBaht(periodStats.savedBaht)}
               </div>
             </div>
-            <div className="bg-[#04070e] border border-rose-500/40 rounded-2xl p-3.5">
+
+            <div className="bg-[#04070e] border border-rose-500/40 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
               <div className="text-xs text-rose-300 font-bold flex items-center justify-between">
-                <span>⚡ จ่ายให้การไฟฟ้า</span>
-                <span className="text-[10px] text-rose-400 font-mono font-normal">รวม Ft+VAT 7%</span>
+                <span>⚡ จ่ายการไฟฟ้า</span>
+                <span className="text-[10px] text-rose-400 font-mono font-normal">รวม Ft+VAT</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
                 {formatBaht(periodStats.gridBill || 0)}
               </div>
             </div>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-amber-300 font-bold">🗼 ดึงไฟการไฟฟ้า (Import)</div>
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-amber-300 font-bold truncate">🗼 ดึงไฟการไฟฟ้า (Import)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-amber-300 mt-1">
                 {periodStats.imp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-emerald-300 font-bold">🔋 ชาร์จลงแบตเตอรี่</div>
+
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-emerald-300 font-bold truncate">🔋 ชาร์จลงแบต</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
                 {periodStats.chg.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-teal-300 font-bold">🔋 จ่ายไฟจากแบตเตอรี่</div>
+
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-teal-300 font-bold truncate">🔋 จ่ายไฟจากแบต</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-teal-300 mt-1">
                 {periodStats.dis.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
             </div>
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5">
-              <div className="text-xs text-sky-300 font-bold">📤 ส่งออกขายไฟ (Export)</div>
+
+            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
+              <div className="text-xs text-sky-300 font-bold truncate">📤 ส่งออกขายไฟ (Export)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-sky-300 mt-1">
                 {periodStats.exp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>

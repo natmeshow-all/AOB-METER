@@ -1044,6 +1044,11 @@ export async function executeRealSajCloudSync({
 }
 
 export default async function handler(req, res) {
+  // Enterprise Security Headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -1058,10 +1063,19 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
+    // Input validation & size bounds
+    if (body.username && typeof body.username === 'string' && body.username.length > 150) {
+      return res.status(400).json({ success: false, message: 'Invalid username format' });
+    }
+    if (body.password && typeof body.password === 'string' && body.password.length > 150) {
+      return res.status(400).json({ success: false, message: 'Invalid password format' });
+    }
+
     if (body.mode === 'backfill_batch') {
+      const dates = Array.isArray(body.dates) ? body.dates.slice(0, 10) : [];
       const batchRes = await executeSajHistoricalBatch({
         sessionTicket: body.sessionTicket,
-        dates: body.dates
+        dates
       });
       return res.status(200).json(batchRes);
     }

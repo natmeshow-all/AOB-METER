@@ -106,21 +106,22 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
     <div className="space-y-5">
       {/* Top Bar: Back Button & Quick Meter Selector */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <button
             onClick={onBackToOverview}
-            className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl cursor-pointer transition-all"
+            className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl cursor-pointer transition-all shrink-0 active:scale-95"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>กลับหน้าภาพรวมมิเตอร์ทั้งหมด</span>
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span>ภาพรวมมิเตอร์</span>
+            <span className="hidden sm:inline">ทั้งหมด</span>
           </button>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 hidden sm:inline">เลือกมิเตอร์:</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs text-slate-400 hidden sm:inline shrink-0">เลือกมิเตอร์:</span>
             <select
               value={activeMeter.id}
               onChange={(e) => onSelectMeter && onSelectMeter(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500 cursor-pointer"
+              className="bg-slate-950 border border-slate-700 text-white text-xs font-bold rounded-xl px-2.5 py-1.5 outline-none focus:border-blue-500 cursor-pointer max-w-[190px] sm:max-w-xs truncate"
             >
               {meters.map((m, idx) => (
                 <option key={m.id} value={m.id}>

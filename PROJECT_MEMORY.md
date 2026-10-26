@@ -145,6 +145,20 @@
 
 ---
 
+### ⚠️ บทเรียนที่ 13: รวมศูนย์เมนูบนมือถือให้เหลือจุดเดียวที่แถบเมนูด้านล่าง (Single Source of Navigation) และความสมดุลของเลย์เอาต์ทุกหน้าจอ
+- **ข้อผิดพลาดเดิม:** บนหน้าจอมือถือ มีปุ่มออกจากระบบ, ปุ่มตั้งค่า, และปุ่มซิงก์ซ้ำซ้อนกัน 2-3 จุด (ทั้งบนแถบ Navbar ด้านบน, กล่องหัวเรื่องในหน้าจอ และแถบ Bottom Nav ด้านล่าง) ทำให้หน้าจอมือถือดูรก แย่งพื้นที่หน้าปัดมาตรวัด และตัวหนังสือเบียดเสียดกัน
+- **กฎเหล็กถาวร:**
+  1. **Single Source of Mobile Navigation:** บนมือถือ (`sm:hidden`) การนำทางและแอ็กชันหลักต้องอยู่ที่ **Sticky Bottom Navigation Bar ด้านล่างเพียงจุดเดียว**
+  2. **Minimalist Mobile Header:** บน Navbar ด้านบน ซ่อนปุ่มออกจากระบบและปุ่มสลับ Admin ที่ซ้ำซ้อนออกสำหรับหน้าจอมือถือ (`hidden sm:flex`) เหลือเฉพาะโลโก้, ชื่อบริษัท และตัวสลับบริษัทสำหรับ Super Admin
+  3. **Zero In-Page Duplicate Buttons:** ใน `HomeInverterView` ซ่อนปุ่มซิงก์และปุ่มตั้งค่าบนมือถือ (`hidden sm:flex`) เพราะปุ่มทั้งสองอยู่บน Bottom Bar ตลอดเวลา ช่วยคืนพื้นที่แนวตั้งให้คลัสเตอร์หน้าปัดไมล์รถหรูเด่นชัดทันทีที่เปิดแอป
+  4. **Equal-Width Grid & Safe Area:** แถบเมนูด้านล่างใช้ระบบ Grid แบ่งสัดส่วนเท่ากันเป๊ะ (`grid-cols-4` หรือ `grid-cols-5`) รองรับ Safe Area Insets (`pb-[calc(env(safe-area-inset-bottom,0px)+8px)]`) ใช้งานด้วยนิ้วโป้งเดียวได้ถนัดมือ ไม่บังแถบ Home Bar ของ iOS/Android
+  5. **Enterprise Security Hardening:**
+     - ใน `api/saj-sync.js` ใส่ Security Headers ครบถ้วน (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`)
+     - ตรวจสอบความยาว String และขนาด Payload เพื่อป้องกัน DoS และ Injection
+     - รหัสผ่าน Transient Guest ในหน่วยความจำถูกล้างทันทีหลังแลก Token
+
+---
+
 ## 3. ระบบความปลอดภัยและสิทธิ์ผู้ใช้ (Multi-Tenant & Super Admin)
 
 ### โครงสร้างระดับสิทธิ์ (Role Hierarchy):

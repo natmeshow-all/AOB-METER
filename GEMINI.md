@@ -39,4 +39,9 @@ All coding assistants and agents working on this project MUST strictly follow th
    - PEA Electricity Bill calculation MUST include Base Energy + Ft Charge (0.3972฿/kWh) + Monthly Service Fee (24.62฿) + 7% VAT, providing exact parity with official PEA invoices.
    - All modals and popups must strictly follow mobile bottom-sheet architecture (`rounded-t-[32px]`, `backdrop-blur-md`, safe area insets) with floating status toasts for sync notifications.
 
+7. **Single Source of Navigation on Mobile & Enterprise Security Hardening:**
+   - On mobile screens, all primary navigation and actions (Sync, Settings, Logout, Admin toggle, Tabs) MUST live exclusively in the Sticky Bottom Navigation Bar (`sm:hidden`).
+   - NEVER duplicate Logout or Admin buttons in the top navbar or in-page headers on mobile (`hidden sm:flex` for desktop-only controls).
+   - API endpoints (`api/saj-sync.js`) must enforce enterprise security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`) and input size bounds checking.
+
 See full details in `PROJECT_MEMORY.md`.
