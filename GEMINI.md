@@ -33,4 +33,9 @@ All coding assistants and agents working on this project MUST strictly follow th
 5. **SQL & Supabase Scripts:**
    - All SQL scripts provided to the user must be 100% idempotent and self-contained with `IF NOT EXISTS` and `DROP POLICY IF EXISTS`.
 
+6. **SAJ Cloud & Inverter Invariants:**
+   - Persistent `sessionTicket` in DB and `localStorage` ensures zero repeated password prompts.
+   - Stepped tariff (0–200 units @ 3฿, 201–400 @ 4.22฿, 401+ @ 4.42฿, Export @ 2.20฿) MUST calculate per calendar month, never aggregated into a single lump sum.
+   - All modals and popups must strictly follow mobile bottom-sheet architecture (`rounded-t-[32px]`, `backdrop-blur-md`, safe area insets) with floating status toasts for sync notifications.
+
 See full details in `PROJECT_MEMORY.md`.
