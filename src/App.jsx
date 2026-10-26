@@ -55,7 +55,11 @@ export function App() {
     return <LoginPortal />;
   }
 
-  const isHomeSolarSite = activeOrganization?.siteType === 'HOME_SOLAR';
+  const isHomeSolarSite =
+    activeOrganization?.siteType === 'HOME_SOLAR' ||
+    currentUser?.siteType === 'HOME_SOLAR' ||
+    activeOrganization?.code === 'NAT01' ||
+    activeOrganization?.name?.toUpperCase() === 'BANNAT';
 
   const handleInspectMeter = (meterId) => {
     setSelectedMeterId(meterId);

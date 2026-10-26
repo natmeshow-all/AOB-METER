@@ -10,6 +10,11 @@ import {
 } from '../data/tenantData';
 
 const STORAGE_KEY_ACCOUNTS = 'POWERVIEW_PROD_ACCOUNTS_V3';
+const LEGACY_ACCOUNT_KEYS = [
+  'POWERVIEW_PROD_ACCOUNTS_V4',
+  'POWERVIEW_PROD_ACCOUNTS_V3',
+  'POWERVIEW_PROD_ACCOUNTS_V2'
+];
 
 // Build organization summary list from TENANT_COMPANIES
 const buildOrgListFromCompanies = () => {
@@ -67,22 +72,55 @@ export const isSuperAdminEmail = (identifier) => {
 };
 
 const loadInitialAccounts = () => {
+  const mergedMap = new Map();
+  mergedMap.set('superadmin', DEMO_USERS[0]);
+
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_ACCOUNTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const hasSuper = parsed.some((u) => u.email === 'natshownolimit@gmail.com');
-        if (!hasSuper) {
-          return [DEMO_USERS[0], ...parsed];
+    for (const key of LEGACY_ACCOUNT_KEYS) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((acc) => {
+            if (acc && acc.username) {
+              mergedMap.set(acc.username.toLowerCase(), acc);
+            }
+          });
         }
-        return parsed;
       }
     }
   } catch (e) {
     console.warn('Failed to load accounts:', e);
   }
-  return DEMO_USERS;
+
+  // Ensure every company in TENANT_COMPANIES has a client login account
+  Object.values(TENANT_COMPANIES).forEach((comp) => {
+    const uname = (comp.loginUsername || (comp.code === 'NAT01' ? 'natshow' : comp.code) || '').toLowerCase();
+    if (!uname) return;
+    const existingForOrg = Array.from(mergedMap.values()).find(
+      (a) => a.role !== 'SUPER_ADMIN' && (a.orgId === comp.id || a.username?.toLowerCase() === uname)
+    );
+    if (!existingForOrg) {
+      mergedMap.set(uname, {
+        id: `user-${(comp.code || 'site').toLowerCase()}`,
+        username: comp.loginUsername || (comp.code === 'NAT01' ? 'natshow' : comp.code),
+        email: `${uname}@powerview.local`,
+        password: comp.loginPassword || '',
+        isAutoRecovered: !comp.loginPassword,
+        fullName:
+          comp.siteType === 'HOME_SOLAR'
+            ? `เจ้าของบ้าน (${comp.name})`
+            : `ผู้ดูแลระบบ (${comp.name})`,
+        role: 'PLANT_MANAGER',
+        orgId: comp.id,
+        siteType: comp.siteType || 'HOME_SOLAR',
+        companyName: comp.name,
+        createdAt: comp.installedDate || '2026-10-25'
+      });
+    }
+  });
+
+  return Array.from(mergedMap.values());
 };
 
 const AuthContext = createContext(null);
@@ -210,36 +248,7 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    // 1. Check Customer / Home Accounts created by Super Admin FIRST
-    const matchedClientAccount = allAccounts.find(
-      (acc) =>
-        acc.role !== 'SUPER_ADMIN' &&
-        ((acc.username && acc.username.toLowerCase() === cleanId) ||
-          (acc.email &&
-            acc.email.toLowerCase() === cleanId &&
-            acc.email.toLowerCase() !== 'natshownolimit@gmail.com'))
-    );
-
-    if (matchedClientAccount) {
-      if (matchedClientAccount.password === cleanPass) {
-        const userToLogin = {
-          ...matchedClientAccount,
-          role: 'PLANT_MANAGER'
-        };
-        setCurrentUser(userToLogin);
-        if (userToLogin.orgId) {
-          setActiveOrgId(userToLogin.orgId);
-        }
-        setIsLoadingAuth(false);
-        return true;
-      } else {
-        setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
-        return false;
-      }
-    }
-
-    // 2. Super Admin verification (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
+    // 1. Super Admin verification FIRST (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
     if (isSuperAdminEmail(cleanId)) {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
       const supabase = getSupabase();
@@ -281,6 +290,99 @@ export const AuthProvider = ({ children }) => {
       );
 
       setCurrentUser(superUser);
+      setIsLoadingAuth(false);
+      return true;
+    }
+
+    // 2. Check Customer / Home Accounts (Matches by Username, Company Name e.g. BANNAT, or Site Code e.g. NAT01)
+    const matchedClientAccount = allAccounts.find(
+      (acc) =>
+        acc.role !== 'SUPER_ADMIN' &&
+        ((acc.username && acc.username.toLowerCase() === cleanId) ||
+          (acc.companyName && acc.companyName.toLowerCase() === cleanId) ||
+          (acc.orgId && acc.orgId.toLowerCase() === cleanId) ||
+          (acc.orgId && acc.orgId.toLowerCase() === `org-${cleanId}`) ||
+          (acc.email &&
+            acc.email.toLowerCase() === cleanId &&
+            acc.email.toLowerCase() !== 'natshownolimit@gmail.com'))
+    );
+
+    if (matchedClientAccount) {
+      if (
+        !matchedClientAccount.password ||
+        matchedClientAccount.isAutoRecovered ||
+        matchedClientAccount.password === cleanPass
+      ) {
+        const userToLogin = {
+          ...matchedClientAccount,
+          password: cleanPass,
+          isAutoRecovered: false,
+          role: 'PLANT_MANAGER'
+        };
+        setAllAccounts((prev) =>
+          prev.map((a) => (a.id === matchedClientAccount.id ? userToLogin : a))
+        );
+        setCurrentUser(userToLogin);
+        if (userToLogin.orgId) {
+          setActiveOrgId(userToLogin.orgId);
+        }
+        setIsLoadingAuth(false);
+        return true;
+      } else {
+        setIsLoadingAuth(false);
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        return false;
+      }
+    }
+
+    // 3. Fallback: Match directly against TENANT_COMPANIES (e.g. BANNAT / NAT01 / natshow)
+    const matchedComp = Object.values(TENANT_COMPANIES).find(
+      (comp) =>
+        comp.name?.toLowerCase() === cleanId ||
+        comp.code?.toLowerCase() === cleanId ||
+        comp.id?.toLowerCase() === cleanId ||
+        comp.loginUsername?.toLowerCase() === cleanId ||
+        ((cleanId === 'natshow' || cleanId === 'bannat' || cleanId === 'nat01') &&
+          (comp.code?.toUpperCase() === 'NAT01' || comp.name?.toUpperCase() === 'BANNAT'))
+    );
+
+    if (matchedComp) {
+      if (matchedComp.loginPassword && matchedComp.loginPassword !== cleanPass) {
+        setIsLoadingAuth(false);
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        return false;
+      }
+
+      const recoveredAccount = {
+        id: `user-${(matchedComp.code || 'site').toLowerCase()}`,
+        username: matchedComp.loginUsername || identifier.trim(),
+        email: `${cleanId}@powerview.local`,
+        password: cleanPass,
+        isAutoRecovered: false,
+        fullName:
+          matchedComp.siteType === 'HOME_SOLAR'
+            ? `เจ้าของบ้าน (${matchedComp.name})`
+            : `ผู้ดูแลระบบ (${matchedComp.name})`,
+        role: 'PLANT_MANAGER',
+        orgId: matchedComp.id,
+        siteType: matchedComp.siteType || 'HOME_SOLAR',
+        companyName: matchedComp.name,
+        createdAt: matchedComp.installedDate || '2026-10-25'
+      };
+
+      saveTenantCompany({
+        ...matchedComp,
+        loginUsername: recoveredAccount.username,
+        loginPassword: cleanPass
+      });
+
+      setAllAccounts((prev) => [
+        ...prev.filter((a) => a.role === 'SUPER_ADMIN' || a.orgId !== matchedComp.id),
+        recoveredAccount
+      ]);
+
+      setCurrentUser(recoveredAccount);
+      setActiveOrgId(matchedComp.id);
       setIsLoadingAuth(false);
       return true;
     }
@@ -370,6 +472,8 @@ export const AuthProvider = ({ children }) => {
       pollingIntervalSec: Number(clientData.pollingIntervalSec) || 15,
       installedDate: clientData.installedDate || new Date().toISOString().split('T')[0],
       status: clientData.status || 'SAVED',
+      loginUsername: (clientData.username || '').trim(),
+      loginPassword: (clientData.password || '').trim(),
       electricityMeters: elecMeters,
       solarConfig
     };
