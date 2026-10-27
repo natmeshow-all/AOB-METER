@@ -16,6 +16,28 @@ const LEGACY_ACCOUNT_KEYS = [
   'POWERVIEW_PROD_ACCOUNTS_V2'
 ];
 
+export const DEFAULT_SUPER_PASSWORD = 'naTshow8@';
+export const STORAGE_KEY_SUPER_PASSWORD = 'POWERVIEW_SUPER_PASSWORD_V1';
+
+export const getActiveSuperAdminPassword = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_SUPER_PASSWORD);
+    if (saved && saved.trim() && saved.trim() !== 'admin') {
+      return saved.trim();
+    }
+  } catch {}
+  return DEFAULT_SUPER_PASSWORD;
+};
+
+export const setActiveSuperAdminPassword = (newPass) => {
+  const clean = (newPass || '').trim();
+  if (clean && clean !== 'admin') {
+    try {
+      localStorage.setItem(STORAGE_KEY_SUPER_PASSWORD, clean);
+    } catch {}
+  }
+};
+
 // Build organization summary list from TENANT_COMPANIES
 const buildOrgListFromCompanies = () => {
   return Object.values(TENANT_COMPANIES).map((comp) => ({
@@ -56,7 +78,7 @@ export const DEMO_USERS = [
     id: 'user-super-admin',
     username: 'superadmin',
     email: 'natshownolimit@gmail.com',
-    password: 'naTshow8@',
+    password: getActiveSuperAdminPassword(),
     fullName: 'คุณณัฐพงษ์ (Super Admin)',
     role: 'SUPER_ADMIN',
     orgId: '',
@@ -73,7 +95,8 @@ export const isSuperAdminEmail = (identifier) => {
 
 const loadInitialAccounts = () => {
   const mergedMap = new Map();
-  mergedMap.set('superadmin', DEMO_USERS[0]);
+  const currentSuperPass = getActiveSuperAdminPassword();
+  mergedMap.set('superadmin', { ...DEMO_USERS[0], password: currentSuperPass });
 
   try {
     for (const key of LEGACY_ACCOUNT_KEYS) {
@@ -83,7 +106,20 @@ const loadInitialAccounts = () => {
         if (Array.isArray(parsed)) {
           parsed.forEach((acc) => {
             if (acc && acc.username) {
-              mergedMap.set(acc.username.toLowerCase(), acc);
+              // Never restore old or legacy passwords for Super Admin
+              if (
+                acc.role === 'SUPER_ADMIN' ||
+                acc.username.toLowerCase() === 'superadmin' ||
+                acc.email?.toLowerCase() === 'natshownolimit@gmail.com'
+              ) {
+                mergedMap.set('superadmin', {
+                  ...acc,
+                  password: currentSuperPass,
+                  role: 'SUPER_ADMIN'
+                });
+              } else {
+                mergedMap.set(acc.username.toLowerCase(), acc);
+              }
             }
           });
         }
@@ -277,12 +313,9 @@ export const AuthProvider = ({ children }) => {
         } catch {}
       }
 
-      // Strict Password Check for Super Admin (Only verified strong password, zero backdoor)
-      const isValidSuperPass =
-        cleanPass === expectedSuperPass ||
-        cleanPass === 'naTshow8@';
-
-      if (!isValidSuperPass) {
+      // Strict Password Check for Super Admin: ONLY the single active password is valid
+      const currentActivePass = getActiveSuperAdminPassword();
+      if (cleanPass !== currentActivePass) {
         setIsLoadingAuth(false);
         setAuthError('รหัสผ่านผู้ดูแลระบบ (Super Admin) ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
         return false;
@@ -867,6 +900,7 @@ export const AuthProvider = ({ children }) => {
       cleanTarget === 'user-super-admin' ||
       cleanTarget.toLowerCase() === 'superadmin'
     ) {
+      setActiveSuperAdminPassword(cleanPass);
       setAllAccounts((prev) =>
         prev.map((a) =>
           a.role === 'SUPER_ADMIN' ||
@@ -889,6 +923,12 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
+        for (const key of LEGACY_ACCOUNT_KEYS) {
+          localStorage.removeItem(key);
+        }
+      } catch {}
+
+      try {
         const supabase = getSupabase();
         if (supabase) {
           await supabase.auth.updateUser({ password: cleanPass }).catch(() => {});
@@ -899,7 +939,7 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: true,
-        message: 'เปลี่ยนรหัสผ่าน Super Admin (คุณณัฐพงษ์) สำเร็จเรียบร้อยแล้ว'
+        message: 'เปลี่ยนรหัสผ่าน Super Admin สำเร็จเรียบร้อยแล้ว (รหัสผ่านเก่าถูกยกเลิกทันที)'
       };
     }
 

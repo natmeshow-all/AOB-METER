@@ -19,7 +19,7 @@ import {
   Cpu,
   RefreshCw
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, getActiveSuperAdminPassword } from '../context/AuthContext';
 
 // Password Strength Evaluator
 const evaluatePasswordStrength = (pass = '') => {
@@ -314,7 +314,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
                     <span className="text-[10px] text-slate-500 block">รหัสผ่านปัจจุบัน</span>
                     <span className="text-xs font-bold text-amber-300">
                       {superCurrentPassVisible
-                        ? superAccount.password || 'naTshow8@'
+                        ? getActiveSuperAdminPassword()
                         : '••••••••'}
                     </span>
                   </div>
@@ -329,7 +329,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(superAccount.password || 'naTshow8@', 'super-current')}
+                      onClick={() => copyToClipboard(getActiveSuperAdminPassword(), 'super-current')}
                       className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white"
                       title="คัดลอกรหัสผ่าน"
                     >
