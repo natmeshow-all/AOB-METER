@@ -574,7 +574,52 @@ export const HomeInverterView = () => {
     }
   };
   const [isSettingOpen, setIsSettingOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState('tariff'); // 'tariff' | 'cloud' | 'theme'
+  const [settingsTab, setSettingsTab] = useState('pv-strings'); // Default directly to panel & string specs
+  const [isStringConfigOpen, setIsStringConfigOpen] = useState(false);
+  const [inlineStringForm, setInlineStringForm] = useState(() => ({
+    pv1PanelCount: solarData.pv1PanelCount ?? 8,
+    pv2PanelCount: solarData.pv2PanelCount ?? 6,
+    panelModelName: solarData.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W',
+    panelWattage: solarData.panelWattage ?? 580,
+    panelVoc: solarData.panelVoc ?? 51.5,
+    panelVmp: solarData.panelVmp ?? 42.5,
+    panelImp: solarData.panelImp ?? 13.65,
+    panelIsc: solarData.panelIsc ?? 14.50,
+    inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 16.0,
+    inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
+  }));
+
+  useEffect(() => {
+    setInlineStringForm({
+      pv1PanelCount: solarData.pv1PanelCount ?? 8,
+      pv2PanelCount: solarData.pv2PanelCount ?? 6,
+      panelModelName: solarData.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W',
+      panelWattage: solarData.panelWattage ?? 580,
+      panelVoc: solarData.panelVoc ?? 51.5,
+      panelVmp: solarData.panelVmp ?? 42.5,
+      panelImp: solarData.panelImp ?? 13.65,
+      panelIsc: solarData.panelIsc ?? 14.50,
+      inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 16.0,
+      inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
+    });
+  }, [solarData]);
+
+  const handleSaveInlineStringConfig = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const updatedConfig = {
+      ...solarData,
+      ...inlineStringForm,
+      inverterIp: 'SAJ-CLOUD-AUTO'
+    };
+    updateOrganization(currentCompany.id, {
+      gatewayIp: 'SAJ-CLOUD-AUTO',
+      gatewayPort: '443',
+      solarConfig: updatedConfig
+    });
+    setSaveNotice('บันทึกข้อมูลสเปกแผงและการต่ออนุกรม PV1/PV2 เรียบร้อยแล้ว');
+    setTimeout(() => setSaveNotice(null), 4000);
+    setIsStringConfigOpen(false);
+  };
   const [editForm, setEditForm] = useState(solarData);
   const [transientGuestPassword, setTransientGuestPassword] = useState('');
   const [backfillDays, setBackfillDays] = useState(90);
@@ -3298,14 +3343,343 @@ export const HomeInverterView = () => {
           {/* PV1 and PV2 String Intelligence & Overcurrent Monitoring */}
           <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                <Sun className="w-4 h-4 text-amber-400" />
-                <span>☀️ ข้อมูลย้อนหลังสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, ค่าพีคสุด & ตรวจสอบกระแสเกิน)</span>
-              </span>
-              <span className="text-[10px] text-slate-400 font-sans">
-                แผง: <strong className="text-slate-200">{solarData.panelModelName || 'Mono TOPCon 580W'}</strong> • ขีดจำกัด MPPT: <strong className="text-rose-300 font-mono">{stringStandards.maxInvA} A</strong>
-              </span>
+              <div className="flex flex-col">
+                <span className="text-xs sm:text-sm font-black text-amber-300 flex items-center gap-1.5">
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span>☀️ ข้อมูลสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, วัตต์ W, พีคสุด & ตรวจจับกระแสเกิน)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans mt-0.5">
+                  แผงปัจจุบัน: <strong className="text-slate-200">{solarData.panelModelName || 'Mono TOPCon 580W'}</strong> • PV1: <strong className="text-sky-300 font-mono">{stringStandards.pv1Count} แผง</strong> • PV2: <strong className="text-emerald-300 font-mono">{stringStandards.pv2Count} แผง</strong> • แผงละ: <strong className="text-amber-300 font-mono">{stringStandards.panelW}W</strong>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsStringConfigOpen(!isStringConfigOpen)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md ${
+                  isStringConfigOpen
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-amber-400/20'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>{isStringConfigOpen ? '✕ ปิดช่องกรอกข้อมูลแผง' : '✏️ กรอก/ปรับตั้งค่าแผงโซลาร์ PV1 & PV2'}</span>
+              </button>
             </div>
+
+            {/* INLINE SOLAR PANEL & STRING CONFIGURATION FORM */}
+            {isStringConfigOpen && (
+              <form
+                onSubmit={handleSaveInlineStringConfig}
+                className="bg-[#04070e] border border-amber-500/50 rounded-2xl p-4 space-y-3.5 animate-fadeIn shadow-2xl shadow-black/80"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                  <div>
+                    <h5 className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                      <Sliders className="w-4 h-4 text-amber-400" />
+                      <span>กรอกข้อมูลแผงโซลาร์จริง & จำนวนแผงที่ต่ออนุกรม</span>
+                    </h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      กรอกเพื่อให้อินเวอร์เตอร์คำนวณแรงดันมาตรฐาน Vmp, Voc และตรวจจับกระแสเกินได้แม่นยำ 100%
+                    </p>
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/25 active:scale-95"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>บันทึกข้อมูลแผงทันที</span>
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-amber-300 font-bold">⚡ หรือคลิกเลือกพรีเซ็ตแผงยอดนิยม:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      {
+                        name: 'N-Type TOPCon 580W (8+6 แผง)',
+                        spec: {
+                          panelModelName: 'Mono Half-Cell N-Type TOPCon 580W',
+                          panelWattage: 580,
+                          panelVoc: 51.5,
+                          panelVmp: 42.5,
+                          panelImp: 13.65,
+                          panelIsc: 14.50,
+                          pv1PanelCount: 8,
+                          pv2PanelCount: 6,
+                          inverterMaxMpptCurrentA: 16.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      },
+                      {
+                        name: 'Mono PERC 550W (8+8 แผง)',
+                        spec: {
+                          panelModelName: 'Mono Perc Tier 1 550W',
+                          panelWattage: 550,
+                          panelVoc: 49.8,
+                          panelVmp: 41.8,
+                          panelImp: 13.16,
+                          panelIsc: 13.98,
+                          pv1PanelCount: 8,
+                          pv2PanelCount: 8,
+                          inverterMaxMpptCurrentA: 16.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      },
+                      {
+                        name: 'Hi-MO 7 620W (7+6 แผง)',
+                        spec: {
+                          panelModelName: 'Longi Hi-MO 7 620W',
+                          panelWattage: 620,
+                          panelVoc: 52.8,
+                          panelVmp: 43.6,
+                          panelImp: 14.22,
+                          panelIsc: 15.08,
+                          pv1PanelCount: 7,
+                          pv2PanelCount: 6,
+                          inverterMaxMpptCurrentA: 16.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setInlineStringForm((prev) => ({ ...prev, ...preset.spec }))}
+                        className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-left text-xs text-slate-200 cursor-pointer transition-all active:scale-95"
+                      >
+                        <div className="font-bold text-sky-300 text-[11px]">{preset.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          {preset.spec.panelWattage}W • Vmp {preset.spec.panelVmp}V • {preset.spec.panelImp}A
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Input Fields */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  {/* PV1 Count */}
+                  <div className="bg-slate-950/90 border border-sky-500/50 rounded-xl p-2.5 space-y-1">
+                    <label className="text-sky-300 font-bold text-[11px] block">
+                      ☀️ PV1 ต่ออนุกรมกี่แผง:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        step="1"
+                        value={inlineStringForm.pv1PanelCount ?? 8}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            pv1PanelCount: parseInt(e.target.value, 10) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-sky-500/40 rounded-lg px-2.5 py-1.5 text-sky-300 font-mono font-black text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">แผง</span>
+                    </div>
+                  </div>
+
+                  {/* PV2 Count */}
+                  <div className="bg-slate-950/90 border border-emerald-500/50 rounded-xl p-2.5 space-y-1">
+                    <label className="text-emerald-300 font-bold text-[11px] block">
+                      ☀️ PV2 ต่ออนุกรมกี่แผง:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max="20"
+                        step="1"
+                        value={inlineStringForm.pv2PanelCount ?? 6}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            pv2PanelCount: parseInt(e.target.value, 10) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg px-2.5 py-1.5 text-emerald-300 font-mono font-black text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">แผง</span>
+                    </div>
+                  </div>
+
+                  {/* Panel Wattage */}
+                  <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-2.5 space-y-1">
+                    <label className="text-amber-300 font-bold text-[11px] block">
+                      กำลังวัตต์ (W / แผง):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="5"
+                        value={inlineStringForm.panelWattage ?? 580}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            panelWattage: parseFloat(e.target.value) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-2.5 py-1.5 text-amber-300 font-mono font-black text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">W</span>
+                    </div>
+                  </div>
+
+                  {/* Vmp */}
+                  <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-2.5 space-y-1">
+                    <label className="text-slate-300 font-bold text-[11px] block">
+                      แรงดัน Vmp (V / แผง):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={inlineStringForm.panelVmp ?? 42.5}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            panelVmp: parseFloat(e.target.value) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sky-300 font-mono font-bold text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">V</span>
+                    </div>
+                  </div>
+
+                  {/* Voc */}
+                  <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-2.5 space-y-1">
+                    <label className="text-slate-300 font-bold text-[11px] block">
+                      แรงดันเปิดวงจร Voc (V):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={inlineStringForm.panelVoc ?? 51.5}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            panelVoc: parseFloat(e.target.value) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-rose-300 font-mono font-bold text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">V</span>
+                    </div>
+                  </div>
+
+                  {/* Imp */}
+                  <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-2.5 space-y-1">
+                    <label className="text-slate-300 font-bold text-[11px] block">
+                      กระแสทำงาน Imp (A):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={inlineStringForm.panelImp ?? 13.65}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            panelImp: parseFloat(e.target.value) || 0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-300 font-mono font-bold text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">A</span>
+                    </div>
+                  </div>
+
+                  {/* Inverter Max MPPT Current */}
+                  <div className="bg-slate-950/90 border border-rose-500/40 rounded-xl p-2.5 space-y-1">
+                    <label className="text-rose-300 font-bold text-[11px] block">
+                      ขีดจำกัดแอมป์ Inverter (A):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={inlineStringForm.inverterMaxMpptCurrentA ?? 16.0}
+                        onChange={(e) =>
+                          setInlineStringForm((prev) => ({
+                            ...prev,
+                            inverterMaxMpptCurrentA: parseFloat(e.target.value) || 16.0
+                          }))
+                        }
+                        className="w-full bg-slate-900 border border-rose-500/50 rounded-lg px-2.5 py-1.5 text-rose-300 font-mono font-bold text-right text-sm"
+                      />
+                      <span className="text-[11px] text-slate-400">A</span>
+                    </div>
+                  </div>
+
+                  {/* Panel Model Name */}
+                  <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-2.5 space-y-1">
+                    <label className="text-slate-300 font-bold text-[11px] block">
+                      ชื่อรุ่นแผงโซลาร์:
+                    </label>
+                    <input
+                      type="text"
+                      value={inlineStringForm.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W'}
+                      onChange={(e) =>
+                        setInlineStringForm((prev) => ({ ...prev, panelModelName: e.target.value }))
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Instant Calculated Benchmarks */}
+                {(() => {
+                  const n1 = Number(inlineStringForm.pv1PanelCount ?? 8);
+                  const n2 = Number(inlineStringForm.pv2PanelCount ?? 6);
+                  const w = Number(inlineStringForm.panelWattage ?? 580);
+                  const vmp = Number(inlineStringForm.panelVmp ?? 42.5);
+                  const voc = Number(inlineStringForm.panelVoc ?? 51.5);
+                  const imp = Number(inlineStringForm.panelImp ?? 13.65);
+                  const pv1W = n1 * w;
+                  const pv2W = n2 * w;
+                  const totalKwp = ((pv1W + pv2W) / 1000).toFixed(2);
+                  return (
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+                      <div>
+                        <span className="text-sky-300 font-bold">PV1 ({n1} แผง):</span>{' '}
+                        <span>{(pv1W / 1000).toFixed(2)} kWp • Vmp {(n1 * vmp).toFixed(1)}V • Voc {(n1 * voc).toFixed(1)}V</span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-300 font-bold">PV2 ({n2} แผง):</span>{' '}
+                        <span>{(pv2W / 1000).toFixed(2)} kWp • Vmp {(n2 * vmp).toFixed(1)}V • Voc {(n2 * voc).toFixed(1)}V</span>
+                      </div>
+                      <div className="text-amber-300 font-black">
+                        กำลังรวม: {totalKwp} kWp (กระแสมาตรฐาน {imp} A)
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsStringConfigOpen(false)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer"
+                  >
+                    ✕ ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/25"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>💾 บันทึกการตั้งค่าแผงโซลาร์</span>
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
               {/* PV1 Card */}
