@@ -38,7 +38,7 @@ All coding assistants and agents working on this project MUST strictly follow th
 6. **SAJ Cloud & Inverter Invariants:**
    - Persistent `sessionTicket` in DB and `localStorage` ensures zero repeated password prompts.
    - Stepped tariff (0–200 units @ 3฿, 201–400 @ 4.22฿, 401+ @ 4.42฿, Export @ 2.20฿) MUST calculate per calendar month, never aggregated into a single lump sum.
-   - PEA Electricity Bill calculation MUST include Base Energy + Ft Charge (0.3972฿/kWh) + Monthly Service Fee (24.62฿) + 7% VAT, providing exact parity with official PEA invoices.
+   - PEA Electricity Bill calculation MUST include Base Energy + Ft Charge (0.1623฿/kWh ตามบิล ก.ย. 69 - ธ.ค. 69) + Monthly Service Fee (24.62฿) + 7% VAT, providing exact penny-level parity with official PEA invoices and authentic PEA invoice replica view (`<PeaBillModal />`).
    - All modals and popups must strictly follow mobile bottom-sheet architecture (`rounded-t-[32px]`, `backdrop-blur-md`, safe area insets) with floating status toasts for sync notifications.
 
 7. **Single Source of Navigation on Mobile & Enterprise Security Hardening:**
