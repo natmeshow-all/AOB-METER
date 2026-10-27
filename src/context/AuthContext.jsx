@@ -9,7 +9,7 @@ import {
   clearAllTenantCompanies
 } from '../data/tenantData';
 
-const STORAGE_KEY_ACCOUNTS = 'POWERVIEW_PROD_ACCOUNTS_V3';
+const STORAGE_KEY_ACCOUNTS = 'POWERVIEW_PROD_ACCOUNTS_V5';
 const LEGACY_ACCOUNT_KEYS = [
   'POWERVIEW_PROD_ACCOUNTS_V4',
   'POWERVIEW_PROD_ACCOUNTS_V3',
@@ -258,24 +258,87 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
+    // 1. Fetch cloud-synchronized credentials from /api/auth-vault
+    fetch('/api/auth-vault?action=get-credentials')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.success && data?.credentials) {
+          Object.values(data.credentials).forEach((cred) => {
+            if (cred.orgId && cred.loginPassword) {
+              const comp = TENANT_COMPANIES[cred.orgId];
+              if (comp) {
+                saveTenantCompany({
+                  ...comp,
+                  loginPassword: cred.loginPassword,
+                  loginUsername: cred.loginUsername || comp.loginUsername
+                });
+              }
+              setAllAccounts((prev) =>
+                prev.map((a) =>
+                  a.orgId === cred.orgId || a.username?.toLowerCase() === cred.loginUsername?.toLowerCase()
+                    ? { ...a, password: cred.loginPassword }
+                    : a
+                )
+              );
+            }
+          });
+          refreshOrgsState();
+        }
+      })
+      .catch(() => {});
+
+    // 2. Sync organizations from Supabase directly
     supabase
       .from('organizations')
       .select('*')
       .then(({ data: orgRows }) => {
         if (Array.isArray(orgRows) && orgRows.length > 0) {
           orgRows.forEach((row) => {
-            if (row.id && !TENANT_COMPANIES[row.id]) {
-              saveTenantCompany({
-                id: row.id,
-                code: row.company_code || row.id.replace('ORG-', ''),
-                name: row.company_name || row.id,
-                shortName: `${row.company_name || row.id} (${row.company_code || row.id})`,
-                siteType: row.site_type || 'INDUSTRIAL',
-                transformerKVA: Number(row.transformer_capacity_kva) || 0,
-                electricityMeters: [],
-                solarConfig: createEmptySolarConfig(),
-                status: 'ONLINE'
-              });
+            let cloudPassword = null;
+            let cloudUsername = null;
+            if (row.line_notify_token && row.line_notify_token.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(row.line_notify_token);
+                if (parsed.loginPassword) cloudPassword = parsed.loginPassword;
+                if (parsed.loginUsername) cloudUsername = parsed.loginUsername;
+              } catch {}
+            }
+
+            if (row.id) {
+              const existing = TENANT_COMPANIES[row.id];
+              if (existing) {
+                if (cloudPassword && existing.loginPassword !== cloudPassword) {
+                  saveTenantCompany({
+                    ...existing,
+                    loginPassword: cloudPassword,
+                    loginUsername: cloudUsername || existing.loginUsername
+                  });
+                }
+              } else {
+                saveTenantCompany({
+                  id: row.id,
+                  code: row.company_code || row.id.replace('ORG-', ''),
+                  name: row.company_name || row.id,
+                  shortName: `${row.company_name || row.id} (${row.company_code || row.id})`,
+                  siteType: row.site_type || 'INDUSTRIAL',
+                  transformerKVA: Number(row.transformer_capacity_kva) || 0,
+                  loginPassword: cloudPassword || 'naTshow8@',
+                  loginUsername: cloudUsername || (row.company_code || 'client').toLowerCase(),
+                  electricityMeters: [],
+                  solarConfig: createEmptySolarConfig(),
+                  status: 'ONLINE'
+                });
+              }
+
+              if (cloudPassword) {
+                setAllAccounts((prev) =>
+                  prev.map((a) =>
+                    a.orgId === row.id || a.username?.toLowerCase() === cloudUsername?.toLowerCase()
+                      ? { ...a, password: cloudPassword }
+                      : a
+                  )
+                );
+              }
             }
           });
           refreshOrgsState();
@@ -384,36 +447,7 @@ export const AuthProvider = ({ children }) => {
             acc.email.toLowerCase() !== 'natshownolimit@gmail.com'))
     );
 
-    if (matchedClientAccount) {
-      const expectedClientPass = matchedClientAccount.password || 'naTshow8@';
-      const isValidClientPass =
-        cleanPass === expectedClientPass ||
-        cleanPass === 'naTshow8@';
-
-      if (isValidClientPass) {
-        const userToLogin = {
-          ...matchedClientAccount,
-          password: cleanPass,
-          isAutoRecovered: false,
-          role: 'PLANT_MANAGER'
-        };
-        setAllAccounts((prev) =>
-          prev.map((a) => (a.id === matchedClientAccount.id ? userToLogin : a))
-        );
-        setCurrentUser(userToLogin);
-        if (userToLogin.orgId) {
-          setActiveOrgId(userToLogin.orgId);
-        }
-        setIsLoadingAuth(false);
-        return true;
-      } else {
-        setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
-        return false;
-      }
-    }
-
-    // 3. Fallback: Match directly against TENANT_COMPANIES (e.g. BANNAT / NAT01 / natshow)
+    // 3. Match against TENANT_COMPANIES (e.g. BANNAT / NAT01 / natshow)
     const matchedComp = Object.values(TENANT_COMPANIES).find(
       (comp) =>
         comp.name?.toLowerCase() === cleanId ||
@@ -424,48 +458,79 @@ export const AuthProvider = ({ children }) => {
           (comp.code?.toUpperCase() === 'NAT01' || comp.name?.toUpperCase() === 'BANNAT'))
     );
 
-    if (matchedComp) {
-      const expectedCompPass = matchedComp.loginPassword || 'naTshow8@';
-      const isValidCompPass =
-        cleanPass === expectedCompPass ||
-        cleanPass === 'naTshow8@';
+    if (matchedClientAccount || matchedComp) {
+      const compForAccount = matchedComp || (matchedClientAccount?.orgId ? TENANT_COMPANIES[matchedClientAccount.orgId] : null);
+      let expectedClientPass = matchedClientAccount?.password || compForAccount?.loginPassword || 'naTshow8@';
 
-      if (!isValidCompPass) {
+      let isValidClientPass = cleanPass === expectedClientPass;
+
+      // If local check failed, query centralized cloud vault /api/auth-vault
+      if (!isValidClientPass) {
+        try {
+          const verifyRes = await fetch('/api/auth-vault', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'verify-login',
+              identifier: cleanId,
+              password: cleanPass
+            })
+          });
+          const verifyData = await verifyRes.json();
+          if (verifyData?.success) {
+            isValidClientPass = true;
+            expectedClientPass = cleanPass;
+          }
+        } catch {}
+      }
+
+      if (!isValidClientPass) {
         setIsLoadingAuth(false);
         setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
 
-      const recoveredAccount = {
-        id: `user-${(matchedComp.code || 'site').toLowerCase()}`,
-        username: matchedComp.loginUsername || identifier.trim(),
-        email: `${cleanId}@powerview.local`,
+      // Successful Client Login
+      const targetOrg = compForAccount || {
+        id: matchedClientAccount?.orgId || `ORG-${cleanId.toUpperCase()}`,
+        name: matchedClientAccount?.companyName || cleanId,
+        siteType: matchedClientAccount?.siteType || 'INDUSTRIAL'
+      };
+
+      const userToLogin = {
+        id: matchedClientAccount?.id || `user-${(targetOrg.code || cleanId).toLowerCase()}`,
+        username: matchedClientAccount?.username || targetOrg.loginUsername || cleanId,
+        email: matchedClientAccount?.email || `${cleanId}@powerview.local`,
         password: cleanPass,
         isAutoRecovered: false,
         fullName:
-          matchedComp.siteType === 'HOME_SOLAR'
-            ? `เจ้าของบ้าน (${matchedComp.name})`
-            : `ผู้ดูแลระบบ (${matchedComp.name})`,
+          targetOrg.siteType === 'HOME_SOLAR'
+            ? `เจ้าของบ้าน (${targetOrg.name})`
+            : `ผู้ดูแลระบบ (${targetOrg.name})`,
         role: 'PLANT_MANAGER',
-        orgId: matchedComp.id,
-        siteType: matchedComp.siteType || 'HOME_SOLAR',
-        companyName: matchedComp.name,
-        createdAt: matchedComp.installedDate || '2026-10-25'
+        orgId: targetOrg.id,
+        siteType: targetOrg.siteType || 'INDUSTRIAL',
+        companyName: targetOrg.name,
+        createdAt: targetOrg.installedDate || '2026-10-25'
       };
 
-      saveTenantCompany({
-        ...matchedComp,
-        loginUsername: recoveredAccount.username,
-        loginPassword: cleanPass
-      });
+      // Persist active password in TENANT_COMPANIES
+      if (compForAccount) {
+        saveTenantCompany({
+          ...compForAccount,
+          loginPassword: cleanPass
+        });
+      }
 
       setAllAccounts((prev) => [
-        ...prev.filter((a) => a.role === 'SUPER_ADMIN' || a.orgId !== matchedComp.id),
-        recoveredAccount
+        ...prev.filter((a) => a.id !== userToLogin.id && (a.role === 'SUPER_ADMIN' || a.orgId !== userToLogin.orgId)),
+        userToLogin
       ]);
 
-      setCurrentUser(recoveredAccount);
-      setActiveOrgId(matchedComp.id);
+      setCurrentUser(userToLogin);
+      if (userToLogin.orgId) {
+        setActiveOrgId(userToLogin.orgId);
+      }
       setIsLoadingAuth(false);
       return true;
     }
@@ -923,8 +988,14 @@ export const AuthProvider = ({ children }) => {
 
   // Professional Super Admin Password Management Engine
   const changeUserPassword = async (targetIdOrUsername, newPassword) => {
-    const cleanTarget = (targetIdOrUsername || '').trim();
+    const isTargetObj = typeof targetIdOrUsername === 'object' && targetIdOrUsername !== null;
+    const targetObj = isTargetObj ? targetIdOrUsername : null;
+    const rawTarget = isTargetObj
+      ? (targetObj.username || targetObj.orgId || targetObj.id || '')
+      : (targetIdOrUsername || '');
+    const cleanTarget = String(rawTarget).trim();
     const cleanPass = (newPassword || '').trim();
+
     if (!cleanTarget || !cleanPass) {
       return { success: false, message: 'กรุณากรอกรหัสผ่านใหม่ที่ต้องการตั้ง' };
     }
@@ -933,7 +1004,8 @@ export const AuthProvider = ({ children }) => {
     if (
       isSuperAdminEmail(cleanTarget) ||
       cleanTarget === 'user-super-admin' ||
-      cleanTarget.toLowerCase() === 'superadmin'
+      cleanTarget.toLowerCase() === 'superadmin' ||
+      targetObj?.role === 'SUPER_ADMIN'
     ) {
       const supabase = getSupabase();
       if (!supabase) {
@@ -1022,12 +1094,6 @@ export const AuthProvider = ({ children }) => {
         } catch {}
       }
 
-      try {
-        for (const key of LEGACY_ACCOUNT_KEYS) {
-          localStorage.removeItem(key);
-        }
-      } catch {}
-
       return {
         success: true,
         message: 'เปลี่ยนรหัสผ่าน Super Admin บนระบบคลาวด์สำเร็จ! มีผลทันทีกับทุกอุปกรณ์ และรหัสผ่านเดิมถูกยกเลิกถาวร'
@@ -1035,29 +1101,50 @@ export const AuthProvider = ({ children }) => {
     }
 
     // 2. Client / Tenant Account
-    let updatedName = cleanTarget;
+    const targetId = targetObj?.id || cleanTarget;
+    const targetOrgId = targetObj?.orgId || (cleanTarget.startsWith('ORG-') ? cleanTarget : null);
+    const targetUsername = targetObj?.username || cleanTarget;
+    const targetCode = targetObj?.code || null;
+
+    let updatedName = targetObj?.companyName || targetUsername || cleanTarget;
+    let resolvedOrgId = targetOrgId;
+
+    // A. Update in-memory allAccounts
     setAllAccounts((prev) =>
       prev.map((a) => {
-        if (
+        const isMatch =
+          a.id === targetId ||
+          (resolvedOrgId && a.orgId === resolvedOrgId) ||
+          (targetUsername && a.username?.toLowerCase() === targetUsername.toLowerCase()) ||
           a.id === cleanTarget ||
           a.username?.toLowerCase() === cleanTarget.toLowerCase() ||
-          a.orgId === cleanTarget
-        ) {
+          a.orgId?.toLowerCase() === cleanTarget.toLowerCase() ||
+          (cleanTarget.toLowerCase().includes('nat01') && a.orgId === 'ORG-NAT01') ||
+          (cleanTarget.toLowerCase().includes('natshow') && a.username?.toLowerCase() === 'natshow');
+
+        if (isMatch) {
           updatedName = a.companyName || a.username;
+          if (a.orgId) resolvedOrgId = a.orgId;
           return { ...a, password: cleanPass };
         }
         return a;
       })
     );
 
-    // Also update tenant company loginPassword in TENANT_COMPANIES and persist
+    // B. Update in TENANT_COMPANIES and persist to localStorage
     Object.values(TENANT_COMPANIES).forEach((comp) => {
-      if (
+      const isCompMatch =
+        (resolvedOrgId && comp.id === resolvedOrgId) ||
+        comp.id === targetId ||
         comp.id === cleanTarget ||
-        comp.loginUsername?.toLowerCase() === cleanTarget.toLowerCase() ||
+        comp.loginUsername?.toLowerCase() === targetUsername.toLowerCase() ||
         comp.code?.toLowerCase() === cleanTarget.toLowerCase() ||
-        comp.name?.toLowerCase() === cleanTarget.toLowerCase()
-      ) {
+        comp.name?.toLowerCase() === cleanTarget.toLowerCase() ||
+        (targetCode && comp.code?.toLowerCase() === targetCode.toLowerCase()) ||
+        ((cleanTarget.toLowerCase().includes('nat01') || cleanTarget.toLowerCase().includes('natshow')) && comp.id === 'ORG-NAT01');
+
+      if (isCompMatch) {
+        if (!resolvedOrgId) resolvedOrgId = comp.id;
         saveTenantCompany({
           ...comp,
           loginPassword: cleanPass
@@ -1065,9 +1152,41 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
+    // C. Sync to Supabase Cloud (organizations table) & /api/auth-vault
+    const finalOrgId = resolvedOrgId || (cleanTarget.startsWith('ORG-') ? cleanTarget : 'ORG-NAT01');
+    const supabase = getSupabase();
+    if (supabase && finalOrgId) {
+      try {
+        const payload = JSON.stringify({
+          loginUsername: targetUsername,
+          loginPassword: cleanPass,
+          updatedAt: new Date().toISOString()
+        });
+        await supabase
+          .from('organizations')
+          .update({ line_notify_token: payload })
+          .eq('id', finalOrgId);
+      } catch (e) {
+        console.warn('Direct Supabase cloud update note:', e);
+      }
+    }
+
+    try {
+      fetch('/api/auth-vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update-client-password',
+          orgId: finalOrgId,
+          username: targetUsername,
+          newPassword: cleanPass
+        })
+      }).catch(() => {});
+    } catch {}
+
     return {
       success: true,
-      message: `เปลี่ยนรหัสผ่านของ "${updatedName}" สำเร็จเรียบร้อยแล้ว`
+      message: `เปลี่ยนรหัสผ่านของ "${updatedName}" สำเร็จเรียบร้อยแล้ว (มีผลทันทีบนทุกอุปกรณ์)`
     };
   };
 

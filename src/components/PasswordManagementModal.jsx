@@ -170,7 +170,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
     }
 
     setIsSaving(true);
-    const res = await changeUserPassword(account.id || account.orgId, newPass);
+    const res = await changeUserPassword(account, newPass);
     setIsSaving(false);
 
     if (res.success) {
