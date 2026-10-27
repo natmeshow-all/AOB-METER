@@ -146,57 +146,11 @@ export const getThailandDateStr = (daysAgo = 0) => {
 };
 
 export const createInitialBannatHistory = () => {
-  const logs = [];
-  const baseGen = [27.34, 28.10, 25.40, 29.80, 26.50, 24.90, 31.20, 28.70, 27.60, 29.10];
-  const baseLoad = [22.80, 23.50, 21.90, 24.10, 22.40, 20.80, 25.30, 23.10, 22.70, 23.90];
-  const baseImp = [5.16, 4.80, 5.90, 4.20, 5.40, 6.10, 3.80, 4.90, 5.30, 4.70];
-  const baseExp = [7.20, 7.80, 6.50, 8.40, 7.10, 6.80, 8.90, 7.60, 7.40, 7.90];
-
-  for (let i = 30; i >= 0; i--) {
-    const dStr = getThailandDateStr(i);
-    const idx = i % baseGen.length;
-    const pvGen = Number(baseGen[idx].toFixed(2));
-    const load = Number(baseLoad[idx].toFixed(2));
-    const imp = Number(baseImp[idx].toFixed(2));
-    const exp = Number(baseExp[idx].toFixed(2));
-    const saved = Math.round(pvGen * 4.20);
-    logs.push({
-      date: dStr,
-      pvGenerationKWh: pvGen,
-      loadElectricityKWh: load,
-      importKWh: imp,
-      exportKWh: exp,
-      batteryChargeKWh: 9.80,
-      batteryDischargeKWh: 7.40,
-      savedBaht: saved,
-      isRealSajV2: true
-    });
-  }
-  return logs;
+  return [];
 };
 
 export const createInitial24HourCurve = () => {
-  const curve = [];
-  const pvPattern = [
-    0, 0, 0, 0, 0, 0, 40, 280, 950, 1840, 2450, 2890, 2950, 2820, 2380, 1650, 720, 150, 10, 0, 0, 0, 0, 0
-  ];
-  const loadPattern = [
-    520, 480, 460, 450, 480, 650, 1100, 1450, 1820, 2100, 2250, 2150, 2300, 2100, 1950, 1850, 2100, 2450, 2800, 2600, 2100, 1600, 1100, 750
-  ];
-  const socPattern = [
-    45, 42, 40, 38, 36, 35, 36, 42, 55, 68, 82, 94, 98, 100, 100, 96, 92, 88, 82, 75, 68, 60, 54, 48
-  ];
-  for (let h = 0; h < 24; h++) {
-    const hStr = `${String(h).padStart(2, '0')}:00`;
-    curve.push({
-      hour: hStr,
-      pvW: pvPattern[h],
-      loadW: loadPattern[h],
-      batterySOC: socPattern[h],
-      sampleCount: 12
-    });
-  }
-  return curve;
+  return [];
 };
 
 // Load saved companies from localStorage across all versions and ensure BANNAT (NAT01) is preserved
@@ -248,6 +202,10 @@ const loadInitialCompanies = () => {
     }
   });
 
+  // Strictly remove all legacy simulated demo companies
+  delete merged['ORG-AOB'];
+  delete merged['ORG-GRAND'];
+
   // Ensure BANNAT (NAT01) Home Solar site is always preserved and set to HOME_SOLAR
   const existingBannatKey = Object.keys(merged).find(
     (k) =>
@@ -263,17 +221,18 @@ const loadInitialCompanies = () => {
     const validLogs = prevLogs.filter((l) => l && l.isRealSajV2);
     merged[existingBannatKey] = {
       ...existing,
+      id: 'ORG-NAT01',
+      code: 'NAT01',
+      name: 'BANNAT',
+      shortName: 'BANNAT (NAT01)',
       siteType: 'HOME_SOLAR',
       solarConfig: {
         ...createEmptySolarConfig(),
         sajCloudGuestEmail: 'natshownolimit@gmail.com',
         sajDeviceSn: 'H2A2602J2539E14713',
         ...(existing.solarConfig || {}),
-        historicalDailyLogs: validLogs.length > 5 ? validLogs : createInitialBannatHistory(),
-        daily24HourCurve:
-          existing.solarConfig?.daily24HourCurve?.length > 10
-            ? existing.solarConfig.daily24HourCurve
-            : createInitial24HourCurve()
+        historicalDailyLogs: validLogs,
+        daily24HourCurve: existing.solarConfig?.daily24HourCurve || []
       }
     };
   } else {
@@ -303,22 +262,22 @@ const loadInitialCompanies = () => {
         sajDeviceSn: 'H2A2602J2539E14713',
         pvCapacityKWp: 6,
         batteryCapacityKWh: 10.24,
-        batterySOC: 77,
-        todayEnergyKWh: 27.34,
-        totalEnergyKWh: 27.34,
-        pv1Voltage: 382.4,
-        pv1Current: 6.12,
-        batteryVoltage: 52.8,
-        batteryCurrent: 11.5,
-        batteryPowerW: -611,
-        gridAc1Voltage: 231.5,
-        gridAc1FreqHz: 50.0,
-        gridAc1PowerW: 420,
-        houseLoadW: 2150,
-        inverterTempC: 38.5,
-        lastCloudSyncAt: 'เรียลไทม์อัตโนมัติ',
-        historicalDailyLogs: createInitialBannatHistory(),
-        daily24HourCurve: createInitial24HourCurve()
+        batterySOC: 0,
+        todayEnergyKWh: 0,
+        totalEnergyKWh: 0,
+        pv1Voltage: 0,
+        pv1Current: 0,
+        batteryVoltage: 0,
+        batteryCurrent: 0,
+        batteryPowerW: 0,
+        gridAc1Voltage: 0,
+        gridAc1FreqHz: 0,
+        gridAc1PowerW: 0,
+        houseLoadW: 0,
+        inverterTempC: 0,
+        lastCloudSyncAt: 'รอการเชื่อมต่อ/กดซิงค์ข้อมูลจริง',
+        historicalDailyLogs: [],
+        daily24HourCurve: []
       }
     };
   }

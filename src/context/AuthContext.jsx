@@ -156,7 +156,16 @@ const loadInitialAccounts = () => {
     }
   });
 
-  return Array.from(mergedMap.values());
+  // Strictly filter out any legacy simulated demo accounts (aob, gdb)
+  const cleanAccounts = Array.from(mergedMap.values()).filter(
+    (a) =>
+      a.orgId !== 'ORG-AOB' &&
+      a.orgId !== 'ORG-GRAND' &&
+      a.username?.toLowerCase() !== 'aob' &&
+      a.username?.toLowerCase() !== 'gdb'
+  );
+
+  return cleanAccounts;
 };
 
 const AuthContext = createContext(null);
