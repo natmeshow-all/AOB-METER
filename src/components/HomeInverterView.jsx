@@ -56,6 +56,21 @@ import {
   normalizeHistoricalDayLog,
   getThailandDateStr
 } from '../services/sajCloudService';
+import {
+  pickPvStringSpecs,
+  sanitizePvStringSpecs,
+  evaluateStringHealth,
+  evaluateStringMismatch,
+  HEALTH_LEVELS
+} from '../utils/pvStringHealth';
+
+const HEALTH_TONE_CLASSES = {
+  emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+  amber: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+  orange: 'bg-orange-500/20 text-orange-300 border-orange-500/50',
+  rose: 'bg-rose-500/20 text-rose-300 border-rose-500/60',
+  slate: 'bg-slate-800/60 text-slate-300 border-slate-700'
+};
 
 const formatSlashDate = (isoStr) => {
   if (!isoStr || typeof isoStr !== 'string') return '';
@@ -552,6 +567,11 @@ export const HomeInverterView = () => {
     };
   }, [currentCompany]);
 
+  // Always points at the latest persisted solar config (panel/string specs are user-owned and
+  // must win over any stale copy captured by a background sync closure).
+  const latestSolarDataRef = useRef(solarData);
+  latestSolarDataRef.current = solarData;
+
   // Interactive Cockpit States
   const [cockpitThemeKey, setCockpitThemeKey] = useState('WEISSACH'); // 'WEISSACH' | 'ARAMCO' | 'REVUELTO'
   const [centerHudMode, setCenterHudMode] = useState('ODO'); // 'ODO' | 'VECTOR' | 'BMS' | 'ROI'
@@ -574,6 +594,8 @@ export const HomeInverterView = () => {
     }
   };
   const [isSettingOpen, setIsSettingOpen] = useState(false);
+  const isSettingOpenRef = useRef(false);
+  isSettingOpenRef.current = isSettingOpen;
   const [settingsTab, setSettingsTab] = useState('pv-strings'); // Default directly to panel & string specs
   const [isStringConfigOpen, setIsStringConfigOpen] = useState(false);
   const [inlineStringForm, setInlineStringForm] = useState(() => ({
@@ -589,7 +611,11 @@ export const HomeInverterView = () => {
     inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
   }));
 
+  // Re-seed the inline form ONLY when the saved panel specs actually change and the form is
+  // closed — background telemetry syncs (every 60 s) must never wipe what the user is typing.
+  const savedSpecsKey = JSON.stringify(pickPvStringSpecs(solarData));
   useEffect(() => {
+    if (isStringConfigOpen) return;
     setInlineStringForm({
       pv1PanelCount: solarData.pv1PanelCount ?? 8,
       pv2PanelCount: solarData.pv2PanelCount ?? 6,
@@ -602,15 +628,21 @@ export const HomeInverterView = () => {
       inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 16.0,
       inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
     });
-  }, [solarData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSpecsKey, isStringConfigOpen]);
 
   const handleSaveInlineStringConfig = (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    const cleanSpecs = sanitizePvStringSpecs(inlineStringForm);
     const updatedConfig = {
       ...solarData,
-      ...inlineStringForm,
+      ...cleanSpecs,
       inverterIp: 'SAJ-CLOUD-AUTO'
     };
+    // Update the ref immediately so an in-flight / next background sync can never
+    // write the old panel specs back (root cause of values flipping back and forth).
+    latestSolarDataRef.current = updatedConfig;
+    setEditForm((prev) => ({ ...prev, ...cleanSpecs }));
     updateOrganization(currentCompany.id, {
       gatewayIp: 'SAJ-CLOUD-AUTO',
       gatewayPort: '443',
@@ -1070,27 +1102,20 @@ export const HomeInverterView = () => {
         const loadCurrentA = Number((ptLoad / 230).toFixed(2));
         const pvCurrentA = Number((rawPv > 0 ? rawPv / 380 : 0).toFixed(2));
 
-        let pv1W = Number(pt.pv1W || 0);
-        let pv1V = Number(pt.pv1V || 0);
-        let pv1A = Number(pt.pv1A || 0);
+        const pv1W = Number(pt.pv1W || 0);
+        const pv1V = Number(pt.pv1V || 0);
+        const pv1A = Number(pt.pv1A || 0);
+        const pv1MaxA = Math.max(Number(pt.pv1MaxA || 0), pv1A);
 
-        let pv2W = Number(pt.pv2W || 0);
-        let pv2V = Number(pt.pv2V || 0);
-        let pv2A = Number(pt.pv2A || 0);
-
-        if (pv1W <= 0 && pv2W <= 0 && rawPv > 0) {
-          pv1W = Math.round(rawPv * 0.58);
-          pv1V = Number((340.0 + Math.sin(((h - 8) / 12) * Math.PI) * 12).toFixed(1));
-          pv1A = Number((pv1W / Math.max(1, pv1V)).toFixed(2));
-
-          pv2W = Math.round(rawPv * 0.42);
-          pv2V = Number((255.0 + Math.sin(((h - 8) / 12) * Math.PI) * 10).toFixed(1));
-          pv2A = Number((pv2W / Math.max(1, pv2V)).toFixed(2));
-        }
+        const pv2W = Number(pt.pv2W || 0);
+        const pv2V = Number(pt.pv2V || 0);
+        const pv2A = Number(pt.pv2A || 0);
+        const pv2MaxA = Math.max(Number(pt.pv2MaxA || 0), pv2A);
+        // NOTE: No fabricated PV1/PV2 split — only real per-string telemetry from SAJ is shown.
 
         const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 16.0);
-        const isPv1Overcurrent = pv1A > maxMpptLimitA;
-        const isPv2Overcurrent = pv2A > maxMpptLimitA;
+        const isPv1Overcurrent = pv1MaxA > maxMpptLimitA;
+        const isPv2Overcurrent = pv2MaxA > maxMpptLimitA;
 
         return {
           ...pt,
@@ -1104,10 +1129,12 @@ export const HomeInverterView = () => {
           pv1W,
           pv1V,
           pv1A,
+          pv1MaxA,
           isPv1Overcurrent,
           pv2W,
           pv2V,
           pv2A,
+          pv2MaxA,
           isPv2Overcurrent
         };
       });
@@ -1142,26 +1169,15 @@ export const HomeInverterView = () => {
       const loadCurrentA = Number((loadW / 230).toFixed(2));
       const pvCurrentA = Number((pvW > 0 ? pvW / 380 : 0).toFixed(2));
 
-      let pv1W = 0;
-      let pv1V = 0;
-      let pv1A = 0;
-      let pv2W = 0;
-      let pv2V = 0;
-      let pv2A = 0;
-
-      if (pvW > 0) {
-        pv1W = Math.round(pvW * 0.58);
-        pv1V = Number((340.0 + Math.sin(((h - 8) / 12) * Math.PI) * 12).toFixed(1));
-        pv1A = Number((pv1W / Math.max(1, pv1V)).toFixed(2));
-
-        pv2W = Math.round(pvW * 0.42);
-        pv2V = Number((255.0 + Math.sin(((h - 8) / 12) * Math.PI) * 10).toFixed(1));
-        pv2A = Number((pv2W / Math.max(1, pv2V)).toFixed(2));
-      }
-
-      const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 16.0);
-      const isPv1Overcurrent = pv1A > maxMpptLimitA;
-      const isPv2Overcurrent = pv2A > maxMpptLimitA;
+      // No per-string telemetry available for this estimated curve → keep PV1/PV2 at 0 (never fabricate)
+      const pv1W = 0;
+      const pv1V = 0;
+      const pv1A = 0;
+      const pv2W = 0;
+      const pv2V = 0;
+      const pv2A = 0;
+      const isPv1Overcurrent = false;
+      const isPv2Overcurrent = false;
 
       return {
         hour: `${String(h).padStart(2, '0')}:00`,
@@ -1255,6 +1271,16 @@ export const HomeInverterView = () => {
     const pv1Overcurrent = dailyCurveData.some((pt) => pt.isPv1Overcurrent);
     const pv2Overcurrent = dailyCurveData.some((pt) => pt.isPv2Overcurrent);
 
+    // Prefer the day-level peaks computed from raw 5-minute samples (W, V, A taken from the SAME
+    // sample → physically consistent). Fall back to the hourly curve only if they are missing.
+    const day = activeHistoryDay || {};
+    const dayHasPv1 = Number(day.peakPv1W || 0) > 0;
+    const dayHasPv2 = Number(day.peakPv2W || 0) > 0;
+    const curveMaxPv1A = Math.max(0, ...dailyCurveData.map((pt) => Number(pt.pv1MaxA ?? pt.pv1A ?? 0)));
+    const curveMaxPv2A = Math.max(0, ...dailyCurveData.map((pt) => Number(pt.pv2MaxA ?? pt.pv2A ?? 0)));
+    const dayMaxPv1A = Number(day.maxPv1A || 0);
+    const dayMaxPv2A = Number(day.maxPv2A || 0);
+
     return {
       peakLoadW: peakLoadPoint.loadW,
       peakLoadHour: peakLoadPoint.hour,
@@ -1262,21 +1288,28 @@ export const HomeInverterView = () => {
       peakPvW: peakPvPoint.pvW,
       peakPvHour: peakPvPoint.hour,
       peakPvCurrentA: peakPvPoint.pvCurrentA,
+      hasStringTelemetry:
+        Boolean(day.hasStringTelemetry) ||
+        dayHasPv1 ||
+        dayHasPv2 ||
+        dailyCurveData.some((pt) => (pt.pv1W || 0) > 0 || (pt.pv2W || 0) > 0),
       // PV1 String
-      peakPv1W: peakPv1Point.pv1W || activeHistoryDay?.peakPv1W || 0,
-      peakPv1Hour: peakPv1Point.hour || activeHistoryDay?.peakPv1Hour || '12:00',
-      peakPv1V: peakPv1Point.pv1V || activeHistoryDay?.peakPv1V || 0,
-      peakPv1A: peakPv1Point.pv1A || activeHistoryDay?.peakPv1A || 0,
-      maxPv1A: maxPv1APoint.pv1A || activeHistoryDay?.maxPv1A || 0,
-      maxPv1AHour: maxPv1APoint.hour || '12:00',
+      peakPv1W: dayHasPv1 ? Number(day.peakPv1W) : peakPv1Point.pv1W || 0,
+      peakPv1Hour: dayHasPv1 ? day.peakPv1Hour || peakPv1Point.hour : peakPv1Point.hour || '12:00',
+      peakPv1V: dayHasPv1 ? Number(day.peakPv1V || 0) : peakPv1Point.pv1V || 0,
+      peakPv1A: dayHasPv1 ? Number(day.peakPv1A || 0) : peakPv1Point.pv1A || 0,
+      maxPv1A: Number(Math.max(dayMaxPv1A, curveMaxPv1A).toFixed(2)),
+      maxPv1AHour:
+        dayMaxPv1A >= curveMaxPv1A && day.maxPv1AHour ? day.maxPv1AHour : maxPv1APoint.hour || '12:00',
       pv1Overcurrent,
       // PV2 String
-      peakPv2W: peakPv2Point.pv2W || activeHistoryDay?.peakPv2W || 0,
-      peakPv2Hour: peakPv2Point.hour || activeHistoryDay?.peakPv2Hour || '12:00',
-      peakPv2V: peakPv2Point.pv2V || activeHistoryDay?.peakPv2V || 0,
-      peakPv2A: peakPv2Point.pv2A || activeHistoryDay?.peakPv2A || 0,
-      maxPv2A: maxPv2APoint.pv2A || activeHistoryDay?.maxPv2A || 0,
-      maxPv2AHour: maxPv2APoint.hour || '12:00',
+      peakPv2W: dayHasPv2 ? Number(day.peakPv2W) : peakPv2Point.pv2W || 0,
+      peakPv2Hour: dayHasPv2 ? day.peakPv2Hour || peakPv2Point.hour : peakPv2Point.hour || '12:00',
+      peakPv2V: dayHasPv2 ? Number(day.peakPv2V || 0) : peakPv2Point.pv2V || 0,
+      peakPv2A: dayHasPv2 ? Number(day.peakPv2A || 0) : peakPv2Point.pv2A || 0,
+      maxPv2A: Number(Math.max(dayMaxPv2A, curveMaxPv2A).toFixed(2)),
+      maxPv2AHour:
+        dayMaxPv2A >= curveMaxPv2A && day.maxPv2AHour ? day.maxPv2AHour : maxPv2APoint.hour || '12:00',
       pv2Overcurrent,
       // Temperatures
       maxInverterTempC: maxInvTempPoint.tempC,
@@ -1284,7 +1317,87 @@ export const HomeInverterView = () => {
       maxBatteryTempC: maxBatTempPoint.batteryTempC,
       maxBatteryTempHour: maxBatTempPoint.hour
     };
-  }, [dailyCurveData]);
+  }, [dailyCurveData, activeHistoryDay]);
+
+  // Comprehensive Engineering Health & Safety Inspection (เปรียบเทียบค่าจริงกับสเปกแผงและขีดจำกัดความปลอดภัย)
+  const stringHealthAnalysis = useMemo(() => {
+    const isToday = !selectedHistoryDate || selectedHistoryDate === getThailandDateStr(0);
+    const live1 = isToday
+      ? {
+          v: Number(solarData.pv1Voltage || 0),
+          a: Number(solarData.pv1Current || 0),
+          w: Number(solarData.pv1PowerW || 0)
+        }
+      : null;
+    const live2 = isToday
+      ? {
+          v: Number(solarData.pv2Voltage || 0),
+          a: Number(solarData.pv2Current || 0),
+          w: Number(solarData.pv2PowerW || 0)
+        }
+      : null;
+
+    const pv1Health = evaluateStringHealth({
+      label: 'สตริงที่ 1 (PV1)',
+      panelCount: solarData.pv1PanelCount ?? 8,
+      specs: solarData,
+      peak: {
+        w: dailyPeakStats.peakPv1W,
+        v: dailyPeakStats.peakPv1V,
+        a: dailyPeakStats.peakPv1A,
+        hour: dailyPeakStats.peakPv1Hour
+      },
+      maxCurrent: {
+        a: dailyPeakStats.maxPv1A,
+        hour: dailyPeakStats.maxPv1AHour
+      },
+      live: live1,
+      sitePeakPvW: dailyPeakStats.peakPvW,
+      hasTelemetry: dailyPeakStats.hasStringTelemetry
+    });
+
+    const pv2Health = evaluateStringHealth({
+      label: 'สตริงที่ 2 (PV2)',
+      panelCount: solarData.pv2PanelCount ?? 6,
+      specs: solarData,
+      peak: {
+        w: dailyPeakStats.peakPv2W,
+        v: dailyPeakStats.peakPv2V,
+        a: dailyPeakStats.peakPv2A,
+        hour: dailyPeakStats.peakPv2Hour
+      },
+      maxCurrent: {
+        a: dailyPeakStats.maxPv2A,
+        hour: dailyPeakStats.maxPv2AHour
+      },
+      live: live2,
+      sitePeakPvW: dailyPeakStats.peakPvW,
+      hasTelemetry: dailyPeakStats.hasStringTelemetry
+    });
+
+    const mismatch = evaluateStringMismatch(pv1Health, pv2Health);
+
+    const allIssues = [
+      ...pv1Health.checks.filter((c) => c.level !== 'OK'),
+      ...pv2Health.checks.filter((c) => c.level !== 'OK'),
+      ...(mismatch ? [mismatch] : [])
+    ];
+
+    const hasDanger = allIssues.some((c) => c.level === 'DANGER');
+    const hasWarning = allIssues.some((c) => c.level === 'WARNING');
+    const hasWatch = allIssues.some((c) => c.level === 'WATCH');
+
+    const overallLevel = hasDanger ? 'DANGER' : hasWarning ? 'WARNING' : hasWatch ? 'WATCH' : 'OK';
+
+    return {
+      pv1: pv1Health,
+      pv2: pv2Health,
+      mismatch,
+      allIssues,
+      overallLevel,
+      hasAnyIssue: allIssues.length > 0
+    };
+  }, [solarData, dailyPeakStats, selectedHistoryDate]);
 
   const savedTicket = getSavedSajSessionTicket(solarData);
   const savedEmail = getSavedSajEmail(solarData) || 'natshownolimit@gmail.com';
@@ -1337,6 +1450,7 @@ export const HomeInverterView = () => {
         currentSolarConfig: {
           ...solarData,
           ...editForm,
+          ...pickPvStringSpecs(latestSolarDataRef.current),
           sajEncryptedSessionTicket: activeTicket
         },
         onProgress: (progressText) => {
@@ -1348,12 +1462,15 @@ export const HomeInverterView = () => {
           }
         },
         onPartialSync: (partialConfig) => {
-          setEditForm(partialConfig);
+          const merged = { ...partialConfig, ...pickPvStringSpecs(latestSolarDataRef.current) };
+          setEditForm((prev) =>
+            isSettingOpenRef.current ? { ...merged, ...pickPvStringSpecs(prev) } : merged
+          );
           updateOrganization(currentCompany.id, {
             gatewayIp: 'SAJ-CLOUD-AUTO',
             gatewayPort: '443',
             status: 'ONLINE',
-            solarConfig: partialConfig
+            solarConfig: merged
           });
         }
       });
@@ -1361,12 +1478,24 @@ export const HomeInverterView = () => {
       setTransientGuestPassword('');
 
       if (res.success) {
-        setEditForm(res.syncedSolarConfig);
+        // Panel/string specs are user-owned: re-apply the LATEST saved values (the user may have
+        // edited them while this sync was in flight).
+        const syncedWithSpecs = {
+          ...res.syncedSolarConfig,
+          ...pickPvStringSpecs(latestSolarDataRef.current)
+        };
+        res.syncedSolarConfig = syncedWithSpecs;
+        // If the user is currently editing the Settings modal, keep their unsaved spec edits.
+        setEditForm((prev) =>
+          isSettingOpenRef.current
+            ? { ...syncedWithSpecs, ...pickPvStringSpecs(prev) }
+            : syncedWithSpecs
+        );
         updateOrganization(currentCompany.id, {
           gatewayIp: 'SAJ-CLOUD-AUTO',
           gatewayPort: '443',
           status: 'ONLINE',
-          solarConfig: res.syncedSolarConfig
+          solarConfig: syncedWithSpecs
         });
         if (res.syncedSolarConfig.historicalDailyLogs?.length > 0 && !selectedHistoryDate) {
           const latestDay =
@@ -1472,10 +1601,16 @@ export const HomeInverterView = () => {
   const handleSaveSettingsToDb = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setTransientGuestPassword('');
+    const savedConfig = {
+      ...editForm,
+      ...sanitizePvStringSpecs({ ...pickPvStringSpecs(solarData), ...pickPvStringSpecs(editForm) }),
+      inverterIp: 'SAJ-CLOUD-AUTO'
+    };
+    latestSolarDataRef.current = { ...solarData, ...savedConfig };
     updateOrganization(currentCompany.id, {
       gatewayIp: 'SAJ-CLOUD-AUTO',
       gatewayPort: '443',
-      solarConfig: { ...editForm, inverterIp: 'SAJ-CLOUD-AUTO' }
+      solarConfig: savedConfig
     });
     setIsSettingOpen(false);
     setSaveNotice('บันทึกการตั้งค่าลงฐานข้อมูลเรียบร้อยแล้ว');
@@ -1943,10 +2078,43 @@ export const HomeInverterView = () => {
                         <span>⚡ เลือกพรีเซ็ตแผงโซลาร์มาตรฐาน (คลิกเปลี่ยนค่าทันที)</span>
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                       {[
                         {
-                          name: 'N-Type TOPCon 580W (8+6 แผง)',
+                          name: '⚡ RAPID 750W (7 แผง PV1)',
+                          desc: '5.25 kWp • Vmp 305V',
+                          spec: {
+                            panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                            panelWattage: 750,
+                            panelVoc: 50.20,
+                            panelVmp: 43.60,
+                            panelImp: 17.90,
+                            panelIsc: 18.74,
+                            pv1PanelCount: 7,
+                            pv2PanelCount: 0,
+                            inverterMaxMpptCurrentA: 20.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        },
+                        {
+                          name: 'RAPID 750W (6+5 แผง)',
+                          desc: '8.25 kWp • Vmp 262V/218V',
+                          spec: {
+                            panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                            panelWattage: 750,
+                            panelVoc: 50.20,
+                            panelVmp: 43.60,
+                            panelImp: 17.90,
+                            panelIsc: 18.74,
+                            pv1PanelCount: 6,
+                            pv2PanelCount: 5,
+                            inverterMaxMpptCurrentA: 20.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        },
+                        {
+                          name: 'N-Type TOPCon 580W (8+6)',
+                          desc: '8.12 kWp • Vmp 340V/255V',
                           spec: {
                             panelModelName: 'Mono Half-Cell N-Type TOPCon 580W',
                             panelWattage: 580,
@@ -1961,7 +2129,8 @@ export const HomeInverterView = () => {
                           }
                         },
                         {
-                          name: 'Mono PERC 550W (8+8 แผง)',
+                          name: 'Mono PERC 550W (8+8)',
+                          desc: '8.80 kWp • Vmp 334V/334V',
                           spec: {
                             panelModelName: 'Mono Perc Tier 1 550W',
                             panelWattage: 550,
@@ -1976,7 +2145,8 @@ export const HomeInverterView = () => {
                           }
                         },
                         {
-                          name: 'Hi-MO 7 620W (7+6 แผง)',
+                          name: 'Hi-MO 7 620W (7+6)',
+                          desc: '8.06 kWp • Vmp 305V/262V',
                           spec: {
                             panelModelName: 'Longi Hi-MO 7 620W',
                             panelWattage: 620,
@@ -1987,21 +2157,6 @@ export const HomeInverterView = () => {
                             pv1PanelCount: 7,
                             pv2PanelCount: 6,
                             inverterMaxMpptCurrentA: 16.0,
-                            inverterMaxDcVoltageV: 550.0
-                          }
-                        },
-                        {
-                          name: 'RAPID 750W TOPCon (6+5 แผง)',
-                          spec: {
-                            panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
-                            panelWattage: 750,
-                            panelVoc: 50.20,
-                            panelVmp: 43.60,
-                            panelImp: 17.90,
-                            panelIsc: 18.74,
-                            pv1PanelCount: 6,
-                            pv2PanelCount: 5,
-                            inverterMaxMpptCurrentA: 20.0,
                             inverterMaxDcVoltageV: 550.0
                           }
                         }
@@ -3410,10 +3565,40 @@ export const HomeInverterView = () => {
                 {/* Quick Presets */}
                 <div className="space-y-1.5">
                   <span className="text-[10px] text-amber-300 font-bold">⚡ หรือคลิกเลือกพรีเซ็ตแผงยอดนิยม:</span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                     {[
                       {
-                        name: 'N-Type TOPCon 580W (8+6 แผง)',
+                        name: '⚡ RAPID 750W (7 แผง PV1)',
+                        spec: {
+                          panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                          panelWattage: 750,
+                          panelVoc: 50.20,
+                          panelVmp: 43.60,
+                          panelImp: 17.90,
+                          panelIsc: 18.74,
+                          pv1PanelCount: 7,
+                          pv2PanelCount: 0,
+                          inverterMaxMpptCurrentA: 20.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      },
+                      {
+                        name: 'RAPID 750W (6+5 แผง)',
+                        spec: {
+                          panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                          panelWattage: 750,
+                          panelVoc: 50.20,
+                          panelVmp: 43.60,
+                          panelImp: 17.90,
+                          panelIsc: 18.74,
+                          pv1PanelCount: 6,
+                          pv2PanelCount: 5,
+                          inverterMaxMpptCurrentA: 20.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      },
+                      {
+                        name: 'N-Type TOPCon 580W (8+6)',
                         spec: {
                           panelModelName: 'Mono Half-Cell N-Type TOPCon 580W',
                           panelWattage: 580,
@@ -3428,7 +3613,7 @@ export const HomeInverterView = () => {
                         }
                       },
                       {
-                        name: 'Mono PERC 550W (8+8 แผง)',
+                        name: 'Mono PERC 550W (8+8)',
                         spec: {
                           panelModelName: 'Mono Perc Tier 1 550W',
                           panelWattage: 550,
@@ -3443,7 +3628,7 @@ export const HomeInverterView = () => {
                         }
                       },
                       {
-                        name: 'Hi-MO 7 620W (7+6 แผง)',
+                        name: 'Hi-MO 7 620W (7+6)',
                         spec: {
                           panelModelName: 'Longi Hi-MO 7 620W',
                           panelWattage: 620,
@@ -3454,21 +3639,6 @@ export const HomeInverterView = () => {
                           pv1PanelCount: 7,
                           pv2PanelCount: 6,
                           inverterMaxMpptCurrentA: 16.0,
-                          inverterMaxDcVoltageV: 550.0
-                        }
-                      },
-                      {
-                        name: 'RAPID 750W TOPCon (6+5 แผง)',
-                        spec: {
-                          panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
-                          panelWattage: 750,
-                          panelVoc: 50.20,
-                          panelVmp: 43.60,
-                          panelImp: 17.90,
-                          panelIsc: 18.74,
-                          pv1PanelCount: 6,
-                          pv2PanelCount: 5,
-                          inverterMaxMpptCurrentA: 20.0,
                           inverterMaxDcVoltageV: 550.0
                         }
                       }
@@ -3711,100 +3881,247 @@ export const HomeInverterView = () => {
               </form>
             )}
 
+            {/* PV1 and PV2 String Cards with Dynamic Health Status */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
               {/* PV1 Card */}
-              <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
-                dailyPeakStats.pv1Overcurrent
-                  ? 'bg-rose-950/30 border-rose-500/60 shadow-lg shadow-rose-950/40'
-                  : 'bg-slate-950/80 border-sky-500/40'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-sky-300 font-bold flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-                    <span>สตริงที่ 1 (PV1): อนุกรม {stringStandards.pv1Count} แผง</span>
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
-                    dailyPeakStats.pv1Overcurrent
-                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  }`}>
-                    {dailyPeakStats.pv1Overcurrent
-                      ? `⚠️ กระแสเกิน (${dailyPeakStats.maxPv1A}A > ${stringStandards.maxInvA}A)`
-                      : `🟢 กระแสปกติ (< ${stringStandards.maxInvA}A)`}
-                  </span>
-                </div>
+              {(() => {
+                const h1 = stringHealthAnalysis.pv1;
+                const levelMeta = HEALTH_LEVELS[h1.level] || HEALTH_LEVELS.OK;
+                const cardBorder =
+                  h1.level === 'DANGER'
+                    ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
+                    : h1.level === 'WARNING'
+                    ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                    : h1.level === 'WATCH'
+                    ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
+                    : h1.level === 'IDLE'
+                    ? 'bg-slate-950/50 border-slate-800 opacity-70'
+                    : 'bg-slate-950/80 border-sky-500/40';
 
-                <div className="grid grid-cols-3 gap-2 font-mono text-center">
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
-                    <strong className="text-sky-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1V} V</strong>
-                    <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv1StdVmp}V</span>
-                  </div>
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
-                    <strong className={`text-sm sm:text-base block ${dailyPeakStats.pv1Overcurrent ? 'text-rose-400 font-black' : 'text-amber-300'}`}>
-                      {dailyPeakStats.maxPv1A} A
-                    </strong>
-                    <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv1StdImp}A</span>
-                  </div>
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
-                    <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong>
-                    <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv1Hour} น.)</span>
-                  </div>
-                </div>
+                const badgeTone =
+                  HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
 
-                <div className="text-[10px] pt-1 border-t border-slate-800/80 flex items-center justify-between text-slate-400 font-sans">
-                  <span>สเปกติดตั้ง: <strong className="text-sky-300 font-mono">{((stringStandards.pv1StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv1StdVoc}V &lt; 550V)</span>
-                  <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv1AHour} น.</span>
-                </div>
-              </div>
+                return (
+                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sky-300 font-bold flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                        <span>สตริงที่ 1 (PV1): อนุกรม {stringStandards.pv1Count} แผง</span>
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
+                        {levelMeta.icon} {h1.level === 'DANGER'
+                          ? `เสี่ยงอันตราย (${dailyPeakStats.maxPv1A}A)`
+                          : h1.level === 'WARNING'
+                          ? `ผิดปกติ (${dailyPeakStats.maxPv1A}A > ${stringStandards.maxInvA}A)`
+                          : h1.level === 'WATCH'
+                          ? `เฝ้าระวัง (${dailyPeakStats.maxPv1A}A)`
+                          : h1.level === 'IDLE'
+                          ? 'ไม่ได้ใช้งาน (0 แผง)'
+                          : `ปกติ (< ${stringStandards.maxInvA}A)`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                        <strong className="text-sky-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1V} V</strong>
+                        <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv1StdVmp}V</span>
+                      </div>
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                        <strong className={`text-sm sm:text-base block ${
+                          h1.level === 'DANGER' || h1.level === 'WARNING'
+                            ? 'text-rose-400 font-black'
+                            : h1.level === 'WATCH'
+                            ? 'text-amber-300 font-black'
+                            : 'text-emerald-300'
+                        }`}>
+                          {dailyPeakStats.maxPv1A} A
+                        </strong>
+                        <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv1StdImp}A</span>
+                      </div>
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                        <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong>
+                        <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv1Hour} น.)</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] pt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
+                      <span>สเปกติดตั้ง: <strong className="text-sky-300 font-mono">{((stringStandards.pv1StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv1StdVoc}V &lt; 550V)</span>
+                      <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv1AHour || '12:00'} น.</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* PV2 Card */}
-              <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
-                dailyPeakStats.pv2Overcurrent
-                  ? 'bg-rose-950/30 border-rose-500/60 shadow-lg shadow-rose-950/40'
-                  : 'bg-slate-950/80 border-emerald-500/40'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-emerald-300 font-bold flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                    <span>สตริงที่ 2 (PV2): อนุกรม {stringStandards.pv2Count} แผง</span>
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
-                    dailyPeakStats.pv2Overcurrent
-                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  }`}>
-                    {dailyPeakStats.pv2Overcurrent
-                      ? `⚠️ กระแสเกิน (${dailyPeakStats.maxPv2A}A > ${stringStandards.maxInvA}A)`
-                      : `🟢 กระแสปกติ (< ${stringStandards.maxInvA}A)`}
+              {(() => {
+                const h2 = stringHealthAnalysis.pv2;
+                const levelMeta = HEALTH_LEVELS[h2.level] || HEALTH_LEVELS.OK;
+                const cardBorder =
+                  h2.level === 'DANGER'
+                    ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
+                    : h2.level === 'WARNING'
+                    ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                    : h2.level === 'WATCH'
+                    ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
+                    : h2.level === 'IDLE'
+                    ? 'bg-slate-950/50 border-slate-800 opacity-70'
+                    : 'bg-slate-950/80 border-emerald-500/40';
+
+                const badgeTone =
+                  HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
+
+                return (
+                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                        <span>สตริงที่ 2 (PV2): อนุกรม {stringStandards.pv2Count} แผง</span>
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
+                        {levelMeta.icon} {h2.level === 'DANGER'
+                          ? `เสี่ยงอันตราย (${dailyPeakStats.maxPv2A}A)`
+                          : h2.level === 'WARNING'
+                          ? `ผิดปกติ (${dailyPeakStats.maxPv2A}A > ${stringStandards.maxInvA}A)`
+                          : h2.level === 'WATCH'
+                          ? `เฝ้าระวัง (${dailyPeakStats.maxPv2A}A)`
+                          : h2.level === 'IDLE'
+                          ? 'ไม่ได้ใช้งาน (0 แผง)'
+                          : `ปกติ (< ${stringStandards.maxInvA}A)`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                        <strong className="text-emerald-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2V} V</strong>
+                        <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv2StdVmp}V</span>
+                      </div>
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                        <strong className={`text-sm sm:text-base block ${
+                          h2.level === 'DANGER' || h2.level === 'WARNING'
+                            ? 'text-rose-400 font-black'
+                            : h2.level === 'WATCH'
+                            ? 'text-amber-300 font-black'
+                            : 'text-emerald-300'
+                        }`}>
+                          {dailyPeakStats.maxPv2A} A
+                        </strong>
+                        <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv2StdImp}A</span>
+                      </div>
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                        <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                        <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2W.toLocaleString()} W</strong>
+                        <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv2Hour} น.)</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] pt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
+                      <span>สเปกติดตั้ง: <strong className="text-emerald-300 font-mono">{((stringStandards.pv2StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv2StdVoc}V &lt; 550V)</span>
+                      <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv2AHour || '12:00'} น.</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* ENGINEERING SAFETY, FAULT DETECTION & CABLE INSPECTION ADVISORY */}
+            <div className={`rounded-xl p-3 sm:p-3.5 border transition-all ${
+              stringHealthAnalysis.overallLevel === 'DANGER'
+                ? 'bg-rose-950/40 border-rose-500/70 shadow-lg shadow-rose-950/50'
+                : stringHealthAnalysis.overallLevel === 'WARNING'
+                ? 'bg-orange-950/35 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                : stringHealthAnalysis.overallLevel === 'WATCH'
+                ? 'bg-amber-950/30 border-amber-500/60 shadow-lg shadow-amber-950/30'
+                : 'bg-emerald-950/20 border-emerald-500/40'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`w-4 h-4 ${
+                    stringHealthAnalysis.overallLevel === 'DANGER'
+                      ? 'text-rose-400 animate-pulse'
+                      : stringHealthAnalysis.overallLevel === 'WARNING'
+                      ? 'text-orange-400'
+                      : stringHealthAnalysis.overallLevel === 'WATCH'
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`} />
+                  <span className="font-bold text-xs sm:text-sm text-slate-100">
+                    🛡️ ผลตรวจเช็คความปลอดภัยสตริง & คำนวณความเสี่ยงสายส่ง DC
                   </span>
                 </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono border ${
+                  HEALTH_TONE_CLASSES[HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.tone] || HEALTH_TONE_CLASSES.slate
+                }`}>
+                  {HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.icon} สถานะระบบ: {HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.label}
+                </span>
+              </div>
 
-                <div className="grid grid-cols-3 gap-2 font-mono text-center">
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
-                    <strong className="text-emerald-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2V} V</strong>
-                    <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv2StdVmp}V</span>
-                  </div>
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
-                    <strong className={`text-sm sm:text-base block ${dailyPeakStats.pv2Overcurrent ? 'text-rose-400 font-black' : 'text-amber-300'}`}>
-                      {dailyPeakStats.maxPv2A} A
-                    </strong>
-                    <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv2StdImp}A</span>
-                  </div>
-                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                    <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
-                    <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2W.toLocaleString()} W</strong>
-                    <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv2Hour} น.)</span>
-                  </div>
+              {/* Issues & Warnings List */}
+              {stringHealthAnalysis.allIssues.length > 0 ? (
+                <div className="space-y-2 mt-2.5">
+                  {stringHealthAnalysis.allIssues.map((issue, idx) => {
+                    const issueTone =
+                      issue.level === 'DANGER'
+                        ? 'border-rose-500/50 bg-rose-950/50 text-rose-200'
+                        : issue.level === 'WARNING'
+                        ? 'border-orange-500/50 bg-orange-950/40 text-orange-200'
+                        : 'border-amber-500/40 bg-amber-950/30 text-amber-200';
+                    return (
+                      <div key={idx} className={`p-2.5 rounded-lg border text-xs space-y-1 ${issueTone}`}>
+                        <div className="font-bold flex items-center gap-1.5 text-slate-100">
+                          <span>{issue.level === 'DANGER' ? '🔴 [เสี่ยงอันตราย]' : issue.level === 'WARNING' ? '🟠 [ผิดปกติ ควรตรวจเช็ค]' : '🟡 [เฝ้าระวัง]'}</span>
+                          <span>{issue.title}</span>
+                        </div>
+                        {issue.detail && (
+                          <div className="text-[11px] text-slate-300 font-sans pl-1">
+                            {issue.detail}
+                          </div>
+                        )}
+                        {issue.action && (
+                          <div className="text-[11px] font-bold text-amber-300 bg-slate-900/80 border border-slate-700/80 rounded px-2 py-1 mt-1 flex items-start gap-1.5">
+                            <span className="text-amber-400">🔧 ข้อแนะนำช่าง:</span>
+                            <span>{issue.action}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+              ) : (
+                <div className="mt-2 text-xs text-emerald-300 flex items-center gap-2 font-sans">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    ระบบตรวจเช็คเรียบร้อย: แรงดันและกระแสของทุกสตริงอยู่ในเกณฑ์ปลอดภัยมาตรฐาน (ไม่พบกระแสเกินพิกัด, แรงดันอยู่ในช่วงจุดทำงานสูงสุด Vmp, สายส่งและขั้วต่อทำงานสมบูรณ์)
+                  </span>
+                </div>
+              )}
 
-                <div className="text-[10px] pt-1 border-t border-slate-800/80 flex items-center justify-between text-slate-400 font-sans">
-                  <span>สเปกติดตั้ง: <strong className="text-emerald-300 font-mono">{((stringStandards.pv2StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv2StdVoc}V &lt; 550V)</span>
-                  <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv2AHour} น.</span>
+              {/* Standard Engineering Reference for DC Wiring & Protection */}
+              <div className="mt-2.5 pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] text-slate-400 font-sans">
+                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
+                  <span className="text-slate-400 block font-bold">📏 สายส่ง DC ที่แนะนำ:</span>
+                  <span className="text-sky-300 font-mono font-bold">
+                    สาย PV1-F ขนาด ≥ {stringHealthAnalysis.pv1.limits.recommendedCableMm2} sq.mm.
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">รองรับกระแสต่อเนื่องได้ถึง 35-45A ไม่ร้อน</span>
+                </div>
+                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
+                  <span className="text-slate-400 block font-bold">⚡ ขีดจำกัดกระแสออกแบบ (Isc × 1.25):</span>
+                  <span className="text-amber-300 font-mono font-bold">
+                    {stringHealthAnalysis.pv1.limits.designCurrentA} A (กระแส Imp {stringStandards.pv1StdImp}A)
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">เกณฑ์มาตรฐานวิศวกรรมไฟฟ้า NEC 690.8</span>
+                </div>
+                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
+                  <span className="text-slate-400 block font-bold">🛡️ ขนาดฟิวส์ / DC Breaker:</span>
+                  <span className="text-emerald-300 font-mono font-bold">
+                    {stringHealthAnalysis.pv1.limits.recommendedProtectionA} A (DC 1000V)
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">ตัดวงจรทันทีเมื่อลัดวงจรหรือกระแสเกินวิกฤต</span>
                 </div>
               </div>
             </div>

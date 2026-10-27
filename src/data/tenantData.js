@@ -2,10 +2,13 @@
 // 100% Real User Data Only — Zero Hardcoded Demo Data
 
 const STORAGE_KEY_COMPANIES = 'POWERVIEW_PROD_COMPANIES_V3';
+// Merge order matters: later keys override earlier ones. Legacy keys are read FIRST and the
+// active key (STORAGE_KEY_COMPANIES) LAST, so the most recently saved settings always win.
+// (Previously V2 was merged last and silently reverted saved panel/string settings on reload.)
 const LEGACY_COMPANY_KEYS = [
+  'POWERVIEW_PROD_COMPANIES_V2',
   'POWERVIEW_PROD_COMPANIES_V4',
-  'POWERVIEW_PROD_COMPANIES_V3',
-  'POWERVIEW_PROD_COMPANIES_V2'
+  STORAGE_KEY_COMPANIES
 ];
 
 // Standard Modbus Register Presets for Industrial Power Meters & Solar Inverters
@@ -298,6 +301,17 @@ const loadInitialCompanies = () => {
 };
 
 export const TENANT_COMPANIES = loadInitialCompanies();
+
+// One-time consolidation: write the merged result to the active key and drop stale legacy
+// snapshots so they can never override newer settings again.
+try {
+  localStorage.setItem(STORAGE_KEY_COMPANIES, JSON.stringify(TENANT_COMPANIES));
+  LEGACY_COMPANY_KEYS.filter((k) => k !== STORAGE_KEY_COMPANIES).forEach((k) =>
+    localStorage.removeItem(k)
+  );
+} catch {
+  // ignore storage errors (private mode / quota)
+}
 
 const persistCompanies = () => {
   try {

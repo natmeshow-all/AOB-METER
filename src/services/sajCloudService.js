@@ -103,7 +103,14 @@ export const normalizeHistoricalDayLog = (dayObj) => {
     peakPv2A: Number(dayObj.peakPv2A || 0),
     peakPv2Hour: dayObj.peakPv2Hour || '12:00',
     maxPv1A: Number(dayObj.maxPv1A || 0),
+    maxPv1AHour: dayObj.maxPv1AHour || '',
     maxPv2A: Number(dayObj.maxPv2A || 0),
+    maxPv2AHour: dayObj.maxPv2AHour || '',
+    hasStringTelemetry: Boolean(
+      dayObj.hasStringTelemetry ||
+        Number(dayObj.peakPv1W || 0) > 0 ||
+        Number(dayObj.peakPv2W || 0) > 0
+    ),
     pv1OvercurrentCount: Number(dayObj.pv1OvercurrentCount || 0),
     pv2OvercurrentCount: Number(dayObj.pv2OvercurrentCount || 0),
     savedBaht:
@@ -195,6 +202,7 @@ export const syncSajCloudAndBackfillHistory = async ({
       chargeBatteryKWh: Number(t.statChargeBatteryKWh || 0),
       dischargeBatteryKWh: Number(t.statDischargeBatteryKWh || 0),
       peakPvPowerW: Number(t.pv1PowerW || 0),
+      ...(t.todayStringPeaks || {}),
       savedBaht: Math.round(
         Math.max(0, Number(t.todayEnergyKWh || 0) - Number(t.statExportKWh || 0)) * 4.72 +
           Number(t.statExportKWh || 0) * 2.2

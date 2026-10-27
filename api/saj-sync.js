@@ -242,6 +242,10 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       pv2W: 0,
       pv2V: 0,
       pv2A: 0,
+      pv1MaxA: 0,
+      pv1MaxV: 0,
+      pv2MaxA: 0,
+      pv2MaxV: 0,
       sampleCount: 0
     });
   }
@@ -404,13 +408,23 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
           if (tempC > 0) existing.tempC = Number(tempC.toFixed(1));
           if (batTempC > 0) existing.batteryTempC = Number(batTempC.toFixed(1));
 
-          if (rawPv1W > 0) existing.pv1W = Math.max(existing.pv1W, Math.round(rawPv1W));
-          if (rawPv1V > 0) existing.pv1V = Number(rawPv1V.toFixed(1));
-          if (rawPv1A > 0) existing.pv1A = Number(rawPv1A.toFixed(2));
+          // Keep W / V / A from the SAME 5-minute sample (the hour's peak-power sample) so that
+          // W ≈ V × A stays physically consistent, and track the hour's max current separately.
+          if (rawPv1W > 0 && rawPv1W >= existing.pv1W) {
+            existing.pv1W = Math.round(rawPv1W);
+            existing.pv1V = Number(rawPv1V.toFixed(1));
+            existing.pv1A = Number(rawPv1A.toFixed(2));
+          }
+          if (rawPv1A > (existing.pv1MaxA || 0)) existing.pv1MaxA = Number(rawPv1A.toFixed(2));
+          if (rawPv1V > (existing.pv1MaxV || 0)) existing.pv1MaxV = Number(rawPv1V.toFixed(1));
 
-          if (rawPv2W > 0) existing.pv2W = Math.max(existing.pv2W, Math.round(rawPv2W));
-          if (rawPv2V > 0) existing.pv2V = Number(rawPv2V.toFixed(1));
-          if (rawPv2A > 0) existing.pv2A = Number(rawPv2A.toFixed(2));
+          if (rawPv2W > 0 && rawPv2W >= existing.pv2W) {
+            existing.pv2W = Math.round(rawPv2W);
+            existing.pv2V = Number(rawPv2V.toFixed(1));
+            existing.pv2A = Number(rawPv2A.toFixed(2));
+          }
+          if (rawPv2A > (existing.pv2MaxA || 0)) existing.pv2MaxA = Number(rawPv2A.toFixed(2));
+          if (rawPv2V > (existing.pv2MaxV || 0)) existing.pv2MaxV = Number(rawPv2V.toFixed(1));
 
           existing.sampleCount += 1;
         }
@@ -536,7 +550,11 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
         pv1A,
         pv2W,
         pv2V,
-        pv2A
+        pv2A,
+        pv1MaxA,
+        pv1MaxV,
+        pv2MaxA,
+        pv2MaxV
       },
       hIdx
     ) => {
@@ -598,25 +616,16 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       let finalPv2V = pv2V || 0;
       let finalPv2A = pv2A || 0;
 
-      if (finalPv1W <= 0 && finalPv2W <= 0 && currentPvW > 0) {
-        finalPv1W = Math.round(currentPvW * 0.58);
-        finalPv1V = Number((340.0 + Math.sin(((hIdx - 8) / 12) * Math.PI) * 12).toFixed(1));
-        finalPv1A = Number((finalPv1W / Math.max(1, finalPv1V)).toFixed(2));
+      // NOTE: Never fabricate PV1/PV2 string values. If SAJ does not report per-string telemetry,
+      // the string fields stay at 0 so the string health engine reports "no data" instead of fake values.
+      const finalPv1MaxA = Math.max(pv1MaxA || 0, finalPv1A);
+      const finalPv1MaxV = Math.max(pv1MaxV || 0, finalPv1V);
+      const finalPv2MaxA = Math.max(pv2MaxA || 0, finalPv2A);
+      const finalPv2MaxV = Math.max(pv2MaxV || 0, finalPv2V);
 
-        finalPv2W = Math.round(currentPvW * 0.42);
-        finalPv2V = Number((255.0 + Math.sin(((hIdx - 8) / 12) * Math.PI) * 10).toFixed(1));
-        finalPv2A = Number((finalPv2W / Math.max(1, finalPv2V)).toFixed(2));
-      } else if (currentPvW <= 0) {
-        finalPv1W = 0;
-        finalPv1V = 0;
-        finalPv1A = 0;
-        finalPv2W = 0;
-        finalPv2V = 0;
-        finalPv2A = 0;
-      }
-
-      const isPv1Overcurrent = finalPv1A > 15.0;
-      const isPv2Overcurrent = finalPv2A > 15.0;
+      // Overcurrent is evaluated on the client against the configured panel / inverter limits.
+      const isPv1Overcurrent = false;
+      const isPv2Overcurrent = false;
 
       return {
         hour,
@@ -630,10 +639,14 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
         pv1W: finalPv1W,
         pv1V: finalPv1V,
         pv1A: finalPv1A,
+        pv1MaxA: finalPv1MaxA,
+        pv1MaxV: finalPv1MaxV,
         isPv1Overcurrent,
         pv2W: finalPv2W,
         pv2V: finalPv2V,
         pv2A: finalPv2A,
+        pv2MaxA: finalPv2MaxA,
+        pv2MaxV: finalPv2MaxV,
         isPv2Overcurrent
       };
     }
@@ -652,16 +665,20 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
     chargeBatteryKWh,
     dischargeBatteryKWh,
     peakPvPowerW: fallbackPeak,
-    peakPv1W: peakPv1W || Math.round(fallbackPeak * 0.58),
-    peakPv1V: peakPv1V || 342.5,
-    peakPv1A: peakPv1A || Number(((peakPv1W || Math.round(fallbackPeak * 0.58)) / 342.5).toFixed(2)),
+    // Real per-string peaks only (0 = SAJ did not report string telemetry for this day)
+    hasStringTelemetry: peakPv1W > 0 || peakPv2W > 0 || maxPv1A > 0 || maxPv2A > 0,
+    peakPv1W,
+    peakPv1V,
+    peakPv1A,
     peakPv1Hour: peakPv1Hour || '12:00',
-    peakPv2W: peakPv2W || Math.round(fallbackPeak * 0.42),
-    peakPv2V: peakPv2V || 256.0,
-    peakPv2A: peakPv2A || Number(((peakPv2W || Math.round(fallbackPeak * 0.42)) / 256.0).toFixed(2)),
+    peakPv2W,
+    peakPv2V,
+    peakPv2A,
     peakPv2Hour: peakPv2Hour || '12:00',
     maxPv1A: Math.max(maxPv1A, peakPv1A || 0),
+    maxPv1AHour,
     maxPv2A: Math.max(maxPv2A, peakPv2A || 0),
+    maxPv2AHour,
     pv1OvercurrentCount,
     pv2OvercurrentCount,
     savedBaht,
@@ -1094,24 +1111,18 @@ export async function executeRealSajCloudSync({
       0
   );
 
-  let pv1Voltage = Number(latestRaw.pv1Volt ?? latestRaw.pvVolt1 ?? 0);
+  const pv1Voltage = Number(latestRaw.pv1Volt ?? latestRaw.pvVolt1 ?? 0);
   let pv1Current = Number(latestRaw.pv1Curr ?? latestRaw.pvCurr1 ?? 0);
   let pv1PowerW = Number(latestRaw.pv1Power ?? 0);
-  let pv2Voltage = Number(latestRaw.pv2Volt ?? latestRaw.pvVolt2 ?? 0);
+  const pv2Voltage = Number(latestRaw.pv2Volt ?? latestRaw.pvVolt2 ?? 0);
   let pv2Current = Number(latestRaw.pv2Curr ?? latestRaw.pvCurr2 ?? 0);
   let pv2PowerW = Number(latestRaw.pv2Power ?? 0);
 
-  if (pvPowerW > 0 && pv1PowerW <= 0 && pv2PowerW <= 0) {
-    pv1PowerW = Math.round(pvPowerW * 0.58);
-    pv1Voltage = 342.5;
-    pv1Current = Number((pv1PowerW / 342.5).toFixed(2));
-    pv2PowerW = Math.round(pvPowerW * 0.42);
-    pv2Voltage = 256.0;
-    pv2Current = Number((pv2PowerW / 256.0).toFixed(2));
-  } else if (pv1PowerW > 0 && pv1Voltage <= 0) {
-    pv1Voltage = 342.5;
-    pv1Current = Number((pv1PowerW / 342.5).toFixed(2));
-  }
+  // Derive only what is physically implied by real measurements (P = V × I); never invent values.
+  if (pv1PowerW <= 0 && pv1Voltage > 0 && pv1Current > 0) pv1PowerW = Math.round(pv1Voltage * pv1Current);
+  if (pv2PowerW <= 0 && pv2Voltage > 0 && pv2Current > 0) pv2PowerW = Math.round(pv2Voltage * pv2Current);
+  if (pv1Current <= 0 && pv1PowerW > 0 && pv1Voltage > 0) pv1Current = Number((pv1PowerW / pv1Voltage).toFixed(2));
+  if (pv2Current <= 0 && pv2PowerW > 0 && pv2Voltage > 0) pv2Current = Number((pv2PowerW / pv2Voltage).toFixed(2));
 
   const batterySOC = Number(
     batInfo.batEnergyPercent ??
@@ -1249,6 +1260,21 @@ export async function executeRealSajCloudSync({
       statChargeBatteryKWh: todayChargeKWh,
       statDischargeBatteryKWh: todayDischargeKWh,
       todayHourlyCurve: todayParsed.hourlyCurve || [],
+      todayStringPeaks: {
+        hasStringTelemetry: Boolean(todayParsed.hasStringTelemetry),
+        peakPv1W: todayParsed.peakPv1W || 0,
+        peakPv1V: todayParsed.peakPv1V || 0,
+        peakPv1A: todayParsed.peakPv1A || 0,
+        peakPv1Hour: todayParsed.peakPv1Hour || '12:00',
+        peakPv2W: todayParsed.peakPv2W || 0,
+        peakPv2V: todayParsed.peakPv2V || 0,
+        peakPv2A: todayParsed.peakPv2A || 0,
+        peakPv2Hour: todayParsed.peakPv2Hour || '12:00',
+        maxPv1A: todayParsed.maxPv1A || 0,
+        maxPv1AHour: todayParsed.maxPv1AHour || '12:00',
+        maxPv2A: todayParsed.maxPv2A || 0,
+        maxPv2AHour: todayParsed.maxPv2AHour || '12:00'
+      },
       rawRecordCount: rawRecords.length
     }
   };
