@@ -235,10 +235,28 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Sync organizations from Supabase on mount if configured
+  // Sync organizations & keep Supabase session active on mount
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
+
+    // Check if cloud session exists or silently authenticate for Super Admin
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session && currentUser && (currentUser.role === 'SUPER_ADMIN' || isSuperAdminEmail(currentUser.email))) {
+        const pass = currentUser.password || getActiveSuperAdminPassword();
+        await supabase.auth.signInWithPassword({
+          email: 'natshownolimit@gmail.com',
+          password: pass
+        }).catch(() => {});
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        localStorage.removeItem('AOB_ACTIVE_USER');
+      }
+    });
 
     supabase
       .from('organizations')
@@ -264,7 +282,11 @@ export const AuthProvider = ({ children }) => {
         }
       })
       .catch(() => {});
-  }, []);
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [currentUser]);
 
   const switchOrganization = (orgId) => {
     setActiveOrgId(orgId);
@@ -284,36 +306,50 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    // 1. Super Admin verification FIRST (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
+    // 1. Super Admin Cloud Authentication (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
     if (isSuperAdminEmail(cleanId)) {
-      const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
-      const expectedSuperPass = superAccount.password || 'naTshow8@';
-
+      const superEmail = 'natshownolimit@gmail.com';
       const supabase = getSupabase();
-      if (supabase && cleanId.includes('@')) {
+
+      if (supabase) {
         try {
-          const { data } = await supabase.auth.signInWithPassword({
-            email: cleanId,
+          // Always authenticate directly against the Supabase Cloud single source of truth
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: superEmail,
             password: cleanPass
           });
-          if (data?.user) {
-            setCurrentUser({
+
+          if (data?.user && data?.session) {
+            // Live Cloud Authentication Verified 100%!
+            setActiveSuperAdminPassword(cleanPass);
+            const superUser = {
               id: data.user.id,
               username: 'superadmin',
-              email: 'natshownolimit@gmail.com',
+              email: superEmail,
               fullName: 'คุณณัฐพงษ์ (Super Admin)',
               role: 'SUPER_ADMIN',
               orgId: activeOrgId || '',
               companyName: 'ศูนย์ควบคุมกลาง PowerView (Super Admin)',
+              password: cleanPass,
               isRealSupabaseUser: true
-            });
+            };
+            setCurrentUser(superUser);
             setIsLoadingAuth(false);
             return true;
           }
-        } catch {}
+
+          // If Supabase returned an explicit auth error (e.g. invalid credentials):
+          if (error) {
+            setIsLoadingAuth(false);
+            setAuthError('รหัสผ่านผู้ดูแลระบบ (Super Admin) ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+            return false;
+          }
+        } catch (netErr) {
+          console.warn('Supabase auth network error, checking local fallback:', netErr);
+        }
       }
 
-      // Strict Password Check for Super Admin: ONLY the single active password is valid
+      // Offline / network failure fallback ONLY if Supabase connection was not reachable
       const currentActivePass = getActiveSuperAdminPassword();
       if (cleanPass !== currentActivePass) {
         setIsLoadingAuth(false);
@@ -322,10 +358,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       const superUser = {
-        ...superAccount,
         id: 'user-super-admin',
         username: 'superadmin',
-        email: 'natshownolimit@gmail.com',
+        email: superEmail,
         fullName: 'คุณณัฐพงษ์ (Super Admin)',
         role: 'SUPER_ADMIN',
         password: cleanPass
@@ -900,6 +935,71 @@ export const AuthProvider = ({ children }) => {
       cleanTarget === 'user-super-admin' ||
       cleanTarget.toLowerCase() === 'superadmin'
     ) {
+      const supabase = getSupabase();
+      if (!supabase) {
+        return { success: false, message: 'ไม่พบการเชื่อมต่อฐานข้อมูลคลาวด์ Supabase' };
+      }
+
+      // 1. Ensure an active session exists in Supabase Auth
+      let session = (await supabase.auth.getSession())?.data?.session;
+
+      if (!session) {
+        // Re-authenticate with current active password to establish valid cloud session
+        const currentPass = currentUser?.password || getActiveSuperAdminPassword();
+        const signInRes = await supabase.auth.signInWithPassword({
+          email: 'natshownolimit@gmail.com',
+          password: currentPass
+        });
+        session = signInRes?.data?.session;
+
+        // If currentPass didn't work, try DEFAULT_SUPER_PASSWORD
+        if (!session && currentPass !== DEFAULT_SUPER_PASSWORD) {
+          const fallbackRes = await supabase.auth.signInWithPassword({
+            email: 'natshownolimit@gmail.com',
+            password: DEFAULT_SUPER_PASSWORD
+          });
+          session = fallbackRes?.data?.session;
+        }
+      }
+
+      if (!session) {
+        return {
+          success: false,
+          message: 'เซสชันการเชื่อมต่อคลาวด์หมดอายุ กรุณาออกจากระบบและเข้าสู่ระบบใหม่อีกครั้งก่อนเปลี่ยนรหัสผ่าน'
+        };
+      }
+
+      // 2. Update password directly in Supabase Cloud
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: cleanPass
+      });
+
+      if (updateError) {
+        return {
+          success: false,
+          message: `ไม่สามารถอัปเดตรหัสผ่านบนระบบคลาวด์ได้: ${updateError.message}`
+        };
+      }
+
+      // 3. Update profiles table and metadata in Supabase
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            passwordUpdatedAt: new Date().toISOString()
+          }
+        });
+        await supabase.from('profiles').upsert([{
+          id: session.user.id,
+          email: 'natshownolimit@gmail.com',
+          full_name: 'คุณณัฐพงษ์ (Super Admin)',
+          role: 'SUPER_ADMIN',
+          updated_at: new Date().toISOString()
+        }]);
+      } catch (e) {
+        console.warn('Profile sync warning:', e);
+      }
+
+      // 4. Update local storage and in-memory accounts
       setActiveSuperAdminPassword(cleanPass);
       setAllAccounts((prev) =>
         prev.map((a) =>
@@ -928,18 +1028,9 @@ export const AuthProvider = ({ children }) => {
         }
       } catch {}
 
-      try {
-        const supabase = getSupabase();
-        if (supabase) {
-          await supabase.auth.updateUser({ password: cleanPass }).catch(() => {});
-        }
-      } catch (err) {
-        console.warn('Supabase password sync notice:', err);
-      }
-
       return {
         success: true,
-        message: 'เปลี่ยนรหัสผ่าน Super Admin สำเร็จเรียบร้อยแล้ว (รหัสผ่านเก่าถูกยกเลิกทันที)'
+        message: 'เปลี่ยนรหัสผ่าน Super Admin บนระบบคลาวด์สำเร็จ! มีผลทันทีกับทุกอุปกรณ์ และรหัสผ่านเดิมถูกยกเลิกถาวร'
       };
     }
 
