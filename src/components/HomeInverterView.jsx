@@ -1943,7 +1943,7 @@ export const HomeInverterView = () => {
                         <span>⚡ เลือกพรีเซ็ตแผงโซลาร์มาตรฐาน (คลิกเปลี่ยนค่าทันที)</span>
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         {
                           name: 'N-Type TOPCon 580W (8+6 แผง)',
@@ -1987,6 +1987,21 @@ export const HomeInverterView = () => {
                             pv1PanelCount: 7,
                             pv2PanelCount: 6,
                             inverterMaxMpptCurrentA: 16.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        },
+                        {
+                          name: 'RAPID 750W TOPCon (6+5 แผง)',
+                          spec: {
+                            panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                            panelWattage: 750,
+                            panelVoc: 50.20,
+                            panelVmp: 43.60,
+                            panelImp: 17.90,
+                            panelIsc: 18.74,
+                            pv1PanelCount: 6,
+                            pv2PanelCount: 5,
+                            inverterMaxMpptCurrentA: 20.0,
                             inverterMaxDcVoltageV: 550.0
                           }
                         }
@@ -3395,7 +3410,7 @@ export const HomeInverterView = () => {
                 {/* Quick Presets */}
                 <div className="space-y-1.5">
                   <span className="text-[10px] text-amber-300 font-bold">⚡ หรือคลิกเลือกพรีเซ็ตแผงยอดนิยม:</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       {
                         name: 'N-Type TOPCon 580W (8+6 แผง)',
@@ -3439,6 +3454,21 @@ export const HomeInverterView = () => {
                           pv1PanelCount: 7,
                           pv2PanelCount: 6,
                           inverterMaxMpptCurrentA: 16.0,
+                          inverterMaxDcVoltageV: 550.0
+                        }
+                      },
+                      {
+                        name: 'RAPID 750W TOPCon (6+5 แผง)',
+                        spec: {
+                          panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+                          panelWattage: 750,
+                          panelVoc: 50.20,
+                          panelVmp: 43.60,
+                          panelImp: 17.90,
+                          panelIsc: 18.74,
+                          pv1PanelCount: 6,
+                          pv2PanelCount: 5,
+                          inverterMaxMpptCurrentA: 20.0,
                           inverterMaxDcVoltageV: 550.0
                         }
                       }
