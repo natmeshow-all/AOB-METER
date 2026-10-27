@@ -36,6 +36,8 @@ import {
   Eye,
   FileText,
   Printer,
+  ChevronLeft,
+  ChevronRight,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -206,6 +208,49 @@ const formatThaiMonth = (ym) => {
 };
 const formatBaht = (n) =>
   `฿${Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export const formatThaiDateShort = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-');
+  const thaiYear = (parseInt(y, 10) + 543) % 100;
+  return `${d}/${m}/${thaiYear}`;
+};
+
+export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
+  const prevMonthDate = new Date(year, month - 2, 1);
+  const prevYear = prevMonthDate.getFullYear();
+  const prevMonth = prevMonthDate.getMonth() + 1;
+  const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const actualPrevDay = Math.min(cutOffDay, daysInPrevMonth);
+
+  const daysInCurMonth = new Date(year, month, 0).getDate();
+  const actualCurDay = Math.min(cutOffDay, daysInCurMonth);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const startDate = `${prevYear}-${pad(prevMonth)}-${pad(actualPrevDay)}`;
+  const endDate = `${year}-${pad(month)}-${pad(actualCurDay)}`;
+
+  return {
+    cycleKey: `${year}-${pad(month)}`,
+    year,
+    month,
+    startDate,
+    endDate,
+    periodLabel: `${formatThaiDateShort(startDate)} - ${formatThaiDateShort(endDate)}`,
+    readDateThai: formatThaiDateShort(endDate),
+    monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (รอบเดือน ${month})`
+  };
+};
+
+export const BENCHMARK_PEA_HISTORY = [
+  { cycleKey: '2026-10', year: 2026, month: 10, units: 37.23, recentReading: 3324.0, prevReading: 3286.77 },
+  { cycleKey: '2026-09', year: 2026, month: 9, units: 184.0, recentReading: 3286.77, prevReading: 3102.77 },
+  { cycleKey: '2026-08', year: 2026, month: 8, units: 430.0, recentReading: 3102.77, prevReading: 2672.77 },
+  { cycleKey: '2026-07', year: 2026, month: 7, units: 456.0, recentReading: 2672.77, prevReading: 2216.77 },
+  { cycleKey: '2026-06', year: 2026, month: 6, units: 454.0, recentReading: 2216.77, prevReading: 1762.77 },
+  { cycleKey: '2026-05', year: 2026, month: 5, units: 491.0, recentReading: 1762.77, prevReading: 1271.77 },
+  { cycleKey: '2026-04', year: 2026, month: 4, units: 473.0, recentReading: 1271.77, prevReading: 798.77 }
+];
 
 const COCKPIT_THEMES = {
   WEISSACH: {
@@ -529,6 +574,29 @@ export const HomeInverterView = () => {
   const [saveNotice, setSaveNotice] = useState(null);
   const [isPeaModalOpen, setIsPeaModalOpen] = useState(false);
   const [selectedPeaMonth, setSelectedPeaMonth] = useState(null);
+  const [selectedPeaCycleKey, setSelectedPeaCycleKey] = useState('2026-10');
+  const [billingCutoffDay, setBillingCutoffDay] = useState(() => {
+    try {
+      const saved = localStorage.getItem('POWERVIEW_BILLING_CUTOFF_DAY');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (parsed >= 1 && parsed <= 31) return parsed;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return 24;
+  });
+
+  const handleBillingCutoffDayChange = (newDay) => {
+    const day = Math.min(31, Math.max(1, parseInt(newDay, 10) || 24));
+    setBillingCutoffDay(day);
+    try {
+      localStorage.setItem('POWERVIEW_BILLING_CUTOFF_DAY', String(day));
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const theme = COCKPIT_THEMES[cockpitThemeKey] || COCKPIT_THEMES.WEISSACH;
 
@@ -551,6 +619,92 @@ export const HomeInverterView = () => {
     }
     return historicalLogs[historicalLogs.length - 1];
   }, [historicalLogs, selectedHistoryDate]);
+
+  // Dynamic monthly billing cycles with user-selected cut-off date (e.g. 24th of each month)
+  const billingCycles = useMemo(() => {
+    const baseCycles = [
+      { year: 2026, month: 10 },
+      { year: 2026, month: 9 },
+      { year: 2026, month: 8 },
+      { year: 2026, month: 7 },
+      { year: 2026, month: 6 },
+      { year: 2026, month: 5 },
+      { year: 2026, month: 4 }
+    ];
+
+    return baseCycles.map(({ year, month }) => {
+      const cycleRange = getBillingCycleRange(year, month, billingCutoffDay);
+      const { startDate, endDate, cycleKey, periodLabel, readDateThai, monthLabel } = cycleRange;
+
+      // Filter historical logs strictly falling in this billing cut-off window: date > startDate && date <= endDate
+      const matchingLogs = historicalLogs.filter(
+        (log) => log && log.date && log.date > startDate && log.date <= endDate
+      );
+
+      const benchmark = BENCHMARK_PEA_HISTORY.find((b) => b.cycleKey === cycleKey);
+
+      let pvGen = 0;
+      let load = 0;
+      let exp = 0;
+      let imp = 0;
+      let daysCount = matchingLogs.length;
+
+      if (matchingLogs.length > 0) {
+        pvGen = Number(matchingLogs.reduce((acc, l) => acc + Number(l.pvGenerationKWh || 0), 0).toFixed(2));
+        load = Number(matchingLogs.reduce((acc, l) => acc + Number(l.loadElectricityKWh || 0), 0).toFixed(2));
+        exp = Number(matchingLogs.reduce((acc, l) => acc + Number(l.exportKWh || 0), 0).toFixed(2));
+        const rawImp = Number(matchingLogs.reduce((acc, l) => acc + Number(l.importKWh || 0), 0).toFixed(2));
+        const balancedImp = Math.max(0, Number((load - Math.max(0, pvGen - exp)).toFixed(2)));
+        imp = Math.max(rawImp, balancedImp);
+      }
+
+      // If no hardware logs for this month yet, or if benchmark units available
+      if (matchingLogs.length === 0 && benchmark) {
+        imp = benchmark.units;
+        load = benchmark.units;
+      } else if (benchmark && imp === 0) {
+        imp = benchmark.units;
+      }
+
+      // Meter readings: benchmark if available or calculate from cumulative
+      const recentReading = benchmark ? benchmark.recentReading : 3324.0;
+      const prevReading = benchmark ? benchmark.prevReading : Math.max(0, Number((recentReading - imp).toFixed(3)));
+
+      const importBillDetails = calcFullPeaBill(imp, tariffSettings);
+      const hypotheticalBillDetails = calcFullPeaBill(load, tariffSettings);
+      const exportIncome = Number((exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
+      const savedBaht = Math.max(
+        0,
+        Number((hypotheticalBillDetails.totalBill - importBillDetails.totalBill + exportIncome).toFixed(2))
+      );
+
+      return {
+        cycleKey,
+        month: cycleKey,
+        year,
+        monthNum: month,
+        startDate,
+        endDate,
+        periodLabel,
+        readDateThai,
+        monthLabel,
+        days: daysCount,
+        pvGen,
+        load,
+        imp,
+        exp,
+        recentReading,
+        prevReading,
+        importBill: importBillDetails.totalBill,
+        importBillDetails,
+        hypotheticalBillWithoutSolar: hypotheticalBillDetails.totalBill,
+        hypotheticalBillDetails,
+        exportIncome,
+        savedBaht,
+        isBenchmark: matchingLogs.length === 0 && !!benchmark
+      };
+    });
+  }, [historicalLogs, billingCutoffDay, tariffSettings]);
 
   if (!currentCompany) {
     return (
@@ -706,7 +860,7 @@ export const HomeInverterView = () => {
         dis,
         gridBill: totalGridBill,
         savedBaht: totalSavedBaht || Math.round(Math.max(0, pvGen - exp) * simTariffBaht + exp * 2.2),
-        monthlyBreakdown
+        monthlyBreakdown: billingCycles && billingCycles.length > 0 ? billingCycles : monthlyBreakdown
       };
     }
 
@@ -729,7 +883,7 @@ export const HomeInverterView = () => {
       dis: dischargeBatKWh,
       gridBill: todayImportBillDetails.totalBill,
       savedBaht: todaySavedBaht || Math.round(Math.max(0, pvGen - exportKWh) * simTariffBaht + exportKWh * 2.2),
-      monthlyBreakdown: [
+      monthlyBreakdown: billingCycles && billingCycles.length > 0 ? billingCycles : [
         {
           month: (getThailandDateStr(0) || '').slice(0, 7),
           days: 1,
@@ -1599,41 +1753,18 @@ export const HomeInverterView = () => {
       {/* OFFICIAL PEA ELECTRICITY BILL MODAL (จำลองใบแจ้งค่าไฟฟ้า กฟภ. ฉบับจริง) */}
       {/* =================================================================== */}
       {isPeaModalOpen && (() => {
-        const activeMonthData = selectedPeaMonth || periodStats.monthlyBreakdown?.[0] || {
-          month: (getThailandDateStr(0) || '').slice(0, 7),
-          imp: periodStats.imp,
-          load: periodStats.load,
-          pvGen: periodStats.pvGen,
-          exp: periodStats.exp,
-          importBill: periodStats.gridBill,
-          savedBaht: periodStats.savedBaht
-        };
-        const bill = calcFullPeaBill(activeMonthData.imp, tariffSettings);
-        const hypothetical = calcFullPeaBill(activeMonthData.load, tariffSettings);
-        const exportIncome = Number(
-          ((activeMonthData.exp || 0) * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2)
-        );
-        const netSaved = Math.max(
-          0,
-          Number((hypothetical.totalBill - bill.totalBill + exportIncome).toFixed(2))
-        );
+        const activeCycle = billingCycles.find((c) => c.cycleKey === selectedPeaCycleKey) || billingCycles[0];
+        const bill = activeCycle.importBillDetails;
+        const hypothetical = activeCycle.hypotheticalBillDetails;
+        const exportIncome = activeCycle.exportIncome;
+        const netSaved = activeCycle.savedBaht;
 
-        // Simulated cumulative meter counter matching PEA invoice style
-        const recentReading = 3324.0;
-        const prevReading = Math.max(0, Number((recentReading - bill.units).toFixed(3)));
-
-        // Past 6 months history (mirroring the right side of the user's PEA invoice)
-        const historyList = [
-          { date: '23/09/69', units: 184.0 },
-          { date: '24/08/69', units: 430.0 },
-          { date: '24/07/69', units: 456.0 },
-          { date: '23/06/69', units: 454.0 },
-          { date: '24/05/69', units: 491.0 },
-          { date: '23/04/69', units: 473.0 }
-        ];
+        // Cumulative meter counter matching PEA invoice style
+        const recentReading = activeCycle.recentReading;
+        const prevReading = activeCycle.prevReading;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-fadeIn">
             <div className="relative w-full max-w-3xl bg-[#0c101d] border border-purple-500/50 rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col my-auto max-h-[94vh]">
               {/* Modal Top Bar */}
               <div className="bg-gradient-to-r from-purple-900/90 via-indigo-950 to-purple-900/90 border-b border-purple-500/30 p-3.5 sm:p-4 flex items-center justify-between shrink-0">
@@ -1649,7 +1780,7 @@ export const HomeInverterView = () => {
                       </span>
                     </h3>
                     <p className="text-[11px] text-purple-200/80">
-                      รอบบิล: {formatThaiMonth(activeMonthData.month)} • ผู้ใช้ไฟ: {currentCompany.name} (บ้านอยู่อาศัย)
+                      รอบบิล: {activeCycle.monthLabel} • ผู้ใช้ไฟ: {currentCompany.name} (บ้านอยู่อาศัย)
                     </p>
                   </div>
                 </div>
@@ -1675,6 +1806,77 @@ export const HomeInverterView = () => {
 
               {/* Modal Scrollable Body: Replicating the PEA Invoice Layout */}
               <div className="p-3.5 sm:p-5 overflow-y-auto space-y-4 text-xs font-sans">
+                {/* 0. Billing Cycle Selector & Cut-off Day Controller */}
+                <div className="bg-[#101628] border border-purple-500/40 rounded-2xl p-3 sm:p-3.5 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    {/* Left: Cycle Selector */}
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[11px] font-bold text-purple-300 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                        <span>เลือกรอบบิลที่ต้องการสรุป (รอบเดือน):</span>
+                      </label>
+                      <select
+                        value={activeCycle.cycleKey}
+                        onChange={(e) => setSelectedPeaCycleKey(e.target.value)}
+                        className="w-full bg-slate-950 border border-purple-500/50 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-amber-300 focus:outline-none focus:border-amber-400 cursor-pointer"
+                      >
+                        {billingCycles.map((c) => (
+                          <option key={c.cycleKey} value={c.cycleKey}>
+                            {c.monthLabel} • อ่านหน่วย {c.periodLabel} ({c.imp} หน่วย - ฿{c.importBill.toFixed(2)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Right: Cut-off Day Selector */}
+                    <div className="space-y-1 shrink-0">
+                      <div className="text-[11px] font-bold text-purple-300 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>กำหนดวันตัดยอดของเดือน:</span>
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-mono font-bold">วันที่ {billingCutoffDay}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {[20, 22, 23, 24, 25].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => handleBillingCutoffDayChange(d)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                              billingCutoffDay === d
+                                ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-500/30'
+                                : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        ))}
+                        <div className="flex items-center gap-1 pl-1">
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            value={billingCutoffDay}
+                            onChange={(e) => handleBillingCutoffDayChange(e.target.value)}
+                            className="w-12 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center text-white focus:outline-none focus:border-purple-400"
+                            title="กำหนดวันตัดรอบบิลเอง 1-31"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-purple-500/20">
+                    <span className="text-purple-300">
+                      💡 รอบบิลเดือน {activeCycle.monthNum}: อ่านหน่วยวันที่ <span className="text-amber-300 font-bold">{activeCycle.periodLabel}</span>
+                    </span>
+                    <span className="text-slate-400">
+                      อ่านหน่วยครั้งถัดไป: วันที่ {billingCutoffDay} เดือนถัดไป
+                    </span>
+                  </div>
+                </div>
+
                 {/* 1. Header Usage & Breakdown Columns */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
                   {/* Left Column (8 cols): Usage + Tariff Breakdown + Amount Calculation */}
@@ -1683,11 +1885,13 @@ export const HomeInverterView = () => {
                     <div className="bg-[#101628] border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-2">
                       <div className="text-[11px] font-bold text-purple-300 flex items-center justify-between">
                         <span>รายละเอียดการใช้ไฟฟ้า (Usage)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">มิเตอร์ 1 เฟส / 3 เฟส</span>
+                        <span className="text-[10px] text-amber-300 font-mono bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-500/40">
+                          ช่วงวันที่อ่านหน่วย: {activeCycle.periodLabel}
+                        </span>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center font-mono">
                         <div className="bg-slate-950/90 rounded-xl p-2 border border-slate-800">
-                          <span className="text-[10px] text-slate-400 font-sans block">เลขอ่านครั้งหลัง</span>
+                          <span className="text-[10px] text-slate-400 font-sans block">เลขอ่านครั้งหลัง ({activeCycle.readDateThai})</span>
                           <span className="text-xs sm:text-sm font-bold text-slate-200">{recentReading.toFixed(3)}</span>
                         </div>
                         <div className="bg-slate-950/90 rounded-xl p-2 border border-slate-800">
@@ -1795,23 +1999,49 @@ export const HomeInverterView = () => {
                     <div className="bg-[#101628] border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-2">
                       <div className="text-[11px] font-bold text-amber-300 flex items-center justify-between">
                         <span>ประวัติการใช้ไฟฟ้า (Usage History)</span>
+                        <span className="text-[10px] text-slate-400 font-sans">คลิกแถวเพื่อดูบิลรอบนั้น</span>
                       </div>
-                      <table className="w-full text-right font-mono text-[11px]">
-                        <thead>
-                          <tr className="border-b border-purple-500/30 text-slate-400 font-sans text-[10px]">
-                            <th className="text-left pb-1 font-bold">วันที่อ่านหน่วย</th>
-                            <th className="pb-1 font-bold">จำนวนหน่วยที่ใช้</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/60">
-                          {historyList.map((h, i) => (
-                            <tr key={i} className="hover:bg-purple-500/5">
-                              <td className="text-left py-1 text-slate-400 font-sans">{h.date}</td>
-                              <td className="py-1 text-slate-200 font-bold">{h.units.toFixed(2)}</td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-right font-mono text-[11px]">
+                          <thead>
+                            <tr className="border-b border-purple-500/30 text-slate-400 font-sans text-[10px]">
+                              <th className="text-left pb-1 font-bold">วันที่อ่าน</th>
+                              <th className="text-center pb-1 font-bold">ช่วงรอบบิล</th>
+                              <th className="pb-1 font-bold">หน่วย</th>
+                              <th className="pb-1 font-bold">ค่าไฟ (฿)</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {billingCycles.map((c) => {
+                              const isSelected = c.cycleKey === activeCycle.cycleKey;
+                              return (
+                                <tr
+                                  key={c.cycleKey}
+                                  onClick={() => setSelectedPeaCycleKey(c.cycleKey)}
+                                  className={`cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? 'bg-purple-600/30 text-amber-300 font-bold'
+                                      : 'hover:bg-purple-500/10 text-slate-300'
+                                  }`}
+                                  title={`คลิกเพื่อดูบิลรอบ ${c.monthLabel}`}
+                                >
+                                  <td className="text-left py-1.5 px-1 font-sans">
+                                    <div className="flex items-center gap-1">
+                                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                                      <span>{c.readDateThai}</span>
+                                    </div>
+                                  </td>
+                                  <td className="text-center py-1.5 text-[9px] text-slate-400 font-sans">
+                                    {c.periodLabel}
+                                  </td>
+                                  <td className="py-1.5 px-1 font-bold text-slate-100">{c.imp.toFixed(2)}</td>
+                                  <td className="py-1.5 px-1 font-bold text-emerald-400">{c.importBill.toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
                     {/* 1.5 กล่องเปรียบเทียบความคุ้มค่าโซลาร์ (Solar Energy Intelligence) */}
@@ -1828,7 +2058,7 @@ export const HomeInverterView = () => {
                       <div className="space-y-1.5 text-[11px] font-mono">
                         <div className="flex justify-between items-center py-0.5 text-slate-300">
                           <span className="font-sans text-[10px]">☀️ ผลิตไฟโซลาร์ได้</span>
-                          <span className="text-amber-300 font-bold">{activeMonthData.pvGen} kWh</span>
+                          <span className="text-amber-300 font-bold">{activeCycle.pvGen} kWh</span>
                         </div>
                         <div className="flex justify-between items-center py-0.5 text-slate-400">
                           <span className="font-sans text-[10px]">💡 ถ้าไม่มีโซลาร์ต้องจ่าย</span>
@@ -2411,8 +2641,7 @@ export const HomeInverterView = () => {
             <button
               type="button"
               onClick={() => {
-                const target = periodStats.monthlyBreakdown?.[0] || null;
-                setSelectedPeaMonth(target);
+                setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                 setIsPeaModalOpen(true);
               }}
               className="bg-[#04070e] hover:bg-slate-900 border border-rose-500/40 hover:border-purple-400 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px] text-left transition-all cursor-pointer group active:scale-95"
@@ -2425,7 +2654,7 @@ export const HomeInverterView = () => {
                 </span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
-                {formatBaht(periodStats.gridBill || 0)}
+                {formatBaht(billingCycles[0]?.importBill || periodStats.gridBill || 0)}
               </div>
             </button>
 
@@ -2473,8 +2702,7 @@ export const HomeInverterView = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const target = periodStats.monthlyBreakdown?.[0] || null;
-                  setSelectedPeaMonth(target);
+                  setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                   setIsPeaModalOpen(true);
                 }}
                 className="px-2.5 py-1 rounded-xl bg-purple-600/25 hover:bg-purple-600/35 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
@@ -2483,49 +2711,70 @@ export const HomeInverterView = () => {
                 <span>📄 ดูบิล กฟภ. ฉบับจริง</span>
               </button>
             </div>
-            <p className="text-[11px] text-slate-400">
-              คิดคำนวณแยกตามเดือนจริง (ฐานขั้นบันได + Ft ฿{tariffSettings.ftRate ?? DEFAULT_FT_RATE} + บริการ ฿{tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE} + VAT 7%) และหักรายได้ขายไฟคืน ({tariffSettings.exportRate || DEFAULT_EXPORT_RATE}฿/หน่วย)
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
+              <p>
+                ตัดยอดทุกวันที่ <span className="text-amber-300 font-bold font-mono">{billingCutoffDay}</span> ของเดือน (เช่น รอบ ต.ค. 69: {billingCycles[0]?.periodLabel})
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
+                  setIsPeaModalOpen(true);
+                }}
+                className="text-purple-400 hover:text-purple-300 underline font-semibold cursor-pointer text-[10px]"
+              >
+                เปลี่ยนวันตัดยอด
+              </button>
+            </div>
           </div>
 
           {/* Monthly Billing Breakdown Table */}
           <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 space-y-2 overflow-hidden">
             <div className="grid grid-cols-4 text-[10px] sm:text-xs font-bold text-slate-400 pb-1.5 border-b border-slate-800 text-right">
-              <span className="text-left text-slate-300">รอบเดือน (คลิกดูบิล)</span>
+              <span className="text-left text-slate-300">รอบบิล (คลิกดูบิล)</span>
               <span>ดึงไฟ (kWh)</span>
               <span className="text-rose-400">จ่ายการไฟฟ้า</span>
               <span className="text-emerald-400">ประหยัดได้</span>
             </div>
-            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-0.5">
-              {Array.isArray(periodStats.monthlyBreakdown) && periodStats.monthlyBreakdown.length > 0 ? (
-                periodStats.monthlyBreakdown.map((m) => (
+            <div className="max-h-52 overflow-y-auto space-y-1.5 pr-0.5">
+              {Array.isArray(billingCycles) && billingCycles.length > 0 ? (
+                billingCycles.map((c) => (
                   <div
-                    key={m.month}
+                    key={c.cycleKey}
                     onClick={() => {
-                      setSelectedPeaMonth(m);
+                      setSelectedPeaCycleKey(c.cycleKey);
                       setIsPeaModalOpen(true);
                     }}
                     className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2 rounded-xl bg-slate-900/60 border border-slate-800/60 hover:border-purple-500/60 hover:bg-purple-950/20 text-right cursor-pointer transition-colors"
-                    title="คลิกเพื่อดูใบแจ้งหนี้ กฟภ. ประจำเดือนนี้"
+                    title={`คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}`}
                   >
-                    <span className="font-sans font-bold text-slate-200 text-left truncate flex items-center gap-1">
-                      <span className="text-purple-400 text-[10px]">📄</span>
-                      {formatThaiMonth(m.month)}
-                    </span>
-                    <span className="text-amber-300">{m.imp.toLocaleString()}</span>
-                    <span className="text-rose-400 font-bold">{formatBaht(m.importBill)}</span>
-                    <span className="text-emerald-400 font-bold">{formatBaht(m.savedBaht)}</span>
+                    <div className="font-sans font-bold text-slate-200 text-left truncate flex flex-col">
+                      <span className="flex items-center gap-1 text-slate-200 text-[11px]">
+                        <span className="text-purple-400 text-[10px]">📄</span>
+                        {c.monthLabel.split(' ')[0]} {c.year + 543}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-mono pl-3">{c.periodLabel}</span>
+                    </div>
+                    <span className="text-amber-300 font-bold">{c.imp.toFixed(2)}</span>
+                    <span className="text-rose-400 font-bold">{formatBaht(c.importBill)}</span>
+                    <span className="text-emerald-400 font-bold">{formatBaht(c.savedBaht)}</span>
                   </div>
                 ))
               ) : (
-                <div className="text-center text-xs text-slate-500 py-2">ไม่มีข้อมูลเดือนที่เลือก</div>
+                <div className="text-center text-xs text-slate-500 py-2">ไม่มีข้อมูลรอบบิล</div>
               )}
             </div>
             <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold pt-2 border-t border-slate-800 font-mono text-right">
-              <span className="text-slate-300 font-sans text-left">รวมยอด:</span>
-              <span className="text-amber-300">{periodStats.imp.toLocaleString()}</span>
-              <span className="text-rose-400">{formatBaht(periodStats.gridBill || 0)}</span>
-              <span className="text-emerald-400">{formatBaht(periodStats.savedBaht || 0)}</span>
+              <span className="text-slate-300 font-sans text-left">รวม 7 รอบบิล:</span>
+              <span className="text-amber-300">
+                {billingCycles.reduce((acc, c) => acc + c.imp, 0).toFixed(2)}
+              </span>
+              <span className="text-rose-400">
+                {formatBaht(billingCycles.reduce((acc, c) => acc + c.importBill, 0))}
+              </span>
+              <span className="text-emerald-400">
+                {formatBaht(billingCycles.reduce((acc, c) => acc + c.savedBaht, 0))}
+              </span>
             </div>
             <div className="text-[10px] text-slate-500 font-mono pt-1 text-center">
               * รวม: ฐานขั้นบันได + Ft ฿{tariffSettings.ftRate ?? DEFAULT_FT_RATE}/หน่วย (รอบ ก.ย.-ธ.ค.) + บริการ ฿{tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE} + VAT {tariffSettings.vatPct ?? DEFAULT_VAT_PCT}%
