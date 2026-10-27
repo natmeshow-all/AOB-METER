@@ -205,7 +205,15 @@
      - ปุ่ม `🔑 รหัสผ่าน` ในการ์ดของแต่ละบริษัท
      - แตะที่กล่องข้อมูล `ID / Pass` ของลูกค้ารายนั้นเพื่อเปิดหน้าต่างเปลี่ยนรหัสทันที
   5. **การเข้าสู่ระบบข้ามอุปกรณ์ (Multi-Device Login Parity):**
-     - รหัสผ่าน Super Admin ในโค้ดแกนกลางและ `DEMO_USERS` ถูกตั้งเป็น `naTshow8@` (และรองรับ `admin`) เพื่อให้เข้าสู่ระบบได้ทันที 100% บนทุกเครื่อง ทุกเบราว์เซอร์ และโหมด Incognito แม้เครื่องนั้นจะยังไม่มีข้อมูลใน `localStorage` ของเครื่องเดิมก็ตาม
+     - รหัสผ่าน Super Admin ในโค้ดแกนกลางและ `DEMO_USERS` ถูกตั้งเป็น `naTshow8@` อย่างเข้มงวด ปราศจาก backdoor รหัส `admin` โดยสิ้นเชิง เพื่อป้องกันการ brute-force หรือการเจาะระบบจากผู้ไม่หวังดี
+
+---
+
+### ⚠️ บทเรียนที่ 16: การฝังการเชื่อมต่อ Supabase Cloud กลางแบบถาวร (Permanent Multi-Device Supabase Sync)
+- **ข้อผิดพลาดเดิม:** ผู้ใช้ได้สร้างโปรเจกต์ Supabase จริงไว้แล้ว (`https://lzzzbdvrgfrrkgajxfmt.supabase.co`) และเคยกดบันทึกไว้ใน SuperAdminConsole บนคอมพิวเตอร์ แต่โค้ดเดิมบันทึกไว้เฉพาะใน `localStorage` ของเบราว์เซอร์เครื่องนั้น ทำให้เมื่อเปิดผ่านมือถือ หรือเครื่องอื่น ตัวแอปบนเครื่องอื่นมองไม่เห็น Supabase URL และคิดว่าเป็นโหมดออฟไลน์
+- **กฎเหล็กถาวร:**
+  1. **ฝัง Supabase Production Defaults ลงในระบบ:** ใน `src/services/supabaseClient.js`, `.env`, และ `.env.production` ต้องระบุ URL `https://lzzzbdvrgfrrkgajxfmt.supabase.co` และ Key `sb_publishable_wP4Kny7nNTyQaA9n0DthaQ_MeVsVtrs` เป็นค่าดีฟอลต์ของทั้งระบบ เพื่อให้อุปกรณ์ทุกเครื่องในโลก (คอมพิวเตอร์, มือถือ, แท็บเล็ต, Incognito) เชื่อมต่อตรงเข้าสู่ Supabase Cloud เดียวกัน 100% โดยอัตโนมัติ
+  2. **Zero Weak Password Backdoor:** ตัดสิทธิ์รหัสผ่านง่ายอย่าง `admin` ออกจาก Super Admin โดยสิ้นเชิง ป้องกันการแฮกและการเดารหัสผ่าน 100%
 
 ---
 

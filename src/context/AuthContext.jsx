@@ -251,7 +251,7 @@ export const AuthProvider = ({ children }) => {
     // 1. Super Admin verification FIRST (เฉพาะ natshownolimit@gmail.com หรือ superadmin เท่านั้น)
     if (isSuperAdminEmail(cleanId)) {
       const superAccount = allAccounts.find((a) => a.role === 'SUPER_ADMIN') || DEMO_USERS[0];
-      const expectedSuperPass = superAccount.password || 'admin';
+      const expectedSuperPass = superAccount.password || 'naTshow8@';
 
       const supabase = getSupabase();
       if (supabase && cleanId.includes('@')) {

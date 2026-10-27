@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get config from localStorage or Environment variables
+export const DEFAULT_SUPABASE_URL = 'https://lzzzbdvrgfrrkgajxfmt.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_wP4Kny7nNTyQaA9n0DthaQ_MeVsVtrs';
+
+// Get config from localStorage, Environment variables, or Production Cloud Defaults
 export const getSupabaseConfig = () => {
   try {
     const saved = localStorage.getItem('AOB_SUPABASE_CONFIG');
@@ -21,10 +24,11 @@ export const getSupabaseConfig = () => {
     return { url: envUrl.trim(), anonKey: envKey.trim(), isConfigured: true };
   }
 
+  // Production Built-in Cloud Database (Auto-connect across all mobile and desktop devices)
   return {
-    url: '',
-    anonKey: '',
-    isConfigured: false
+    url: DEFAULT_SUPABASE_URL,
+    anonKey: DEFAULT_SUPABASE_ANON_KEY,
+    isConfigured: true
   };
 };
 
