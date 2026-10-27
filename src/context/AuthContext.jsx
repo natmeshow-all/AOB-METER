@@ -280,7 +280,7 @@ export const AuthProvider = ({ children }) => {
       // Strict Password Check for Super Admin
       if (cleanPass !== expectedSuperPass) {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านผู้ดูแลระบบ (Super Admin) ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+        setAuthError('รหัสผ่านผู้ดูแลระบบ (Super Admin) ไม่ถูกต้อง (รหัสผ่านเริ่มต้นของระบบคือ "admin") กรุณาลองใหม่อีกครั้ง');
         return false;
       }
 
@@ -332,7 +332,7 @@ export const AuthProvider = ({ children }) => {
         return true;
       } else {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        setAuthError('รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นของระบบคือ "admin") กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
     }
@@ -352,7 +352,7 @@ export const AuthProvider = ({ children }) => {
       const expectedCompPass = matchedComp.loginPassword || 'admin';
       if (cleanPass !== expectedCompPass) {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        setAuthError('รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นของระบบคือ "admin") กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
 
