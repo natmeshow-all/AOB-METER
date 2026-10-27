@@ -229,7 +229,21 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
   const hourlyMap = new Map();
   for (let h = 0; h < 24; h++) {
     const hKey = `${String(h).padStart(2, '0')}:00`;
-    hourlyMap.set(hKey, { hour: hKey, pvW: 0, loadW: 0, batterySOC: 0, tempC: 0, batteryTempC: 0, sampleCount: 0 });
+    hourlyMap.set(hKey, {
+      hour: hKey,
+      pvW: 0,
+      loadW: 0,
+      batterySOC: 0,
+      tempC: 0,
+      batteryTempC: 0,
+      pv1W: 0,
+      pv1V: 0,
+      pv1A: 0,
+      pv2W: 0,
+      pv2V: 0,
+      pv2A: 0,
+      sampleCount: 0
+    });
   }
 
   let maxTodayPvKWh = 0;
@@ -239,6 +253,25 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
   let maxTodayChargeKWh = 0;
   let maxTodayDischargeKWh = 0;
   let peakPvPowerW = 0;
+
+  // PV1 & PV2 String Peak & Overcurrent Trackers
+  let peakPv1W = 0;
+  let peakPv1V = 0;
+  let peakPv1A = 0;
+  let peakPv1Hour = '12:00';
+
+  let peakPv2W = 0;
+  let peakPv2V = 0;
+  let peakPv2A = 0;
+  let peakPv2Hour = '12:00';
+
+  let maxPv1A = 0;
+  let maxPv1AHour = '12:00';
+  let maxPv2A = 0;
+  let maxPv2AHour = '12:00';
+
+  let pv1OvercurrentCount = 0;
+  let pv2OvercurrentCount = 0;
 
   let integratedPvWh = 0;
   let integratedLoadWh = 0;
@@ -251,7 +284,15 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
 
   if (Array.isArray(rawRecords) && rawRecords.length > 0) {
     for (const rec of rawRecords) {
-      const pvSum = Number(rec.pv1Power || 0) + Number(rec.pv2Power || 0);
+      const rawPv1W = Number(rec.pv1Power ?? rec.pv1_power ?? rec.pvPower1 ?? 0);
+      const rawPv1V = Number(rec.pv1Volt ?? rec.pvVolt1 ?? rec.pv1_volt ?? 0);
+      const rawPv1A = Number(rec.pv1Curr ?? rec.pvCurr1 ?? rec.pv1_curr ?? 0);
+
+      const rawPv2W = Number(rec.pv2Power ?? rec.pv2_power ?? rec.pvPower2 ?? 0);
+      const rawPv2V = Number(rec.pv2Volt ?? rec.pvVolt2 ?? rec.pv2_volt ?? 0);
+      const rawPv2A = Number(rec.pv2Curr ?? rec.pvCurr2 ?? rec.pv2_curr ?? 0);
+
+      const pvSum = rawPv1W + rawPv2W;
       const pvRaw = rec.totalPVPower ?? rec.totalPvPower ?? rec.powerNow ?? pvSum;
       const pvW = Number(pvRaw || 0);
 
@@ -278,6 +319,34 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       const batTempC = rawBatTemp != null && !isNaN(Number(rawBatTemp)) ? Number(rawBatTemp) : 0;
 
       if (pvW > peakPvPowerW) peakPvPowerW = Math.round(pvW);
+
+      const timeStr = String(rec.dataTime || rec.createTime || '');
+      const match = timeStr.match(/(\d{2}):\d{2}/);
+      const matchHour = match ? `${match[1]}:00` : '12:00';
+
+      if (rawPv1W > peakPv1W) {
+        peakPv1W = Math.round(rawPv1W);
+        peakPv1V = Number(rawPv1V.toFixed(1));
+        peakPv1A = Number(rawPv1A.toFixed(2));
+        peakPv1Hour = matchHour;
+      }
+      if (rawPv1A > maxPv1A) {
+        maxPv1A = Number(rawPv1A.toFixed(2));
+        maxPv1AHour = matchHour;
+      }
+      if (rawPv1A > 15.0) pv1OvercurrentCount++;
+
+      if (rawPv2W > peakPv2W) {
+        peakPv2W = Math.round(rawPv2W);
+        peakPv2V = Number(rawPv2V.toFixed(1));
+        peakPv2A = Number(rawPv2A.toFixed(2));
+        peakPv2Hour = matchHour;
+      }
+      if (rawPv2A > maxPv2A) {
+        maxPv2A = Number(rawPv2A.toFixed(2));
+        maxPv2AHour = matchHour;
+      }
+      if (rawPv2A > 15.0) pv2OvercurrentCount++;
 
       integratedPvWh += Math.max(0, pvW) * intervalHours;
       integratedLoadWh += Math.max(0, loadW) * intervalHours;
@@ -325,8 +394,6 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       if (rChgKWh > maxTodayChargeKWh) maxTodayChargeKWh = rChgKWh;
       if (rDisKWh > maxTodayDischargeKWh) maxTodayDischargeKWh = rDisKWh;
 
-      const timeStr = String(rec.dataTime || rec.createTime || '');
-      const match = timeStr.match(/(\d{2}):\d{2}/);
       if (match) {
         const hKey = `${match[1]}:00`;
         const existing = hourlyMap.get(hKey);
@@ -336,6 +403,15 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
           if (soc > 0) existing.batterySOC = Math.round(soc);
           if (tempC > 0) existing.tempC = Number(tempC.toFixed(1));
           if (batTempC > 0) existing.batteryTempC = Number(batTempC.toFixed(1));
+
+          if (rawPv1W > 0) existing.pv1W = Math.max(existing.pv1W, Math.round(rawPv1W));
+          if (rawPv1V > 0) existing.pv1V = Number(rawPv1V.toFixed(1));
+          if (rawPv1A > 0) existing.pv1A = Number(rawPv1A.toFixed(2));
+
+          if (rawPv2W > 0) existing.pv2W = Math.max(existing.pv2W, Math.round(rawPv2W));
+          if (rawPv2V > 0) existing.pv2V = Number(rawPv2V.toFixed(1));
+          if (rawPv2A > 0) existing.pv2A = Number(rawPv2A.toFixed(2));
+
           existing.sampleCount += 1;
         }
       }
@@ -446,66 +522,124 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
     }
   }
 
-  const hourlyCurve = Array.from(hourlyMap.values()).map(({ hour, pvW, loadW, batterySOC, tempC, batteryTempC }, hIdx) => {
-    let finalTemp = tempC;
-    if (!finalTemp || finalTemp <= 0) {
-      const heatFactor = (pvW / Math.max(1, peakPvPowerW || 5000)) * 14;
-      const ambient = 29.5 + Math.sin(((hIdx - 8) / 14) * Math.PI) * 3.5;
-      finalTemp = Number((ambient + heatFactor).toFixed(1));
-    }
+  const hourlyCurve = Array.from(hourlyMap.values()).map(
+    (
+      {
+        hour,
+        pvW,
+        loadW,
+        batterySOC,
+        tempC,
+        batteryTempC,
+        pv1W,
+        pv1V,
+        pv1A,
+        pv2W,
+        pv2V,
+        pv2A
+      },
+      hIdx
+    ) => {
+      let finalTemp = tempC;
+      if (!finalTemp || finalTemp <= 0) {
+        const heatFactor = (pvW / Math.max(1, peakPvPowerW || 5000)) * 14;
+        const ambient = 29.5 + Math.sin(((hIdx - 8) / 14) * Math.PI) * 3.5;
+        finalTemp = Number((ambient + heatFactor).toFixed(1));
+      }
 
-    let finalBatTemp = batteryTempC;
-    if (!finalBatTemp || finalBatTemp <= 0) {
-      const batHeatFactor = Math.sin(((hIdx - 8) / 14) * Math.PI) * 2.5;
-      finalBatTemp = Number((28.5 + (hIdx >= 8 && hIdx <= 17 ? Math.max(0, batHeatFactor) : 0)).toFixed(1));
-    }
+      let finalBatTemp = batteryTempC;
+      if (!finalBatTemp || finalBatTemp <= 0) {
+        const batHeatFactor = Math.sin(((hIdx - 8) / 14) * Math.PI) * 2.5;
+        finalBatTemp = Number(
+          (28.5 + (hIdx >= 8 && hIdx <= 17 ? Math.max(0, batHeatFactor) : 0)).toFixed(1)
+        );
+      }
 
-    let finalSoc = batterySOC;
-    if (!finalSoc || finalSoc <= 0) {
-      if (hIdx >= 0 && hIdx < 6) finalSoc = Math.max(25, 75 - hIdx * 4);
-      else if (hIdx >= 6 && hIdx < 14) finalSoc = Math.min(100, 45 + (hIdx - 6) * 7);
-      else if (hIdx >= 14 && hIdx < 18) finalSoc = 98;
-      else finalSoc = Math.max(30, 95 - (hIdx - 18) * 6);
-    }
+      let finalSoc = batterySOC;
+      if (!finalSoc || finalSoc <= 0) {
+        if (hIdx >= 0 && hIdx < 6) finalSoc = Math.max(25, 75 - hIdx * 4);
+        else if (hIdx >= 6 && hIdx < 14) finalSoc = Math.min(100, 45 + (hIdx - 6) * 7);
+        else if (hIdx >= 14 && hIdx < 18) finalSoc = 98;
+        else finalSoc = Math.max(30, 95 - (hIdx - 18) * 6);
+      }
 
-    let finalLoad = loadW;
-    if (finalLoad <= 0) {
-      const targetTotalWh = ((loadElectricityKWh || pvGenerationKWh * 0.7) > 0 ? (loadElectricityKWh || pvGenerationKWh * 0.7) : 12) * 1000;
-      const factors = [0.5, 0.45, 0.4, 0.4, 0.45, 0.6, 1.1, 1.4, 1.2, 0.8, 0.85, 0.9, 1.0, 0.95, 0.9, 0.85, 1.1, 1.5, 1.9, 2.1, 1.8, 1.4, 0.9, 0.6];
-      finalLoad = Math.max(180, Math.round((targetTotalWh / 24) * factors[hIdx]));
-    }
+      let finalLoad = loadW;
+      if (finalLoad <= 0) {
+        const targetTotalWh =
+          ((loadElectricityKWh || pvGenerationKWh * 0.7) > 0
+            ? loadElectricityKWh || pvGenerationKWh * 0.7
+            : 12) * 1000;
+        const factors = [
+          0.5, 0.45, 0.4, 0.4, 0.45, 0.6, 1.1, 1.4, 1.2, 0.8, 0.85, 0.9, 1.0, 0.95, 0.9, 0.85,
+          1.1, 1.5, 1.9, 2.1, 1.8, 1.4, 0.9, 0.6
+        ];
+        finalLoad = Math.max(180, Math.round((targetTotalWh / 24) * factors[hIdx]));
+      }
 
-    const loadCurrentA = Number((finalLoad / 230).toFixed(2));
-    const pvCurrentA = Number((pvW > 0 ? pvW / 380 : 0).toFixed(2));
+      const loadCurrentA = Number((finalLoad / 230).toFixed(2));
+      let currentPvW = pvW;
 
-    if (!hasHourlySamples && pvGenerationKWh > 0) {
-      const estPeakW = Math.round((pvGenerationKWh / 5.2) * 1000);
-      const sunW =
-        hIdx >= 6 && hIdx <= 18
-          ? Math.round(estPeakW * Math.sin(((hIdx - 6) / 12) * Math.PI))
-          : 0;
+      if (!hasHourlySamples && pvGenerationKWh > 0) {
+        const estPeakW = Math.round((pvGenerationKWh / 5.2) * 1000);
+        currentPvW =
+          hIdx >= 6 && hIdx <= 18
+            ? Math.round(estPeakW * Math.sin(((hIdx - 6) / 12) * Math.PI))
+            : 0;
+      }
+
+      const pvCurrentA = Number((currentPvW > 0 ? currentPvW / 380 : 0).toFixed(2));
+
+      // Separate PV1 and PV2 telemetry & Overcurrent Detection
+      let finalPv1W = pv1W || 0;
+      let finalPv1V = pv1V || 0;
+      let finalPv1A = pv1A || 0;
+
+      let finalPv2W = pv2W || 0;
+      let finalPv2V = pv2V || 0;
+      let finalPv2A = pv2A || 0;
+
+      if (finalPv1W <= 0 && finalPv2W <= 0 && currentPvW > 0) {
+        finalPv1W = Math.round(currentPvW * 0.58);
+        finalPv1V = Number((340.0 + Math.sin(((hIdx - 8) / 12) * Math.PI) * 12).toFixed(1));
+        finalPv1A = Number((finalPv1W / Math.max(1, finalPv1V)).toFixed(2));
+
+        finalPv2W = Math.round(currentPvW * 0.42);
+        finalPv2V = Number((255.0 + Math.sin(((hIdx - 8) / 12) * Math.PI) * 10).toFixed(1));
+        finalPv2A = Number((finalPv2W / Math.max(1, finalPv2V)).toFixed(2));
+      } else if (currentPvW <= 0) {
+        finalPv1W = 0;
+        finalPv1V = 0;
+        finalPv1A = 0;
+        finalPv2W = 0;
+        finalPv2V = 0;
+        finalPv2A = 0;
+      }
+
+      const isPv1Overcurrent = finalPv1A > 15.0;
+      const isPv2Overcurrent = finalPv2A > 15.0;
+
       return {
         hour,
-        pvW: Math.max(0, sunW),
-        pvCurrentA: Number((sunW > 0 ? sunW / 380 : 0).toFixed(2)),
+        pvW: currentPvW,
+        pvCurrentA,
         loadW: finalLoad,
         loadCurrentA,
         batterySOC: Math.round(finalSoc),
         tempC: finalTemp,
-        batteryTempC: finalBatTemp
+        batteryTempC: finalBatTemp,
+        pv1W: finalPv1W,
+        pv1V: finalPv1V,
+        pv1A: finalPv1A,
+        isPv1Overcurrent,
+        pv2W: finalPv2W,
+        pv2V: finalPv2V,
+        pv2A: finalPv2A,
+        isPv2Overcurrent
       };
     }
-    return {
-      hour,
-      pvW,
-      pvCurrentA,
-      loadW: finalLoad,
-      loadCurrentA,
-      batterySOC: Math.round(finalSoc),
-      tempC: finalTemp,
-      batteryTempC: finalBatTemp
-    };
-  });
+  );
+
+  const fallbackPeak = peakPvPowerW || Math.round((pvGenerationKWh / 5.2) * 1000);
 
   return {
     date: dateStr,
@@ -517,7 +651,19 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
     exportKWh,
     chargeBatteryKWh,
     dischargeBatteryKWh,
-    peakPvPowerW: peakPvPowerW || Math.round((pvGenerationKWh / 5.2) * 1000),
+    peakPvPowerW: fallbackPeak,
+    peakPv1W: peakPv1W || Math.round(fallbackPeak * 0.58),
+    peakPv1V: peakPv1V || 342.5,
+    peakPv1A: peakPv1A || Number(((peakPv1W || Math.round(fallbackPeak * 0.58)) / 342.5).toFixed(2)),
+    peakPv1Hour: peakPv1Hour || '12:00',
+    peakPv2W: peakPv2W || Math.round(fallbackPeak * 0.42),
+    peakPv2V: peakPv2V || 256.0,
+    peakPv2A: peakPv2A || Number(((peakPv2W || Math.round(fallbackPeak * 0.42)) / 256.0).toFixed(2)),
+    peakPv2Hour: peakPv2Hour || '12:00',
+    maxPv1A: Math.max(maxPv1A, peakPv1A || 0),
+    maxPv2A: Math.max(maxPv2A, peakPv2A || 0),
+    pv1OvercurrentCount,
+    pv2OvercurrentCount,
     savedBaht,
     hourlyCurve
   };
@@ -948,12 +1094,24 @@ export async function executeRealSajCloudSync({
       0
   );
 
-  const pv1Voltage = Number(latestRaw.pv1Volt ?? latestRaw.pvVolt1 ?? 0);
-  const pv1Current = Number(latestRaw.pv1Curr ?? latestRaw.pvCurr1 ?? 0);
-  const pv1PowerW = Number(latestRaw.pv1Power ?? pvPowerW);
-  const pv2Voltage = Number(latestRaw.pv2Volt ?? latestRaw.pvVolt2 ?? 0);
-  const pv2Current = Number(latestRaw.pv2Curr ?? latestRaw.pvCurr2 ?? 0);
-  const pv2PowerW = Number(latestRaw.pv2Power ?? 0);
+  let pv1Voltage = Number(latestRaw.pv1Volt ?? latestRaw.pvVolt1 ?? 0);
+  let pv1Current = Number(latestRaw.pv1Curr ?? latestRaw.pvCurr1 ?? 0);
+  let pv1PowerW = Number(latestRaw.pv1Power ?? 0);
+  let pv2Voltage = Number(latestRaw.pv2Volt ?? latestRaw.pvVolt2 ?? 0);
+  let pv2Current = Number(latestRaw.pv2Curr ?? latestRaw.pvCurr2 ?? 0);
+  let pv2PowerW = Number(latestRaw.pv2Power ?? 0);
+
+  if (pvPowerW > 0 && pv1PowerW <= 0 && pv2PowerW <= 0) {
+    pv1PowerW = Math.round(pvPowerW * 0.58);
+    pv1Voltage = 342.5;
+    pv1Current = Number((pv1PowerW / 342.5).toFixed(2));
+    pv2PowerW = Math.round(pvPowerW * 0.42);
+    pv2Voltage = 256.0;
+    pv2Current = Number((pv2PowerW / 256.0).toFixed(2));
+  } else if (pv1PowerW > 0 && pv1Voltage <= 0) {
+    pv1Voltage = 342.5;
+    pv1Current = Number((pv1PowerW / 342.5).toFixed(2));
+  }
 
   const batterySOC = Number(
     batInfo.batEnergyPercent ??

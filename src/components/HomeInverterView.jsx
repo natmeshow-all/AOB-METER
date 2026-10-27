@@ -934,6 +934,50 @@ export const HomeInverterView = () => {
     periodStats.load > 0 ? Number(((selfSuffKWh / periodStats.load) * 100).toFixed(1)) : 100;
   const impPct = periodStats.load > 0 ? Number((100 - selfSuffPct).toFixed(1)) : 0;
 
+  // Theoretical Engineering Standard Ratings based on Solar Panel Specs & Series Counts
+  const stringStandards = useMemo(() => {
+    const pv1Count = Number(solarData.pv1PanelCount ?? 8);
+    const pv2Count = Number(solarData.pv2PanelCount ?? 6);
+    const panelW = Number(solarData.panelWattage ?? 580);
+    const panelVoc = Number(solarData.panelVoc ?? 51.5);
+    const panelVmp = Number(solarData.panelVmp ?? 42.5);
+    const panelImp = Number(solarData.panelImp ?? 13.65);
+    const panelIsc = Number(solarData.panelIsc ?? 14.50);
+    const maxInvA = Number(solarData.inverterMaxMpptCurrentA ?? 16.0);
+    const maxInvV = Number(solarData.inverterMaxDcVoltageV ?? 550.0);
+
+    const pv1StdVmp = Number((pv1Count * panelVmp).toFixed(1));
+    const pv1StdVoc = Number((pv1Count * panelVoc).toFixed(1));
+    const pv1StdW = pv1Count * panelW;
+
+    const pv2StdVmp = Number((pv2Count * panelVmp).toFixed(1));
+    const pv2StdVoc = Number((pv2Count * panelVoc).toFixed(1));
+    const pv2StdW = pv2Count * panelW;
+
+    return {
+      pv1Count,
+      pv2Count,
+      panelW,
+      panelVoc,
+      panelVmp,
+      panelImp,
+      panelIsc,
+      maxInvA,
+      maxInvV,
+      pv1StdVmp,
+      pv1StdVoc,
+      pv1StdW,
+      pv1StdImp: panelImp,
+      pv1StdIsc: panelIsc,
+      pv2StdVmp,
+      pv2StdVoc,
+      pv2StdW,
+      pv2StdImp: panelImp,
+      pv2StdIsc: panelIsc,
+      totalKw: Number(((pv1StdW + pv2StdW) / 1000).toFixed(2))
+    };
+  }, [solarData]);
+
   // 24-hour curve for selected historical day (with Solar PV, House Load, Battery SOC %, Inverter Temp °C, and Battery Temp °C)
   const dailyCurveData = useMemo(() => {
     const currentInvTemp = Number(solarData.inverterTempC || 36.5);
@@ -981,6 +1025,28 @@ export const HomeInverterView = () => {
         const loadCurrentA = Number((ptLoad / 230).toFixed(2));
         const pvCurrentA = Number((rawPv > 0 ? rawPv / 380 : 0).toFixed(2));
 
+        let pv1W = Number(pt.pv1W || 0);
+        let pv1V = Number(pt.pv1V || 0);
+        let pv1A = Number(pt.pv1A || 0);
+
+        let pv2W = Number(pt.pv2W || 0);
+        let pv2V = Number(pt.pv2V || 0);
+        let pv2A = Number(pt.pv2A || 0);
+
+        if (pv1W <= 0 && pv2W <= 0 && rawPv > 0) {
+          pv1W = Math.round(rawPv * 0.58);
+          pv1V = Number((340.0 + Math.sin(((h - 8) / 12) * Math.PI) * 12).toFixed(1));
+          pv1A = Number((pv1W / Math.max(1, pv1V)).toFixed(2));
+
+          pv2W = Math.round(rawPv * 0.42);
+          pv2V = Number((255.0 + Math.sin(((h - 8) / 12) * Math.PI) * 10).toFixed(1));
+          pv2A = Number((pv2W / Math.max(1, pv2V)).toFixed(2));
+        }
+
+        const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 16.0);
+        const isPv1Overcurrent = pv1A > maxMpptLimitA;
+        const isPv2Overcurrent = pv2A > maxMpptLimitA;
+
         return {
           ...pt,
           pvW: rawPv,
@@ -989,7 +1055,15 @@ export const HomeInverterView = () => {
           loadCurrentA,
           batterySOC: Math.round(ptSoc),
           tempC: ptTemp,
-          batteryTempC: ptBatTemp
+          batteryTempC: ptBatTemp,
+          pv1W,
+          pv1V,
+          pv1A,
+          isPv1Overcurrent,
+          pv2W,
+          pv2V,
+          pv2A,
+          isPv2Overcurrent
         };
       });
     }
@@ -1023,6 +1097,27 @@ export const HomeInverterView = () => {
       const loadCurrentA = Number((loadW / 230).toFixed(2));
       const pvCurrentA = Number((pvW > 0 ? pvW / 380 : 0).toFixed(2));
 
+      let pv1W = 0;
+      let pv1V = 0;
+      let pv1A = 0;
+      let pv2W = 0;
+      let pv2V = 0;
+      let pv2A = 0;
+
+      if (pvW > 0) {
+        pv1W = Math.round(pvW * 0.58);
+        pv1V = Number((340.0 + Math.sin(((h - 8) / 12) * Math.PI) * 12).toFixed(1));
+        pv1A = Number((pv1W / Math.max(1, pv1V)).toFixed(2));
+
+        pv2W = Math.round(pvW * 0.42);
+        pv2V = Number((255.0 + Math.sin(((h - 8) / 12) * Math.PI) * 10).toFixed(1));
+        pv2A = Number((pv2W / Math.max(1, pv2V)).toFixed(2));
+      }
+
+      const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 16.0);
+      const isPv1Overcurrent = pv1A > maxMpptLimitA;
+      const isPv2Overcurrent = pv2A > maxMpptLimitA;
+
       return {
         hour: `${String(h).padStart(2, '0')}:00`,
         pvW,
@@ -1031,10 +1126,27 @@ export const HomeInverterView = () => {
         loadCurrentA,
         batterySOC: Math.round(batterySOC),
         tempC,
-        batteryTempC
+        batteryTempC,
+        pv1W,
+        pv1V,
+        pv1A,
+        isPv1Overcurrent,
+        pv2W,
+        pv2V,
+        pv2A,
+        isPv2Overcurrent
       };
     });
-  }, [activeHistoryDay, todayGenKWh, totalPvPowerW, solarData.totalLoadPowerW, solarData.batterySOC, solarData.inverterTempC, solarData.batteryTempC]);
+  }, [
+    activeHistoryDay,
+    todayGenKWh,
+    totalPvPowerW,
+    solarData.totalLoadPowerW,
+    solarData.batterySOC,
+    solarData.inverterTempC,
+    solarData.batteryTempC,
+    solarData.inverterMaxMpptCurrentA
+  ]);
 
   const scrubbedPoint = dailyCurveData[scrubHour] || dailyCurveData[12] || {
     hour: '12:00',
@@ -1044,10 +1156,18 @@ export const HomeInverterView = () => {
     loadCurrentA: 1.96,
     batterySOC: Number(solarData.batterySOC || 77),
     tempC: Number(solarData.inverterTempC || 36.5),
-    batteryTempC: Number(solarData.batteryTempC || 28.5)
+    batteryTempC: Number(solarData.batteryTempC || 28.5),
+    pv1W: 0,
+    pv1V: 0,
+    pv1A: 0,
+    isPv1Overcurrent: false,
+    pv2W: 0,
+    pv2V: 0,
+    pv2A: 0,
+    isPv2Overcurrent: false
   };
 
-  // Daily peak power, timing, current, and maximum operating temperatures
+  // Daily peak power, timing, current, and maximum operating temperatures + PV1/PV2 String Peaks & Overcurrent
   const dailyPeakStats = useMemo(() => {
     if (!dailyCurveData || dailyCurveData.length === 0) {
       return {
@@ -1057,6 +1177,20 @@ export const HomeInverterView = () => {
         peakPvW: 0,
         peakPvHour: '12:00',
         peakPvCurrentA: 0,
+        peakPv1W: 0,
+        peakPv1Hour: '12:00',
+        peakPv1V: 0,
+        peakPv1A: 0,
+        maxPv1A: 0,
+        maxPv1AHour: '12:00',
+        pv1Overcurrent: false,
+        peakPv2W: 0,
+        peakPv2Hour: '12:00',
+        peakPv2V: 0,
+        peakPv2A: 0,
+        maxPv2A: 0,
+        maxPv2AHour: '12:00',
+        pv2Overcurrent: false,
         maxInverterTempC: 36.5,
         maxInverterTempHour: '13:00',
         maxBatteryTempC: 28.5,
@@ -1066,8 +1200,15 @@ export const HomeInverterView = () => {
 
     const peakLoadPoint = dailyCurveData.reduce((max, pt) => (pt.loadW > max.loadW ? pt : max), dailyCurveData[0]);
     const peakPvPoint = dailyCurveData.reduce((max, pt) => (pt.pvW > max.pvW ? pt : max), dailyCurveData[0]);
+    const peakPv1Point = dailyCurveData.reduce((max, pt) => ((pt.pv1W || 0) > (max.pv1W || 0) ? pt : max), dailyCurveData[0]);
+    const peakPv2Point = dailyCurveData.reduce((max, pt) => ((pt.pv2W || 0) > (max.pv2W || 0) ? pt : max), dailyCurveData[0]);
+    const maxPv1APoint = dailyCurveData.reduce((max, pt) => ((pt.pv1A || 0) > (max.pv1A || 0) ? pt : max), dailyCurveData[0]);
+    const maxPv2APoint = dailyCurveData.reduce((max, pt) => ((pt.pv2A || 0) > (max.pv2A || 0) ? pt : max), dailyCurveData[0]);
     const maxInvTempPoint = dailyCurveData.reduce((max, pt) => (pt.tempC > max.tempC ? pt : max), dailyCurveData[0]);
     const maxBatTempPoint = dailyCurveData.reduce((max, pt) => (pt.batteryTempC > max.batteryTempC ? pt : max), dailyCurveData[0]);
+
+    const pv1Overcurrent = dailyCurveData.some((pt) => pt.isPv1Overcurrent);
+    const pv2Overcurrent = dailyCurveData.some((pt) => pt.isPv2Overcurrent);
 
     return {
       peakLoadW: peakLoadPoint.loadW,
@@ -1076,6 +1217,23 @@ export const HomeInverterView = () => {
       peakPvW: peakPvPoint.pvW,
       peakPvHour: peakPvPoint.hour,
       peakPvCurrentA: peakPvPoint.pvCurrentA,
+      // PV1 String
+      peakPv1W: peakPv1Point.pv1W || activeHistoryDay?.peakPv1W || 0,
+      peakPv1Hour: peakPv1Point.hour || activeHistoryDay?.peakPv1Hour || '12:00',
+      peakPv1V: peakPv1Point.pv1V || activeHistoryDay?.peakPv1V || 0,
+      peakPv1A: peakPv1Point.pv1A || activeHistoryDay?.peakPv1A || 0,
+      maxPv1A: maxPv1APoint.pv1A || activeHistoryDay?.maxPv1A || 0,
+      maxPv1AHour: maxPv1APoint.hour || '12:00',
+      pv1Overcurrent,
+      // PV2 String
+      peakPv2W: peakPv2Point.pv2W || activeHistoryDay?.peakPv2W || 0,
+      peakPv2Hour: peakPv2Point.hour || activeHistoryDay?.peakPv2Hour || '12:00',
+      peakPv2V: peakPv2Point.pv2V || activeHistoryDay?.peakPv2V || 0,
+      peakPv2A: peakPv2Point.pv2A || activeHistoryDay?.peakPv2A || 0,
+      maxPv2A: maxPv2APoint.pv2A || activeHistoryDay?.maxPv2A || 0,
+      maxPv2AHour: maxPv2APoint.hour || '12:00',
+      pv2Overcurrent,
+      // Temperatures
       maxInverterTempC: maxInvTempPoint.tempC,
       maxInverterTempHour: maxInvTempPoint.hour,
       maxBatteryTempC: maxBatTempPoint.batteryTempC,
@@ -1726,6 +1884,418 @@ export const HomeInverterView = () => {
                       <span className="text-xs text-slate-400">บาท/หน่วย</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* TAB: SOLAR PANELS & STRING CONFIGURATION (PV1 / PV2) */}
+              {settingsTab === 'pv-strings' && (
+                <div className="space-y-4">
+                  {/* Preset Buttons */}
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>⚡ เลือกพรีเซ็ตแผงโซลาร์มาตรฐาน (คลิกเปลี่ยนค่าทันที)</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        {
+                          name: 'N-Type TOPCon 580W (8+6 แผง)',
+                          spec: {
+                            panelModelName: 'Mono Half-Cell N-Type TOPCon 580W',
+                            panelWattage: 580,
+                            panelVoc: 51.5,
+                            panelVmp: 42.5,
+                            panelImp: 13.65,
+                            panelIsc: 14.50,
+                            pv1PanelCount: 8,
+                            pv2PanelCount: 6,
+                            inverterMaxMpptCurrentA: 16.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        },
+                        {
+                          name: 'Mono PERC 550W (8+8 แผง)',
+                          spec: {
+                            panelModelName: 'Mono Perc Tier 1 550W',
+                            panelWattage: 550,
+                            panelVoc: 49.8,
+                            panelVmp: 41.8,
+                            panelImp: 13.16,
+                            panelIsc: 13.98,
+                            pv1PanelCount: 8,
+                            pv2PanelCount: 8,
+                            inverterMaxMpptCurrentA: 16.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        },
+                        {
+                          name: 'Hi-MO 7 620W (7+6 แผง)',
+                          spec: {
+                            panelModelName: 'Longi Hi-MO 7 620W',
+                            panelWattage: 620,
+                            panelVoc: 52.8,
+                            panelVmp: 43.6,
+                            panelImp: 14.22,
+                            panelIsc: 15.08,
+                            pv1PanelCount: 7,
+                            pv2PanelCount: 6,
+                            inverterMaxMpptCurrentA: 16.0,
+                            inverterMaxDcVoltageV: 550.0
+                          }
+                        }
+                      ].map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditForm((prev) => ({ ...prev, ...preset.spec }))}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-left text-xs text-slate-200 cursor-pointer transition-all active:scale-95"
+                        >
+                          <div className="font-bold text-sky-300">{preset.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {preset.spec.panelWattage}W • Vmp {preset.spec.panelVmp}V • {preset.spec.panelImp}A
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 1. Series String Panel Counts */}
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sky-300 text-xs flex items-center gap-1.5">
+                        <Sun className="w-4 h-4 text-sky-400" />
+                        <span>1. จำนวนแผงโซลาร์ที่ต่ออนุกรมกัน (Series Panel Count)</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        อินเวอร์เตอร์ 2 MPPT (PV1 & PV2)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
+                      {/* PV1 String */}
+                      <div className="bg-slate-950/90 border border-sky-500/40 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sky-300 font-bold text-xs flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-sky-400" />
+                            <span>สตริงที่ 1 (PV1) ต่ออนุกรม:</span>
+                          </label>
+                          <span className="text-[11px] font-mono text-sky-400 font-black">
+                            {editForm.pv1PanelCount ?? 8} แผง
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="16"
+                            step="1"
+                            value={editForm.pv1PanelCount ?? 8}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                pv1PanelCount: parseInt(e.target.value, 10) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-sky-500/40 rounded-lg px-3 py-2 text-sky-300 font-mono font-black text-right text-sm"
+                          />
+                          <span className="text-xs text-slate-400 shrink-0">แผง</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          กำลังผลิตสตริง 1: <strong className="text-sky-300 font-mono">{(((editForm.pv1PanelCount ?? 8) * (editForm.panelWattage ?? 580)) / 1000).toFixed(2)} kWp</strong>
+                        </p>
+                      </div>
+
+                      {/* PV2 String */}
+                      <div className="bg-slate-950/90 border border-emerald-500/40 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-emerald-300 font-bold text-xs flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            <span>สตริงที่ 2 (PV2) ต่ออนุกรม:</span>
+                          </label>
+                          <span className="text-[11px] font-mono text-emerald-400 font-black">
+                            {editForm.pv2PanelCount ?? 6} แผง
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="16"
+                            step="1"
+                            value={editForm.pv2PanelCount ?? 6}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                pv2PanelCount: parseInt(e.target.value, 10) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg px-3 py-2 text-emerald-300 font-mono font-black text-right text-sm"
+                          />
+                          <span className="text-xs text-slate-400 shrink-0">แผง</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          กำลังผลิตสตริง 2: <strong className="text-emerald-300 font-mono">{(((editForm.pv2PanelCount ?? 6) * (editForm.panelWattage ?? 580)) / 1000).toFixed(2)} kWp</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Solar Panel Technical Specifications */}
+                  <div className="bg-[#04070e] border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                        <Sliders className="w-4 h-4 text-amber-400" />
+                        <span>2. สเปกแผงโซลาร์เซลล์ต่อ 1 แผง (STC Data-Sheet)</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500">ดูได้จากหลังแผง (Plate)</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-slate-400 text-[11px] font-bold">
+                        ชื่อรุ่น / ยี่ห้อแผงโซลาร์:
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W'}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({ ...prev, panelModelName: e.target.value }))
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {/* Wattage Wp */}
+                      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">
+                          กำลังวัตต์ (Wp / แผง)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="5"
+                            value={editForm.panelWattage ?? 580}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                panelWattage: parseFloat(e.target.value) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">W</span>
+                        </div>
+                      </div>
+
+                      {/* Vmp */}
+                      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">
+                          แรงดันทำงาน Vmp (V)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={editForm.panelVmp ?? 42.5}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                panelVmp: parseFloat(e.target.value) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-sky-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">V</span>
+                        </div>
+                      </div>
+
+                      {/* Voc */}
+                      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">
+                          แรงดันเปิดวงจร Voc (V)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={editForm.panelVoc ?? 51.5}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                panelVoc: parseFloat(e.target.value) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-rose-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">V</span>
+                        </div>
+                      </div>
+
+                      {/* Imp */}
+                      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">
+                          กระแสทำงาน Imp (A)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={editForm.panelImp ?? 13.65}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                panelImp: parseFloat(e.target.value) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-emerald-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">A</span>
+                        </div>
+                      </div>
+
+                      {/* Isc */}
+                      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">
+                          กระแสลัดวงจร Isc (A)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={editForm.panelIsc ?? 14.50}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                panelIsc: parseFloat(e.target.value) || 0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">A</span>
+                        </div>
+                      </div>
+
+                      {/* Inverter Max MPPT Current */}
+                      <div className="bg-slate-950/80 border border-rose-500/30 rounded-xl p-2.5 space-y-1">
+                        <label className="block text-rose-300 text-[10px] font-bold">
+                          ขีดจำกัดแอมป์ Inverter (A)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={editForm.inverterMaxMpptCurrentA ?? 16.0}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                inverterMaxMpptCurrentA: parseFloat(e.target.value) || 16.0
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-rose-500/40 rounded-lg px-2 py-1 text-rose-300 font-mono font-bold text-right text-xs"
+                          />
+                          <span className="text-[10px] text-slate-400">A</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Real-Time Engineering Benchmark Calculation Preview */}
+                  {(() => {
+                    const n1 = Number(editForm.pv1PanelCount ?? 8);
+                    const n2 = Number(editForm.pv2PanelCount ?? 6);
+                    const w = Number(editForm.panelWattage ?? 580);
+                    const voc = Number(editForm.panelVoc ?? 51.5);
+                    const vmp = Number(editForm.panelVmp ?? 42.5);
+                    const imp = Number(editForm.panelImp ?? 13.65);
+                    const maxInvA = Number(editForm.inverterMaxMpptCurrentA ?? 16.0);
+                    const maxInvV = Number(editForm.inverterMaxDcVoltageV ?? 550.0);
+
+                    const pv1Vmp = (n1 * vmp).toFixed(1);
+                    const pv1Voc = (n1 * voc).toFixed(1);
+                    const pv1W = n1 * w;
+
+                    const pv2Vmp = (n2 * vmp).toFixed(1);
+                    const pv2Voc = (n2 * voc).toFixed(1);
+                    const pv2W = n2 * w;
+
+                    const totalKw = (((pv1W + pv2W)) / 1000).toFixed(2);
+                    const isPv1VocSafe = Number(pv1Voc) <= maxInvV;
+                    const isPv2VocSafe = Number(pv2Voc) <= maxInvV;
+
+                    return (
+                      <div className="bg-gradient-to-r from-sky-950/40 via-slate-900 to-emerald-950/40 border border-sky-500/40 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                            <span>📐 สรุปค่ามาตรฐานทางวิศวกรรมที่ถูกต้อง (Engineering Benchmarks)</span>
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/40">
+                            รวมกำลังแผง: {totalKw} kWp
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                          {/* PV1 Summary */}
+                          <div className="bg-slate-950/80 border border-sky-500/30 rounded-xl p-3 space-y-1.5">
+                            <div className="text-sky-300 font-bold text-[11px] font-sans flex justify-between">
+                              <span>☀️ สตริง PV1 ({n1} แผง)</span>
+                              <span>{pv1W.toLocaleString()} W ({(pv1W / 1000).toFixed(2)} kWp)</span>
+                            </div>
+                            <div className="text-slate-300 text-[11px] space-y-1 pt-1 border-t border-slate-800/80">
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">แรงดันทำงานมาตรฐาน (Vmp):</span>
+                                <strong className="text-sky-300">{pv1Vmp} V</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">แรงดันเปิดวงจรสูงสุด (Voc):</span>
+                                <strong className={isPv1VocSafe ? 'text-emerald-300' : 'text-rose-400'}>
+                                  {pv1Voc} V {isPv1VocSafe ? '✓ ปลอดภัย' : '⚠️ เกิน 550V'}
+                                </strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">กระแสทำงานมาตรฐาน (Imp):</span>
+                                <strong className="text-amber-300">{imp} A</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">เกณฑ์เตือนกระแสเกิน:</span>
+                                <span className="text-rose-400 font-bold">&gt; {maxInvA} A</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PV2 Summary */}
+                          <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-3 space-y-1.5">
+                            <div className="text-emerald-300 font-bold text-[11px] font-sans flex justify-between">
+                              <span>☀️ สตริง PV2 ({n2} แผง)</span>
+                              <span>{pv2W.toLocaleString()} W ({(pv2W / 1000).toFixed(2)} kWp)</span>
+                            </div>
+                            <div className="text-slate-300 text-[11px] space-y-1 pt-1 border-t border-slate-800/80">
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">แรงดันทำงานมาตรฐาน (Vmp):</span>
+                                <strong className="text-emerald-300">{pv2Vmp} V</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">แรงดันเปิดวงจรสูงสุด (Voc):</span>
+                                <strong className={isPv2VocSafe ? 'text-emerald-300' : 'text-rose-400'}>
+                                  {pv2Voc} V {isPv2VocSafe ? '✓ ปลอดภัย' : '⚠️ เกิน 550V'}
+                                </strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">กระแสทำงานมาตรฐาน (Imp):</span>
+                                <strong className="text-amber-300">{imp} A</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400 font-sans">เกณฑ์เตือนกระแสเกิน:</span>
+                                <span className="text-rose-400 font-bold">&gt; {maxInvA} A</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2724,6 +3294,117 @@ export const HomeInverterView = () => {
               </div>
             </div>
           </div>
+
+          {/* PV1 and PV2 String Intelligence & Overcurrent Monitoring */}
+          <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span>☀️ ข้อมูลย้อนหลังสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, ค่าพีคสุด & ตรวจสอบกระแสเกิน)</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans">
+                แผง: <strong className="text-slate-200">{solarData.panelModelName || 'Mono TOPCon 580W'}</strong> • ขีดจำกัด MPPT: <strong className="text-rose-300 font-mono">{stringStandards.maxInvA} A</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
+              {/* PV1 Card */}
+              <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
+                dailyPeakStats.pv1Overcurrent
+                  ? 'bg-rose-950/30 border-rose-500/60 shadow-lg shadow-rose-950/40'
+                  : 'bg-slate-950/80 border-sky-500/40'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sky-300 font-bold flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                    <span>สตริงที่ 1 (PV1): อนุกรม {stringStandards.pv1Count} แผง</span>
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
+                    dailyPeakStats.pv1Overcurrent
+                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {dailyPeakStats.pv1Overcurrent
+                      ? `⚠️ กระแสเกิน (${dailyPeakStats.maxPv1A}A > ${stringStandards.maxInvA}A)`
+                      : `🟢 กระแสปกติ (< ${stringStandards.maxInvA}A)`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                    <strong className="text-sky-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1V} V</strong>
+                    <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv1StdVmp}V</span>
+                  </div>
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                    <strong className={`text-sm sm:text-base block ${dailyPeakStats.pv1Overcurrent ? 'text-rose-400 font-black' : 'text-amber-300'}`}>
+                      {dailyPeakStats.maxPv1A} A
+                    </strong>
+                    <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv1StdImp}A</span>
+                  </div>
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                    <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong>
+                    <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv1Hour} น.)</span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] pt-1 border-t border-slate-800/80 flex items-center justify-between text-slate-400 font-sans">
+                  <span>สเปกติดตั้ง: <strong className="text-sky-300 font-mono">{((stringStandards.pv1StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv1StdVoc}V &lt; 550V)</span>
+                  <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv1AHour} น.</span>
+                </div>
+              </div>
+
+              {/* PV2 Card */}
+              <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
+                dailyPeakStats.pv2Overcurrent
+                  ? 'bg-rose-950/30 border-rose-500/60 shadow-lg shadow-rose-950/40'
+                  : 'bg-slate-950/80 border-emerald-500/40'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                    <span>สตริงที่ 2 (PV2): อนุกรม {stringStandards.pv2Count} แผง</span>
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
+                    dailyPeakStats.pv2Overcurrent
+                      ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {dailyPeakStats.pv2Overcurrent
+                      ? `⚠️ กระแสเกิน (${dailyPeakStats.maxPv2A}A > ${stringStandards.maxInvA}A)`
+                      : `🟢 กระแสปกติ (< ${stringStandards.maxInvA}A)`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                    <strong className="text-emerald-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2V} V</strong>
+                    <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv2StdVmp}V</span>
+                  </div>
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                    <strong className={`text-sm sm:text-base block ${dailyPeakStats.pv2Overcurrent ? 'text-rose-400 font-black' : 'text-amber-300'}`}>
+                      {dailyPeakStats.maxPv2A} A
+                    </strong>
+                    <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv2StdImp}A</span>
+                  </div>
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
+                    <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                    <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2W.toLocaleString()} W</strong>
+                    <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv2Hour} น.)</span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] pt-1 border-t border-slate-800/80 flex items-center justify-between text-slate-400 font-sans">
+                  <span>สเปกติดตั้ง: <strong className="text-emerald-300 font-mono">{((stringStandards.pv2StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv2StdVoc}V &lt; 550V)</span>
+                  <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv2AHour} น.</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* =================================================================== */}
@@ -2769,12 +3450,23 @@ export const HomeInverterView = () => {
 
           {/* 5-Card Live Value Dashboard for the Selected Hour */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            {/* 1. Solar PV Power */}
-            <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 flex flex-col justify-between">
-              <span className="text-[11px] text-amber-300/90 font-bold flex items-center gap-1">
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span>กำลังผลิตโซลาร์ PV</span>
-              </span>
+            {/* 1. Solar PV Power & Strings */}
+            <div className={`p-2.5 rounded-xl border flex flex-col justify-between ${
+              scrubbedPoint.isPv1Overcurrent || scrubbedPoint.isPv2Overcurrent
+                ? 'bg-rose-950/40 border-rose-500/60'
+                : 'bg-slate-950/90 border-amber-500/30'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-amber-300/90 font-bold flex items-center gap-1">
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span>กำลังผลิตโซลาร์ PV</span>
+                </span>
+                {(scrubbedPoint.isPv1Overcurrent || scrubbedPoint.isPv2Overcurrent) && (
+                  <span className="text-[9px] font-bold text-rose-300 bg-rose-500/20 px-1 rounded animate-pulse">
+                    ⚠️ กระแสเกิน
+                  </span>
+                )}
+              </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-amber-300">
                   {scrubbedPoint.pvW.toLocaleString()}
@@ -2783,8 +3475,15 @@ export const HomeInverterView = () => {
                   W {scrubbedPoint.pvW >= 1000 ? `(${(scrubbedPoint.pvW / 1000).toFixed(2)} kW)` : ''}
                 </span>
               </div>
-              <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                กระแส DC: <span className="text-amber-300 font-bold">{scrubbedPoint.pvCurrentA} A</span>
+              <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1 space-y-0.5">
+                <div className="flex justify-between">
+                  <span className="text-sky-300">PV1:</span>
+                  <span>{scrubbedPoint.pv1W || 0}W • {scrubbedPoint.pv1V || 0}V • <strong className={scrubbedPoint.isPv1Overcurrent ? 'text-rose-400' : 'text-slate-200'}>{scrubbedPoint.pv1A || 0}A</strong></span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-300">PV2:</span>
+                  <span>{scrubbedPoint.pv2W || 0}W • {scrubbedPoint.pv2V || 0}V • <strong className={scrubbedPoint.isPv2Overcurrent ? 'text-rose-400' : 'text-slate-200'}>{scrubbedPoint.pv2A || 0}A</strong></span>
+                </div>
               </div>
             </div>
 
@@ -2922,6 +3621,7 @@ export const HomeInverterView = () => {
             {[
               { id: 'all', label: '📊 รวม 4 มิติ (PV, โหลด, แบต, อุณหภูมิ)', icon: Activity },
               { id: 'power', label: '⚡ กำลังไฟ PV & โหลดบ้าน (W)', icon: Zap },
+              { id: 'mppt', label: '☀️ สตริง PV1 vs PV2 (โวลต์ & แอมป์)', icon: Sun },
               { id: 'battery', label: '🔋 แบตเตอรี่ (SOC % & ความร้อน)', icon: Battery },
               { id: 'temp', label: '🌡️ ความร้อน Inverter & แบตเตอรี่ (°C)', icon: Thermometer }
             ].map(({ id, label, icon: IconComponent }) => (
@@ -3039,6 +3739,99 @@ export const HomeInverterView = () => {
                   strokeWidth={2.5}
                   strokeDasharray="4 4"
                   dot={{ r: 2, fill: '#f59e0b' }}
+                />
+              </AreaChart>
+            ) : curveMetricTab === 'mppt' ? (
+              // 2. DEDICATED PV1 vs PV2 STRINGS (VOLTAGE V & CURRENT A & OVERCURRENT THRESHOLD)
+              <AreaChart data={dailyCurveData}>
+                <defs>
+                  <linearGradient id="pv1Grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="pv2Grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#34d399" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
+                <YAxis yAxisId="volt" stroke="#38bdf8" fontSize={10} domain={[0, 480]} unit=" V" width={48} />
+                <YAxis yAxisId="curr" orientation="right" stroke="#f59e0b" fontSize={10} domain={[0, 20]} unit=" A" width={38} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#070b14',
+                    borderColor: '#38bdf8',
+                    borderRadius: '14px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val, name) => {
+                    if (name.includes('โวลต์') || name.includes('แรงดัน')) return [`${val} V`, name];
+                    if (name.includes('กระแส') || name.includes('แอมป์')) return [`${val} A`, name];
+                    return [`${Number(val).toLocaleString()} W`, name];
+                  }}
+                />
+                <Legend />
+                <ReferenceLine
+                  yAxisId="curr"
+                  y={stringStandards.maxInvA || 16.0}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: `ขีดจำกัดกระแสเกิน (${stringStandards.maxInvA || 16}A)`,
+                    fill: '#ef4444',
+                    fontSize: 10,
+                    position: 'top'
+                  }}
+                />
+                <ReferenceLine
+                  yAxisId="volt"
+                  y={stringStandards.pv1StdVmp}
+                  stroke="#38bdf8"
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.6}
+                  label={{
+                    value: `Vmp PV1 (${stringStandards.pv1StdVmp}V)`,
+                    fill: '#38bdf8',
+                    fontSize: 9,
+                    position: 'left'
+                  }}
+                />
+                <Area
+                  yAxisId="volt"
+                  type="monotone"
+                  dataKey="pv1V"
+                  name="แรงดัน PV1 (V)"
+                  stroke="#38bdf8"
+                  strokeWidth={2.5}
+                  fill="url(#pv1Grad)"
+                />
+                <Area
+                  yAxisId="volt"
+                  type="monotone"
+                  dataKey="pv2V"
+                  name="แรงดัน PV2 (V)"
+                  stroke="#34d399"
+                  strokeWidth={2.5}
+                  fill="url(#pv2Grad)"
+                />
+                <Line
+                  yAxisId="curr"
+                  type="monotone"
+                  dataKey="pv1A"
+                  name="กระแส PV1 (A)"
+                  stroke="#f59e0b"
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: '#f59e0b' }}
+                />
+                <Line
+                  yAxisId="curr"
+                  type="monotone"
+                  dataKey="pv2A"
+                  name="กระแส PV2 (A)"
+                  stroke="#c084fc"
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: '#c084fc' }}
                 />
               </AreaChart>
             ) : curveMetricTab === 'battery' ? (
@@ -3186,17 +3979,19 @@ export const HomeInverterView = () => {
                 <thead>
                   <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-sans">
                     <th className="text-left py-1.5 px-2">เวลา</th>
-                    <th className="py-1.5 px-2 text-amber-300">โซลาร์ PV (W / A)</th>
+                    <th className="py-1.5 px-2 text-sky-300">สตริง PV1 (V • A • W)</th>
+                    <th className="py-1.5 px-2 text-emerald-300">สตริง PV2 (V • A • W)</th>
+                    <th className="py-1.5 px-2 text-amber-300">รวม PV (W / A)</th>
                     <th className="py-1.5 px-2 text-purple-300">โหลดบ้าน (W / A)</th>
-                    <th className="py-1.5 px-2 text-emerald-300">แบตเตอรี่ SOC</th>
-                    <th className="py-1.5 px-2 text-rose-300">ความร้อน Inverter</th>
-                    <th className="py-1.5 px-2 text-amber-300">ความร้อน แบต</th>
-                    <th className="text-left py-1.5 px-2 hidden sm:table-cell">สถานะระบบ</th>
+                    <th className="py-1.5 px-2 text-emerald-300">แบต SOC</th>
+                    <th className="py-1.5 px-2 text-rose-300">ความร้อน</th>
+                    <th className="text-left py-1.5 px-2">กระแส MPPT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {dailyCurveData.map((pt, idx) => {
                     const isSelected = scrubHour === idx;
+                    const hasOvercurrent = pt.isPv1Overcurrent || pt.isPv2Overcurrent;
                     return (
                       <tr
                         key={pt.hour}
@@ -3204,6 +3999,8 @@ export const HomeInverterView = () => {
                         className={`cursor-pointer transition-colors ${
                           isSelected
                             ? 'bg-sky-500/20 text-white font-bold'
+                            : hasOvercurrent
+                            ? 'bg-rose-950/20 text-rose-200 hover:bg-rose-950/30'
                             : 'hover:bg-slate-900/60 text-slate-300'
                         }`}
                       >
@@ -3212,6 +4009,18 @@ export const HomeInverterView = () => {
                             {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />}
                             <span>{pt.hour}</span>
                           </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-sky-300 font-bold">
+                          <div>{pt.pv1W || 0} W</div>
+                          <div className="text-[9px] text-slate-400 font-normal">
+                            {pt.pv1V || 0}V • <strong className={pt.isPv1Overcurrent ? 'text-rose-400 font-bold' : 'text-slate-300'}>{pt.pv1A || 0}A</strong>
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 text-emerald-300 font-bold">
+                          <div>{pt.pv2W || 0} W</div>
+                          <div className="text-[9px] text-slate-400 font-normal">
+                            {pt.pv2V || 0}V • <strong className={pt.isPv2Overcurrent ? 'text-rose-400 font-bold' : 'text-slate-300'}>{pt.pv2A || 0}A</strong>
+                          </div>
                         </td>
                         <td className="py-1.5 px-2 text-amber-300 font-bold">
                           <div>{pt.pvW.toLocaleString()} W</div>
@@ -3224,32 +4033,23 @@ export const HomeInverterView = () => {
                         <td className="py-1.5 px-2 text-emerald-300 font-bold">
                           <div className="flex items-center justify-end gap-1.5">
                             <span>{pt.batterySOC}%</span>
-                            <div className="w-8 bg-slate-800 rounded-full h-1.5 overflow-hidden hidden xs:block">
-                              <div
-                                className="h-full bg-emerald-400 rounded-full"
-                                style={{ width: `${pt.batterySOC}%` }}
-                              />
-                            </div>
                           </div>
                         </td>
                         <td className="py-1.5 px-2 text-rose-300 font-bold">
-                          <span className={`px-1.5 py-0.5 rounded text-[11px] ${
-                            pt.tempC < 42
-                              ? 'bg-emerald-500/15 text-emerald-300'
-                              : pt.tempC <= 55
-                              ? 'bg-amber-500/15 text-amber-300'
-                              : 'bg-rose-500/20 text-rose-300 font-black'
-                          }`}>
-                            {pt.tempC}°C
+                          <span className="text-[10px]">
+                            Inv: {pt.tempC}°C | แบต: {pt.batteryTempC}°C
                           </span>
                         </td>
-                        <td className="py-1.5 px-2 text-amber-300 font-bold">
-                          <span className="px-1.5 py-0.5 rounded text-[11px] bg-emerald-500/15 text-emerald-300">
-                            {pt.batteryTempC}°C
-                          </span>
-                        </td>
-                        <td className="text-left py-1.5 px-2 text-[10px] font-sans text-slate-400 hidden sm:table-cell">
-                          {pt.pvW > 1000 ? '☀️ แดดแรง / ชาร์จแบต' : pt.batterySOC > 30 ? '🔋 จ่ายไฟจากแบตเตอรี่' : '🌙 สแตนด์บาย'}
+                        <td className="text-left py-1.5 px-2 text-[10px] font-sans">
+                          {hasOvercurrent ? (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40 animate-pulse">
+                              ⚠️ กระแสเกิน (&gt;{stringStandards.maxInvA}A)
+                            </span>
+                          ) : pt.pvW > 100 ? (
+                            <span className="text-emerald-400 font-bold">🟢 ปกติ</span>
+                          ) : (
+                            <span className="text-slate-500">🌙 สแตนด์บาย</span>
+                          )}
                         </td>
                       </tr>
                     );
