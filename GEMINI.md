@@ -15,7 +15,7 @@ All coding assistants and agents working on this project MUST strictly follow th
 
 2. **Super Admin Designation & Super Admin Console:**
    - Owner/Super Admin email: `natshownolimit@gmail.com` or username `superadmin` (คุณณัฐพงษ์).
-   - When Super Admin logs in, they land on `<SuperAdminConsole />` (`activeTab === 'super-admin'`), where they can view all client companies, manage IoT Gateways & meters, onboard new client companies after hardware installation, and create/manage client login credentials (Username & Password).
+   - When Super Admin logs in, they land on `<SuperAdminConsole />` (`activeTab === 'super-admin'`), where they can view all client companies, manage IoT Gateways & meters, onboard new client companies after hardware installation, and create/manage client login credentials (Username & Password) through the professional `<PasswordManagementModal />` (Super Admin Password Vault).
    - Normal tenant users are isolated to their own company and never see the Super Admin Console or other clients' names.
 
 3. **Mobile-First Experience & Clean 3-Menu Electricity Architecture (Primary User Constraint):**

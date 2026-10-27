@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { PasswordManagementModal } from './PasswordManagementModal';
 import {
   TENANT_COMPANIES,
   METER_MODEL_PRESETS,
@@ -115,6 +116,10 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
   const [sbStatus, setSbStatus] = useState(null);
   const [isTestingSb, setIsTestingSb] = useState(false);
   const [showCodeHelper, setShowCodeHelper] = useState(false);
+
+  // Professional Password Management Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordModalDefaultOrgId, setPasswordModalDefaultOrgId] = useState(null);
 
   const showNotice = (type, text) => {
     setStatusBanner({ type, text });
@@ -572,6 +577,17 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setPasswordModalDefaultOrgId(null);
+                setIsPasswordModalOpen(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
+            >
+              <span>🔑 จัดการรหัสผ่านผู้ใช้ทั้งหมด</span>
+            </button>
+
             <div className="bg-slate-950/90 border border-slate-800 rounded-2xl px-4 py-2 text-center">
               <div className="text-[10px] text-slate-400 font-bold">ผู้ใช้งานในฐานข้อมูล</div>
               <div className="text-xl font-black text-cyan-400">{allOrganizations.length} ราย</div>
@@ -691,8 +707,18 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                             : `${(fullComp.electricityMeters || []).length} พาวเวอร์มิเตอร์`}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">บัญชีสำหรับล็อกอิน</span>
+                      <div
+                        onClick={() => {
+                          setPasswordModalDefaultOrgId(org.id);
+                          setIsPasswordModalOpen(true);
+                        }}
+                        className="cursor-pointer hover:bg-slate-800/80 p-1 rounded-lg transition-colors"
+                        title="คลิกเพื่อจัดการรหัสผ่านของบัญชีนี้"
+                      >
+                        <span className="text-[10px] text-slate-400 block flex items-center justify-between">
+                          <span>บัญชีสำหรับล็อกอิน</span>
+                          <span className="text-[9px] text-indigo-400">🔑 แก้ไขรหัส</span>
+                        </span>
                         <span className="font-mono font-bold text-amber-300 block">
                           ID: {acc?.username || '-'} | Pass: {acc?.password || '-'}
                         </span>
@@ -712,20 +738,30 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
                       onClick={() => handleLoadOrgToForm(org.id)}
-                      className="py-2 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold cursor-pointer"
+                      className="py-2 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold cursor-pointer"
                     >
-                      ✏️ แก้ไขตั้งค่า
+                      ✏️ แก้ไข
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasswordModalDefaultOrgId(org.id);
+                        setIsPasswordModalOpen(true);
+                      }}
+                      className="py-2 px-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-bold cursor-pointer"
+                    >
+                      🔑 รหัสผ่าน
                     </button>
                     <button
                       type="button"
                       onClick={() => handleTestCardOrg(org.id)}
-                      className="py-2 px-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-bold cursor-pointer"
+                      className="py-2 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-bold cursor-pointer"
                     >
-                      {cardTest?.loading ? '⏳ ทดสอบ...' : '📡 เช็กสัญญาณ'}
+                      {cardTest?.loading ? '⏳...' : '📡 สัญญาณ'}
                     </button>
                     <button
                       type="button"
@@ -733,9 +769,9 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                         switchOrganization(org.id);
                         if (onInspectTenant) onInspectTenant(org.id);
                       }}
-                      className="py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer"
+                      className="py-2 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer"
                     >
-                      👁️ เปิดดูหน้าจอ
+                      👁️ ดูหน้าจอ
                     </button>
                     <button
                       type="button"
@@ -745,7 +781,7 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
                           showNotice('success', `ลบ "${org.name}" ออกจากฐานข้อมูลแล้ว`);
                         }
                       }}
-                      className="py-2 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold cursor-pointer"
+                      className="py-2 px-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold cursor-pointer"
                     >
                       🗑️ ลบ
                     </button>
@@ -1607,6 +1643,16 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
           </div>
         )}
       </div>
+
+      {/* Professional Password Management Modal */}
+      <PasswordManagementModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => {
+          setIsPasswordModalOpen(false);
+          setPasswordModalDefaultOrgId(null);
+        }}
+        defaultSelectedOrgId={passwordModalDefaultOrgId}
+      />
     </div>
   );
 };

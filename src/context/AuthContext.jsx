@@ -841,6 +841,93 @@ export const AuthProvider = ({ children }) => {
     );
   };
 
+  // Professional Super Admin Password Management Engine
+  const changeUserPassword = async (targetIdOrUsername, newPassword) => {
+    const cleanTarget = (targetIdOrUsername || '').trim();
+    const cleanPass = (newPassword || '').trim();
+    if (!cleanTarget || !cleanPass) {
+      return { success: false, message: 'กรุณากรอกรหัสผ่านใหม่ที่ต้องการตั้ง' };
+    }
+
+    // 1. Is this Super Admin account?
+    if (
+      isSuperAdminEmail(cleanTarget) ||
+      cleanTarget === 'user-super-admin' ||
+      cleanTarget.toLowerCase() === 'superadmin'
+    ) {
+      setAllAccounts((prev) =>
+        prev.map((a) =>
+          a.role === 'SUPER_ADMIN' ||
+          a.username === 'superadmin' ||
+          a.email === 'natshownolimit@gmail.com'
+            ? { ...a, password: cleanPass }
+            : a
+        )
+      );
+
+      if (
+        currentUser &&
+        (currentUser.role === 'SUPER_ADMIN' || isSuperAdminEmail(currentUser.email))
+      ) {
+        const updatedSuper = { ...currentUser, password: cleanPass };
+        setCurrentUser(updatedSuper);
+        try {
+          localStorage.setItem('AOB_ACTIVE_USER', JSON.stringify(updatedSuper));
+        } catch {}
+      }
+
+      try {
+        const supabase = getSupabase();
+        if (supabase) {
+          await supabase.auth.updateUser({ password: cleanPass }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Supabase password sync notice:', err);
+      }
+
+      return {
+        success: true,
+        message: 'เปลี่ยนรหัสผ่าน Super Admin (คุณณัฐพงษ์) สำเร็จเรียบร้อยแล้ว'
+      };
+    }
+
+    // 2. Client / Tenant Account
+    let updatedName = cleanTarget;
+    setAllAccounts((prev) =>
+      prev.map((a) => {
+        if (
+          a.id === cleanTarget ||
+          a.username?.toLowerCase() === cleanTarget.toLowerCase() ||
+          a.orgId === cleanTarget
+        ) {
+          updatedName = a.companyName || a.username;
+          return { ...a, password: cleanPass };
+        }
+        return a;
+      })
+    );
+
+    // Also update tenant company loginPassword in TENANT_COMPANIES and persist
+    Object.values(TENANT_COMPANIES).forEach((comp) => {
+      if (
+        comp.id === cleanTarget ||
+        comp.loginUsername?.toLowerCase() === cleanTarget.toLowerCase() ||
+        comp.code?.toLowerCase() === cleanTarget.toLowerCase() ||
+        comp.name?.toLowerCase() === cleanTarget.toLowerCase()
+      ) {
+        saveTenantCompany({
+          ...comp,
+          loginPassword: cleanPass
+        });
+      }
+    });
+
+    return {
+      success: true,
+      message: `เปลี่ยนรหัสผ่านของ "${updatedName}" สำเร็จเรียบร้อยแล้ว`
+    };
+  };
+
   const logout = async () => {
     try {
       const supabase = getSupabase();
@@ -885,6 +972,7 @@ export const AuthProvider = ({ children }) => {
         createClientAccount,
         updateClientAccount,
         deleteClientAccount,
+        changeUserPassword,
         addMeterToOrganization,
         updateMeterInOrganization,
         removeMeterFromOrganization,
