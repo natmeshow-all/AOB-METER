@@ -233,6 +233,7 @@ export const syncSajCloudAndBackfillHistory = async ({
           t.batteryCapacityKWh || currentSolarConfig.batteryCapacityKWh || 10.24
         ),
         inverterTempC: Number(t.inverterTempC || 36.5),
+        batteryTempC: Number(t.batteryTempC || 28.5),
         pv1Voltage: Number(t.pv1Voltage || 0),
         pv1Current: Number(t.pv1Current || 0),
         pv1PowerW: Number(t.pv1PowerW || 0),

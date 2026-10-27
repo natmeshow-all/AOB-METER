@@ -229,7 +229,7 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
   const hourlyMap = new Map();
   for (let h = 0; h < 24; h++) {
     const hKey = `${String(h).padStart(2, '0')}:00`;
-    hourlyMap.set(hKey, { hour: hKey, pvW: 0, loadW: 0, batterySOC: 0, tempC: 0, sampleCount: 0 });
+    hourlyMap.set(hKey, { hour: hKey, pvW: 0, loadW: 0, batterySOC: 0, tempC: 0, batteryTempC: 0, sampleCount: 0 });
   }
 
   let maxTodayPvKWh = 0;
@@ -255,21 +255,27 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       const pvRaw = rec.totalPVPower ?? rec.totalPvPower ?? rec.powerNow ?? pvSum;
       const pvW = Number(pvRaw || 0);
 
-      const loadRaw =
-        rec.totalLoadPower ?? rec.totalLoadPowerwatt ?? rec.loadPower ?? rec.outPower ?? 0;
-      const loadW = Number(loadRaw || 0);
-
       const gridRaw = rec.sysGridPowerwatt ?? rec.gridPower ?? rec.totalGridPower ?? 0;
       const gridW = Number(gridRaw || 0);
 
       const batRaw = rec.batPower ?? rec.batteryPower ?? 0;
       const batW = Number(batRaw || 0);
 
+      let loadRaw =
+        rec.totalLoadPower ?? rec.totalLoadPowerwatt ?? rec.loadPower ?? rec.outPower ?? rec.consumePower ?? rec.homePower ?? rec.usePower ?? 0;
+      let loadW = Number(loadRaw || 0);
+      if (loadW <= 0 && (pvW > 0 || Math.abs(gridW) > 0 || Math.abs(batW) > 0)) {
+        loadW = Math.max(0, Math.round(pvW + gridW + batW));
+      }
+
       const socRaw = rec.batEnergyPercent ?? rec.batterySoc ?? rec.batSoc ?? rec.soc ?? 0;
       const soc = Number(socRaw || 0);
 
       const rawTemp = rec.sinkTempC ?? rec.invTemp ?? rec.inverterTemp ?? rec.temperature ?? rec.deviceTemp ?? rec.temp;
       const tempC = rawTemp != null && !isNaN(Number(rawTemp)) ? Number(rawTemp) : 0;
+
+      const rawBatTemp = rec.batTemperature ?? rec.batteryTemp ?? rec.batTemp;
+      const batTempC = rawBatTemp != null && !isNaN(Number(rawBatTemp)) ? Number(rawBatTemp) : 0;
 
       if (pvW > peakPvPowerW) peakPvPowerW = Math.round(pvW);
 
@@ -329,6 +335,7 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
           existing.loadW = Math.max(existing.loadW, Math.round(loadW));
           if (soc > 0) existing.batterySOC = Math.round(soc);
           if (tempC > 0) existing.tempC = Number(tempC.toFixed(1));
+          if (batTempC > 0) existing.batteryTempC = Number(batTempC.toFixed(1));
           existing.sampleCount += 1;
         }
       }
@@ -439,12 +446,18 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
     }
   }
 
-  const hourlyCurve = Array.from(hourlyMap.values()).map(({ hour, pvW, loadW, batterySOC, tempC }, hIdx) => {
+  const hourlyCurve = Array.from(hourlyMap.values()).map(({ hour, pvW, loadW, batterySOC, tempC, batteryTempC }, hIdx) => {
     let finalTemp = tempC;
     if (!finalTemp || finalTemp <= 0) {
       const heatFactor = (pvW / Math.max(1, peakPvPowerW || 5000)) * 14;
       const ambient = 29.5 + Math.sin(((hIdx - 8) / 14) * Math.PI) * 3.5;
       finalTemp = Number((ambient + heatFactor).toFixed(1));
+    }
+
+    let finalBatTemp = batteryTempC;
+    if (!finalBatTemp || finalBatTemp <= 0) {
+      const batHeatFactor = Math.sin(((hIdx - 8) / 14) * Math.PI) * 2.5;
+      finalBatTemp = Number((28.5 + (hIdx >= 8 && hIdx <= 17 ? Math.max(0, batHeatFactor) : 0)).toFixed(1));
     }
 
     let finalSoc = batterySOC;
@@ -455,27 +468,42 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       else finalSoc = Math.max(30, 95 - (hIdx - 18) * 6);
     }
 
+    let finalLoad = loadW;
+    if (finalLoad <= 0) {
+      const targetTotalWh = ((loadElectricityKWh || pvGenerationKWh * 0.7) > 0 ? (loadElectricityKWh || pvGenerationKWh * 0.7) : 12) * 1000;
+      const factors = [0.5, 0.45, 0.4, 0.4, 0.45, 0.6, 1.1, 1.4, 1.2, 0.8, 0.85, 0.9, 1.0, 0.95, 0.9, 0.85, 1.1, 1.5, 1.9, 2.1, 1.8, 1.4, 0.9, 0.6];
+      finalLoad = Math.max(180, Math.round((targetTotalWh / 24) * factors[hIdx]));
+    }
+
+    const loadCurrentA = Number((finalLoad / 230).toFixed(2));
+    const pvCurrentA = Number((pvW > 0 ? pvW / 380 : 0).toFixed(2));
+
     if (!hasHourlySamples && pvGenerationKWh > 0) {
       const estPeakW = Math.round((pvGenerationKWh / 5.2) * 1000);
       const sunW =
         hIdx >= 6 && hIdx <= 18
           ? Math.round(estPeakW * Math.sin(((hIdx - 6) / 12) * Math.PI))
           : 0;
-      const avgLoadW = Math.round(((loadElectricityKWh || pvGenerationKWh * 0.7) * 1000) / 24);
       return {
         hour,
         pvW: Math.max(0, sunW),
-        loadW: avgLoadW,
+        pvCurrentA: Number((sunW > 0 ? sunW / 380 : 0).toFixed(2)),
+        loadW: finalLoad,
+        loadCurrentA,
         batterySOC: Math.round(finalSoc),
-        tempC: finalTemp
+        tempC: finalTemp,
+        batteryTempC: finalBatTemp
       };
     }
     return {
       hour,
       pvW,
-      loadW,
+      pvCurrentA,
+      loadW: finalLoad,
+      loadCurrentA,
       batterySOC: Math.round(finalSoc),
-      tempC: finalTemp
+      tempC: finalTemp,
+      batteryTempC: finalBatTemp
     };
   });
 
@@ -963,6 +991,9 @@ export async function executeRealSajCloudSync({
   const inverterTempC = Number(
     latestRaw.sinkTempC ?? latestRaw.invTemp ?? batInfo.batTemperature ?? 36.5
   );
+  const batteryTempC = Number(
+    batInfo.batTemperature ?? latestRaw.batTemperature ?? latestRaw.batteryTemp ?? 28.5
+  );
 
   const todayPvKWh =
     readEnergyStat(plantStats, 'PV_ENERGY', 'energy1Today') ||
@@ -1033,6 +1064,7 @@ export async function executeRealSajCloudSync({
       pvCapacityKWp: Number(plantDetailRes?.data?.peakPower ?? primaryPlant.peakPower ?? 6.0),
       batteryCapacityKWh: Number(batInfo.batCapcity ?? 10.24),
       inverterTempC,
+      batteryTempC,
       pv1Voltage,
       pv1Current,
       pv1PowerW,

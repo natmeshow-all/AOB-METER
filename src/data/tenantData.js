@@ -105,6 +105,7 @@ export const createEmptySolarConfig = () => ({
   batteryCapacityKWh: 10.24,
   batteryType: 'Lithium Battery',
   inverterTempC: 36.5,
+  batteryTempC: 28.5,
   pv1Voltage: 0,
   pv1Current: 0,
   pv1PowerW: 0,
