@@ -111,7 +111,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
         email: 'natshownolimit@gmail.com',
         fullName: 'คุณณัฐพงษ์ (Super Admin)',
         role: 'SUPER_ADMIN',
-        password: currentUser?.password || 'admin'
+        password: currentUser?.password || 'naTshow8@'
       }
     );
   }, [allAccounts, currentUser]);
@@ -314,7 +314,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
                     <span className="text-[10px] text-slate-500 block">รหัสผ่านปัจจุบัน</span>
                     <span className="text-xs font-bold text-amber-300">
                       {superCurrentPassVisible
-                        ? superAccount.password || 'admin'
+                        ? superAccount.password || 'naTshow8@'
                         : '••••••••'}
                     </span>
                   </div>
@@ -329,7 +329,7 @@ export const PasswordManagementModal = ({ isOpen, onClose, defaultSelectedOrgId 
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(superAccount.password || 'admin', 'super-current')}
+                      onClick={() => copyToClipboard(superAccount.password || 'naTshow8@', 'super-current')}
                       className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white"
                       title="คัดลอกรหัสผ่าน"
                     >
