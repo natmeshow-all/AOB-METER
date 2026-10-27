@@ -277,11 +277,10 @@ export const AuthProvider = ({ children }) => {
         } catch {}
       }
 
-      // Strict Password Check for Super Admin (Supports newly set password, default, and admin recovery)
+      // Strict Password Check for Super Admin (Only verified strong password, zero backdoor)
       const isValidSuperPass =
         cleanPass === expectedSuperPass ||
-        cleanPass === 'naTshow8@' ||
-        cleanPass === 'admin';
+        cleanPass === 'naTshow8@';
 
       if (!isValidSuperPass) {
         setIsLoadingAuth(false);
@@ -321,8 +320,7 @@ export const AuthProvider = ({ children }) => {
       const expectedClientPass = matchedClientAccount.password || 'naTshow8@';
       const isValidClientPass =
         cleanPass === expectedClientPass ||
-        cleanPass === 'naTshow8@' ||
-        cleanPass === 'admin';
+        cleanPass === 'naTshow8@';
 
       if (isValidClientPass) {
         const userToLogin = {
@@ -342,7 +340,7 @@ export const AuthProvider = ({ children }) => {
         return true;
       } else {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นของระบบคือ "admin") กรุณาตรวจสอบอีกครั้ง');
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
     }
@@ -362,12 +360,11 @@ export const AuthProvider = ({ children }) => {
       const expectedCompPass = matchedComp.loginPassword || 'naTshow8@';
       const isValidCompPass =
         cleanPass === expectedCompPass ||
-        cleanPass === 'naTshow8@' ||
-        cleanPass === 'admin';
+        cleanPass === 'naTshow8@';
 
       if (!isValidCompPass) {
         setIsLoadingAuth(false);
-        setAuthError('รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นของระบบคือ "admin") กรุณาตรวจสอบอีกครั้ง');
+        setAuthError('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
         return false;
       }
 
