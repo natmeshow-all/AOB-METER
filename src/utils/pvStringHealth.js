@@ -94,7 +94,9 @@ export const computeStringLimits = (panelCount, specs) => {
     coldVoc: round(coldVoc),
     hotVmp: round(hotVmp),
     // Normal operating voltage window while producing power
-    normalVMin: round(hotVmp * 0.95),
+    // In Thailand's hot climate, roof cell temperatures easily reach 65-70°C, and under dynamic
+    // MPPT tracking, operating voltage naturally ranges between 72% and 100% of STC Vmp.
+    normalVMin: round(stdVmp * 0.72),
     normalVMax: round(stdVoc * 1.02),
     imp: s.panelImp,
     isc: s.panelIsc,
@@ -194,13 +196,31 @@ export const evaluateStringHealth = ({
 
   // ---------- 1. Dead / disconnected string ----------
   if (peakW <= 0 && maxA <= 0.1) {
+    // If it's PV2 with 0W/0A (very common when home installation only connects PV1),
+    // treat as IDLE so it does not trigger false system-wide warnings.
+    if (label.includes('PV2') || label === 'PV2') {
+      return {
+        label,
+        level: 'IDLE',
+        limits: lim,
+        checks: [
+          {
+            level: 'OK',
+            title: 'ไม่ได้ต่อใช้งาน (ไม่มีไฟเข้า)',
+            detail: 'หากไม่ได้ติดตั้งแผงที่ช่อง PV2 สามารถเลือกตั้งค่าเป็น 0 แผง ได้',
+            action: ''
+          }
+        ],
+        metrics: { peakW, peakV, peakA, maxA, maxAHour }
+      };
+    }
     if (sitePeakPvW > 300) {
       pushCheck(
         checks,
         'WARNING',
-        `${label} ไม่มีไฟเข้าเลยทั้งวัน (0 W / 0 A)`,
-        `ขณะที่ระบบรวมผลิตได้สูงสุด ${Math.round(sitePeakPvW).toLocaleString()} W แต่ ${label} ซึ่งตั้งไว้ ${lim.panelCount} แผง ไม่มีกระแสไหลเลย`,
-        'ตรวจ DC Breaker/สวิตช์ DC ว่าเปิดอยู่, ขั้วต่อ MC4 หลุด/ไหม้, ฟิวส์ DC ขาด หรือสายขาด — หากไม่ได้ต่อแผงที่สตริงนี้จริง ให้ตั้งจำนวนแผงเป็น 0'
+        `${label} ไม่มีไฟเข้า (0 W / 0 A)`,
+        `ระบบรวมผลิตได้ ${Math.round(sitePeakPvW).toLocaleString()} W แต่ ${label} ไม่มีกระแสไหล`,
+        'ตรวจ DC Breaker, ขั้ว MC4, หรือปรับจำนวนแผงเป็น 0 หากไม่ได้ใช้งาน'
       );
       return finalize(label, lim, checks, { peakW, peakV, peakA, maxA, maxAHour });
     }

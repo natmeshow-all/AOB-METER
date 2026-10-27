@@ -598,6 +598,7 @@ export const HomeInverterView = () => {
   isSettingOpenRef.current = isSettingOpen;
   const [settingsTab, setSettingsTab] = useState('pv-strings'); // Default directly to panel & string specs
   const [isStringConfigOpen, setIsStringConfigOpen] = useState(false);
+  const [isStringAdvisoryExpanded, setIsStringAdvisoryExpanded] = useState(false);
   const [inlineStringForm, setInlineStringForm] = useState(() => ({
     pv1PanelCount: solarData.pv1PanelCount ?? 8,
     pv2PanelCount: solarData.pv2PanelCount ?? 6,
@@ -3901,6 +3902,15 @@ export const HomeInverterView = () => {
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
 
+                const isPv1OverLimit = dailyPeakStats.maxPv1A > stringStandards.maxInvA;
+                const pv1BadgeText = (() => {
+                  if (h1.level === 'DANGER') return `🔴 เสี่ยงอันตราย (${dailyPeakStats.maxPv1A}A)`;
+                  if (isPv1OverLimit) return `🟠 กระแสเกิน (${dailyPeakStats.maxPv1A}A > ${stringStandards.maxInvA}A)`;
+                  if (h1.level === 'WATCH') return `🟡 เฝ้าระวัง (${dailyPeakStats.maxPv1A}A)`;
+                  if (h1.level === 'IDLE') return `⚪ ไม่ได้ต่อใช้งาน`;
+                  return `🟢 ปกติ (< ${stringStandards.maxInvA}A)`;
+                })();
+
                 return (
                   <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
                     <div className="flex items-center justify-between">
@@ -3909,15 +3919,7 @@ export const HomeInverterView = () => {
                         <span>สตริงที่ 1 (PV1): อนุกรม {stringStandards.pv1Count} แผง</span>
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
-                        {levelMeta.icon} {h1.level === 'DANGER'
-                          ? `เสี่ยงอันตราย (${dailyPeakStats.maxPv1A}A)`
-                          : h1.level === 'WARNING'
-                          ? `ผิดปกติ (${dailyPeakStats.maxPv1A}A > ${stringStandards.maxInvA}A)`
-                          : h1.level === 'WATCH'
-                          ? `เฝ้าระวัง (${dailyPeakStats.maxPv1A}A)`
-                          : h1.level === 'IDLE'
-                          ? 'ไม่ได้ใช้งาน (0 แผง)'
-                          : `ปกติ (< ${stringStandards.maxInvA}A)`}
+                        {pv1BadgeText}
                       </span>
                     </div>
 
@@ -3930,7 +3932,7 @@ export const HomeInverterView = () => {
                       <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
                         <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
                         <strong className={`text-sm sm:text-base block ${
-                          h1.level === 'DANGER' || h1.level === 'WARNING'
+                          isPv1OverLimit
                             ? 'text-rose-400 font-black'
                             : h1.level === 'WATCH'
                             ? 'text-amber-300 font-black'
@@ -3958,20 +3960,36 @@ export const HomeInverterView = () => {
               {/* PV2 Card */}
               {(() => {
                 const h2 = stringHealthAnalysis.pv2;
-                const levelMeta = HEALTH_LEVELS[h2.level] || HEALTH_LEVELS.OK;
-                const cardBorder =
-                  h2.level === 'DANGER'
-                    ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
-                    : h2.level === 'WARNING'
-                    ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
-                    : h2.level === 'WATCH'
-                    ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
-                    : h2.level === 'IDLE'
-                    ? 'bg-slate-950/50 border-slate-800 opacity-70'
-                    : 'bg-slate-950/80 border-emerald-500/40';
+                const isPv2Idle =
+                  stringStandards.pv2Count === 0 ||
+                  (dailyPeakStats.maxPv2A === 0 && dailyPeakStats.peakPv2W === 0);
+
+                const levelMeta = isPv2Idle
+                  ? HEALTH_LEVELS.IDLE
+                  : HEALTH_LEVELS[h2.level] || HEALTH_LEVELS.OK;
+
+                const cardBorder = isPv2Idle
+                  ? 'bg-slate-950/50 border-slate-800 opacity-75'
+                  : h2.level === 'DANGER'
+                  ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
+                  : h2.level === 'WARNING'
+                  ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                  : h2.level === 'WATCH'
+                  ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
+                  : 'bg-slate-950/80 border-emerald-500/40';
 
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
+
+                const pv2BadgeText = (() => {
+                  if (isPv2Idle) return '⚪ ไม่ได้ต่อใช้งาน (0W)';
+                  if (h2.level === 'DANGER') return `🔴 เสี่ยงอันตราย (${dailyPeakStats.maxPv2A}A)`;
+                  if (dailyPeakStats.maxPv2A > stringStandards.maxInvA) {
+                    return `🟠 กระแสเกิน (${dailyPeakStats.maxPv2A}A > ${stringStandards.maxInvA}A)`;
+                  }
+                  if (h2.level === 'WATCH') return `🟡 เฝ้าระวัง (${dailyPeakStats.maxPv2A}A)`;
+                  return `🟢 ปกติ (< ${stringStandards.maxInvA}A)`;
+                })();
 
                 return (
                   <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
@@ -3981,15 +3999,7 @@ export const HomeInverterView = () => {
                         <span>สตริงที่ 2 (PV2): อนุกรม {stringStandards.pv2Count} แผง</span>
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
-                        {levelMeta.icon} {h2.level === 'DANGER'
-                          ? `เสี่ยงอันตราย (${dailyPeakStats.maxPv2A}A)`
-                          : h2.level === 'WARNING'
-                          ? `ผิดปกติ (${dailyPeakStats.maxPv2A}A > ${stringStandards.maxInvA}A)`
-                          : h2.level === 'WATCH'
-                          ? `เฝ้าระวัง (${dailyPeakStats.maxPv2A}A)`
-                          : h2.level === 'IDLE'
-                          ? 'ไม่ได้ใช้งาน (0 แผง)'
-                          : `ปกติ (< ${stringStandards.maxInvA}A)`}
+                        {pv2BadgeText}
                       </span>
                     </div>
 
@@ -4002,10 +4012,10 @@ export const HomeInverterView = () => {
                       <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
                         <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
                         <strong className={`text-sm sm:text-base block ${
-                          h2.level === 'DANGER' || h2.level === 'WARNING'
+                          isPv2Idle
+                            ? 'text-slate-500'
+                            : dailyPeakStats.maxPv2A > stringStandards.maxInvA
                             ? 'text-rose-400 font-black'
-                            : h2.level === 'WATCH'
-                            ? 'text-amber-300 font-black'
                             : 'text-emerald-300'
                         }`}>
                           {dailyPeakStats.maxPv2A} A
@@ -4028,103 +4038,91 @@ export const HomeInverterView = () => {
               })()}
             </div>
 
-            {/* ENGINEERING SAFETY, FAULT DETECTION & CABLE INSPECTION ADVISORY */}
-            <div className={`rounded-xl p-3 sm:p-3.5 border transition-all ${
-              stringHealthAnalysis.overallLevel === 'DANGER'
-                ? 'bg-rose-950/40 border-rose-500/70 shadow-lg shadow-rose-950/50'
-                : stringHealthAnalysis.overallLevel === 'WARNING'
-                ? 'bg-orange-950/35 border-orange-500/70 shadow-lg shadow-orange-950/40'
-                : stringHealthAnalysis.overallLevel === 'WATCH'
-                ? 'bg-amber-950/30 border-amber-500/60 shadow-lg shadow-amber-950/30'
-                : 'bg-emerald-950/20 border-emerald-500/40'
-            }`}>
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className={`w-4 h-4 ${
-                    stringHealthAnalysis.overallLevel === 'DANGER'
-                      ? 'text-rose-400 animate-pulse'
-                      : stringHealthAnalysis.overallLevel === 'WARNING'
-                      ? 'text-orange-400'
-                      : stringHealthAnalysis.overallLevel === 'WATCH'
-                      ? 'text-amber-400'
-                      : 'text-emerald-400'
-                  }`} />
-                  <span className="font-bold text-xs sm:text-sm text-slate-100">
-                    🛡️ ผลตรวจเช็คความปลอดภัยสตริง & คำนวณความเสี่ยงสายส่ง DC
-                  </span>
-                </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono border ${
-                  HEALTH_TONE_CLASSES[HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.tone] || HEALTH_TONE_CLASSES.slate
-                }`}>
-                  {HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.icon} สถานะระบบ: {HEALTH_LEVELS[stringHealthAnalysis.overallLevel]?.label}
-                </span>
-              </div>
+            {/* COMPACT EXECUTIVE SUMMARY STRIP (สรุปสั้น กระชับ สบายตา ไม่รก) */}
+            {(() => {
+              const isPv2Idle =
+                stringStandards.pv2Count === 0 ||
+                (dailyPeakStats.maxPv2A === 0 && dailyPeakStats.peakPv2W === 0);
+              const isOvercurrent = dailyPeakStats.maxPv1A > stringStandards.maxInvA;
 
-              {/* Issues & Warnings List */}
-              {stringHealthAnalysis.allIssues.length > 0 ? (
-                <div className="space-y-2 mt-2.5">
-                  {stringHealthAnalysis.allIssues.map((issue, idx) => {
-                    const issueTone =
-                      issue.level === 'DANGER'
-                        ? 'border-rose-500/50 bg-rose-950/50 text-rose-200'
-                        : issue.level === 'WARNING'
-                        ? 'border-orange-500/50 bg-orange-950/40 text-orange-200'
-                        : 'border-amber-500/40 bg-amber-950/30 text-amber-200';
-                    return (
-                      <div key={idx} className={`p-2.5 rounded-lg border text-xs space-y-1 ${issueTone}`}>
-                        <div className="font-bold flex items-center gap-1.5 text-slate-100">
-                          <span>{issue.level === 'DANGER' ? '🔴 [เสี่ยงอันตราย]' : issue.level === 'WARNING' ? '🟠 [ผิดปกติ ควรตรวจเช็ค]' : '🟡 [เฝ้าระวัง]'}</span>
-                          <span>{issue.title}</span>
-                        </div>
-                        {issue.detail && (
-                          <div className="text-[11px] text-slate-300 font-sans pl-1">
-                            {issue.detail}
-                          </div>
-                        )}
-                        {issue.action && (
-                          <div className="text-[11px] font-bold text-amber-300 bg-slate-900/80 border border-slate-700/80 rounded px-2 py-1 mt-1 flex items-start gap-1.5">
-                            <span className="text-amber-400">🔧 ข้อแนะนำช่าง:</span>
-                            <span>{issue.action}</span>
-                          </div>
+              return (
+                <div className="bg-[#050811]/90 border border-slate-800/90 rounded-xl p-2.5 sm:p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                      <ShieldCheck className={`w-4 h-4 shrink-0 ${
+                        isOvercurrent ? 'text-amber-400' : 'text-emerald-400'
+                      }`} />
+                      <div className="text-[11px] sm:text-xs text-slate-200">
+                        <span className="font-bold text-white">⚡ สรุปผลตรวจ: </span>
+                        {isOvercurrent ? (
+                          <span className="text-amber-300 font-bold">
+                            ⚠️ กระแส PV1 ({dailyPeakStats.maxPv1A}A) เกินขีดจำกัด {stringStandards.maxInvA}A ควรตรวจสายส่ง DC (แนะนำ PV1-F ≥ 4 mm²) และขันขั้วต่อ MC4 ให้แน่น
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">
+                            สตริง PV1 จ่ายไฟปกติพีค <strong className="text-amber-300 font-mono">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong> ({dailyPeakStats.maxPv1A}A / {dailyPeakStats.peakPv1V}V) ไม่พบกระแสเกิน ขั้วต่อและสายส่งปลอดภัย
+                            {isPv2Idle && <span className="text-slate-500 font-sans"> • PV2 ไม่ได้ต่อสาย</span>}
+                          </span>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="mt-2 text-xs text-emerald-300 flex items-center gap-2 font-sans">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>
-                    ระบบตรวจเช็คเรียบร้อย: แรงดันและกระแสของทุกสตริงอยู่ในเกณฑ์ปลอดภัยมาตรฐาน (ไม่พบกระแสเกินพิกัด, แรงดันอยู่ในช่วงจุดทำงานสูงสุด Vmp, สายส่งและขั้วต่อทำงานสมบูรณ์)
-                  </span>
-                </div>
-              )}
+                    </div>
 
-              {/* Standard Engineering Reference for DC Wiring & Protection */}
-              <div className="mt-2.5 pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] text-slate-400 font-sans">
-                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
-                  <span className="text-slate-400 block font-bold">📏 สายส่ง DC ที่แนะนำ:</span>
-                  <span className="text-sky-300 font-mono font-bold">
-                    สาย PV1-F ขนาด ≥ {stringHealthAnalysis.pv1.limits.recommendedCableMm2} sq.mm.
-                  </span>
-                  <span className="text-[9px] text-slate-500 block">รองรับกระแสต่อเนื่องได้ถึง 35-45A ไม่ร้อน</span>
+                    {/* Toggle details button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsStringAdvisoryExpanded(!isStringAdvisoryExpanded)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                    >
+                      <span>{isStringAdvisoryExpanded ? '✕ ย่อสรุป' : 'ℹ️ สเปกสาย & ฟิวส์ ▾'}</span>
+                    </button>
+                  </div>
+
+                  {/* Collapsible Details (Hidden by default to keep screen clean and clutter-free) */}
+                  {isStringAdvisoryExpanded && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 space-y-2 text-[11px] animate-fadeIn">
+                      {/* Issues if any */}
+                      {stringHealthAnalysis.allIssues.length > 0 && (
+                        <div className="space-y-1.5">
+                          {stringHealthAnalysis.allIssues.map((issue, idx) => (
+                            <div key={idx} className="p-2 rounded bg-slate-900/80 border border-slate-800 text-slate-300 text-[10px]">
+                              <strong className="text-amber-300">{issue.title}:</strong> {issue.detail}
+                              {issue.action && (
+                                <div className="text-sky-300 mt-0.5">🔧 ข้อแนะนำ: {issue.action}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Standard Engineering Reference */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] text-slate-400 font-sans pt-1">
+                        <div className="bg-slate-900/60 rounded-lg p-2 border border-slate-800/80">
+                          <span className="text-slate-400 block font-bold">📏 สายส่ง DC ที่แนะนำ:</span>
+                          <span className="text-sky-300 font-mono font-bold">
+                            สาย PV1-F ขนาด ≥ {stringHealthAnalysis.pv1.limits.recommendedCableMm2} sq.mm.
+                          </span>
+                          <span className="text-[9px] text-slate-500 block">ทนกระแสต่อเนื่องได้ถึง 35-45A ไม่ร้อน</span>
+                        </div>
+                        <div className="bg-slate-900/60 rounded-lg p-2 border border-slate-800/80">
+                          <span className="text-slate-400 block font-bold">⚡ กระแสออกแบบสาย (Isc × 1.25):</span>
+                          <span className="text-amber-300 font-mono font-bold">
+                            {stringHealthAnalysis.pv1.limits.designCurrentA} A (กระแส Imp {stringStandards.pv1StdImp}A)
+                          </span>
+                          <span className="text-[9px] text-slate-500 block">มาตรฐานวิศวกรรมไฟฟ้า NEC 690.8</span>
+                        </div>
+                        <div className="bg-slate-900/60 rounded-lg p-2 border border-slate-800/80">
+                          <span className="text-slate-400 block font-bold">🛡️ เบรกเกอร์ / ฟิวส์ DC:</span>
+                          <span className="text-emerald-300 font-mono font-bold">
+                            {stringHealthAnalysis.pv1.limits.recommendedProtectionA} A (DC 1000V)
+                          </span>
+                          <span className="text-[9px] text-slate-500 block">ตัดวงจรทันทีเมื่อลัดวงจร</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
-                  <span className="text-slate-400 block font-bold">⚡ ขีดจำกัดกระแสออกแบบ (Isc × 1.25):</span>
-                  <span className="text-amber-300 font-mono font-bold">
-                    {stringHealthAnalysis.pv1.limits.designCurrentA} A (กระแส Imp {stringStandards.pv1StdImp}A)
-                  </span>
-                  <span className="text-[9px] text-slate-500 block">เกณฑ์มาตรฐานวิศวกรรมไฟฟ้า NEC 690.8</span>
-                </div>
-                <div className="bg-slate-900/70 rounded-lg p-2 border border-slate-800">
-                  <span className="text-slate-400 block font-bold">🛡️ ขนาดฟิวส์ / DC Breaker:</span>
-                  <span className="text-emerald-300 font-mono font-bold">
-                    {stringHealthAnalysis.pv1.limits.recommendedProtectionA} A (DC 1000V)
-                  </span>
-                  <span className="text-[9px] text-slate-500 block">ตัดวงจรทันทีเมื่อลัดวงจรหรือกระแสเกินวิกฤต</span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
 
