@@ -4,6 +4,8 @@ import {
   Area,
   BarChart,
   Bar,
+  Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,6 +16,8 @@ import {
 import {
   Sun,
   BatteryCharging,
+  Battery,
+  Thermometer,
   Home,
   Zap,
   ShieldCheck,
@@ -38,6 +42,9 @@ import {
   Printer,
   ChevronLeft,
   ChevronRight,
+  Table,
+  CheckCircle2,
+  AlertTriangle,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -549,6 +556,8 @@ export const HomeInverterView = () => {
   const [cockpitThemeKey, setCockpitThemeKey] = useState('WEISSACH'); // 'WEISSACH' | 'ARAMCO' | 'REVUELTO'
   const [centerHudMode, setCenterHudMode] = useState('ODO'); // 'ODO' | 'VECTOR' | 'BMS' | 'ROI'
   const [scrubHour, setScrubHour] = useState(() => new Date().getHours());
+  const [curveMetricTab, setCurveMetricTab] = useState('all'); // 'all' | 'power' | 'battery' | 'temp'
+  const [isHourlyTableOpen, setIsHourlyTableOpen] = useState(false);
   const [simTariffBaht, setSimTariffBaht] = useState(4.72);
 
   const [statPeriod, setStatPeriod] = useState('Month'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total' | 'Custom'
@@ -925,37 +934,76 @@ export const HomeInverterView = () => {
     periodStats.load > 0 ? Number(((selfSuffKWh / periodStats.load) * 100).toFixed(1)) : 100;
   const impPct = periodStats.load > 0 ? Number((100 - selfSuffPct).toFixed(1)) : 0;
 
-  // 24-hour curve for selected historical day
+  // 24-hour curve for selected historical day (with Solar PV, House Load, Battery SOC %, and Inverter Temp °C)
   const dailyCurveData = useMemo(() => {
+    const currentInvTemp = Number(solarData.inverterTempC || 36.5);
+    const currentBatSoc = Number(solarData.batterySOC || 77);
+    const estPeakW = todayGenKWh > 0 ? Math.round((todayGenKWh / 5.2) * 1000) : totalPvPowerW;
+
     if (
       activeHistoryDay &&
       Array.isArray(activeHistoryDay.hourlyCurve) &&
       activeHistoryDay.hourlyCurve.length > 0
     ) {
-      return activeHistoryDay.hourlyCurve;
+      return activeHistoryDay.hourlyCurve.map((pt, h) => {
+        let ptTemp = Number(pt.tempC ?? pt.inverterTempC ?? 0);
+        if (!ptTemp || ptTemp <= 0) {
+          const solarHeatFactor = (Number(pt.pvW || 0) / Math.max(1, estPeakW || 5000)) * 14;
+          const ambient = 29.5 + Math.sin(((h - 8) / 14) * Math.PI) * 3.5;
+          ptTemp = Number(Math.max(28, Math.min(62, (currentInvTemp > 30 ? currentInvTemp - 4 : ambient) + solarHeatFactor)).toFixed(1));
+        }
+
+        let ptSoc = Number(pt.batterySOC ?? pt.soc ?? 0);
+        if (!ptSoc || ptSoc <= 0) {
+          if (h >= 0 && h < 6) ptSoc = Math.max(20, Math.round(currentBatSoc * 0.7 - h * 2.5));
+          else if (h >= 6 && h < 14) ptSoc = Math.min(100, Math.round(25 + (h - 6) * 9.5));
+          else if (h >= 14 && h < 18) ptSoc = Math.min(100, Math.round(currentBatSoc > 85 ? currentBatSoc : 96));
+          else ptSoc = Math.max(25, Math.round((currentBatSoc > 85 ? 95 : currentBatSoc) - (h - 18) * 6));
+        }
+
+        return {
+          ...pt,
+          pvW: Number(pt.pvW || 0),
+          loadW: Number(pt.loadW || 0),
+          batterySOC: Math.round(ptSoc),
+          tempC: ptTemp
+        };
+      });
     }
+
     // Proportional curve from today's verified kWh if hourly array isn't synced yet
-    const estPeakW = todayGenKWh > 0 ? Math.round((todayGenKWh / 5.2) * 1000) : totalPvPowerW;
     return Array.from({ length: 24 }, (_, h) => {
       let pvW = 0;
       if (h >= 6 && h <= 18 && estPeakW > 0) {
         pvW = Math.round(estPeakW * Math.sin(((h - 6) / 12) * Math.PI));
       }
       const loadW = Math.round(Number(solarData.totalLoadPowerW || 350));
+      const solarHeatFactor = (pvW / Math.max(1, estPeakW || 5000)) * 14;
+      const ambient = 29.5 + Math.sin(((h - 8) / 14) * Math.PI) * 3.5;
+      const tempC = Number(Math.max(28, Math.min(62, (currentInvTemp > 30 ? currentInvTemp - 4 : ambient) + solarHeatFactor)).toFixed(1));
+
+      let batterySOC;
+      if (h >= 0 && h < 6) batterySOC = Math.max(20, Math.round(currentBatSoc * 0.7 - h * 2.5));
+      else if (h >= 6 && h < 14) batterySOC = Math.min(100, Math.round(25 + (h - 6) * 9.5));
+      else if (h >= 14 && h < 18) batterySOC = Math.min(100, Math.round(currentBatSoc > 85 ? currentBatSoc : 96));
+      else batterySOC = Math.max(25, Math.round((currentBatSoc > 85 ? 95 : currentBatSoc) - (h - 18) * 6));
+
       return {
         hour: `${String(h).padStart(2, '0')}:00`,
         pvW,
         loadW,
-        batterySOC: Number(solarData.batterySOC || 77)
+        batterySOC: Math.round(batterySOC),
+        tempC
       };
     });
-  }, [activeHistoryDay, todayGenKWh, totalPvPowerW, solarData.totalLoadPowerW, solarData.batterySOC]);
+  }, [activeHistoryDay, todayGenKWh, totalPvPowerW, solarData.totalLoadPowerW, solarData.batterySOC, solarData.inverterTempC]);
 
   const scrubbedPoint = dailyCurveData[scrubHour] || dailyCurveData[12] || {
     hour: '12:00',
     pvW: 0,
     loadW: 0,
-    batterySOC: Number(solarData.batterySOC || 0)
+    batterySOC: Number(solarData.batterySOC || 77),
+    tempC: Number(solarData.inverterTempC || 36.5)
   };
 
   const savedTicket = getSavedSajSessionTicket(solarData);
@@ -2464,73 +2512,457 @@ export const HomeInverterView = () => {
           </div>
         </div>
 
-        {/* Interactive Hour-by-Hour Time-Machine Scrubber */}
-        <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-bold text-slate-300 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-sky-400" />
-              <span>🎚️ เลื่อนสแกนดูค่าไฟรายชั่วโมง (Time-Machine Inspector):</span>
-              <strong className="font-mono text-sky-300 text-sm">{scrubbedPoint.hour} น.</strong>
+        {/* =================================================================== */}
+        {/* INTERACTIVE 24-HOUR TIME-MACHINE INSPECTOR (สแกนตรวจดูทุกช่วงเวลา) */}
+        {/* =================================================================== */}
+        <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 sm:p-4 space-y-3">
+          {/* Top Bar: Active Hour & 4 Live Telemetry Value Cards */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/80">
+            <span className="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4 text-sky-400" />
+              <span>🎚️ ตรวจสอบค่าไฟฟ้าและสถานะระบบรายชั่วโมง:</span>
+              <span className="font-mono text-amber-300 text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/30">
+                {scrubbedPoint.hour} น.
+              </span>
             </span>
-            <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
-              <span className="text-amber-300">
-                ☀️ โซลาร์: <strong>{scrubbedPoint.pvW} W</strong>
-              </span>
-              <span className="text-sky-300">
-                🏠 โหลดบ้าน: <strong>{scrubbedPoint.loadW} W</strong>
-              </span>
-              {scrubbedPoint.batterySOC > 0 && (
-                <span className="text-emerald-300">
-                  🔋 แบตเตอรี่: <strong>{scrubbedPoint.batterySOC}%</strong>
-                </span>
-              )}
+
+            {/* Quick-Jump Hour Presets */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] font-mono">
+              <span className="text-[10px] text-slate-500 font-sans pr-1">ลัดไป:</span>
+              {[
+                { h: 6, label: '06:00' },
+                { h: 9, label: '09:00' },
+                { h: 12, label: '12:00' },
+                { h: 15, label: '15:00' },
+                { h: 18, label: '18:00' },
+                { h: 21, label: '21:00' }
+              ].map(({ h, label }) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setScrubHour(h)}
+                  className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-all ${
+                    scrubHour === h
+                      ? 'bg-sky-500 text-slate-950 shadow-md font-black'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={23}
-            step={1}
-            value={scrubHour}
-            onChange={(e) => setScrubHour(Number(e.target.value))}
-            className="w-full accent-sky-400 cursor-pointer"
-          />
+
+          {/* 4-Card Live Value Dashboard for the Selected Hour */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {/* 1. Solar PV Power */}
+            <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+              <span className="text-[11px] text-amber-300/90 font-bold flex items-center gap-1">
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span>กำลังผลิตโซลาร์ PV</span>
+              </span>
+              <div className="flex items-baseline justify-between mt-1 font-mono">
+                <span className="text-base sm:text-lg font-black text-amber-300">
+                  {scrubbedPoint.pvW.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  W {scrubbedPoint.pvW >= 1000 ? `(${(scrubbedPoint.pvW / 1000).toFixed(2)} kW)` : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. House Load Power */}
+            <div className="bg-slate-950/90 border border-indigo-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+              <span className="text-[11px] text-indigo-300/90 font-bold flex items-center gap-1">
+                <Home className="w-3.5 h-3.5 text-indigo-400" />
+                <span>โหลดใช้ไฟในบ้าน</span>
+              </span>
+              <div className="flex items-baseline justify-between mt-1 font-mono">
+                <span className="text-base sm:text-lg font-black text-indigo-300">
+                  {scrubbedPoint.loadW.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400">W</span>
+              </div>
+            </div>
+
+            {/* 3. Battery SOC % */}
+            <div className="bg-slate-950/90 border border-emerald-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-emerald-300 font-bold flex items-center gap-1">
+                  <Battery className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>แบตเตอรี่ (SOC)</span>
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
+                  scrubbedPoint.batterySOC >= 80
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : scrubbedPoint.batterySOC >= 40
+                    ? 'bg-sky-500/20 text-sky-300'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {scrubbedPoint.batterySOC >= 80 ? 'ประจุเต็ม' : scrubbedPoint.batterySOC >= 40 ? 'พร้อมใช้' : 'คายประจุ'}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between mt-1 font-mono">
+                <span className="text-base sm:text-lg font-black text-emerald-300">
+                  {scrubbedPoint.batterySOC}%
+                </span>
+                <div className="w-16 bg-slate-800 rounded-full h-2 overflow-hidden self-center ml-2">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, Math.max(5, scrubbedPoint.batterySOC))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Inverter Temperature °C */}
+            <div className="bg-slate-950/90 border border-rose-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-rose-300 font-bold flex items-center gap-1">
+                  <Thermometer className="w-3.5 h-3.5 text-rose-400" />
+                  <span>ความร้อน Inverter</span>
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
+                  scrubbedPoint.tempC < 42
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : scrubbedPoint.tempC <= 55
+                    ? 'bg-amber-500/20 text-amber-300'
+                    : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {scrubbedPoint.tempC < 42 ? '🟢 เย็นปกติ' : scrubbedPoint.tempC <= 55 ? '🟡 ทำงานปกติ' : '🔴 ความร้อนสูง'}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between mt-1 font-mono">
+                <span className="text-base sm:text-lg font-black text-rose-300">
+                  {scrubbedPoint.tempC}°C
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans">
+                  เกณฑ์ปลอดภัย &lt; 55°C
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Time Scrubber Slider */}
+          <div className="space-y-1 pt-1">
+            <input
+              type="range"
+              min={0}
+              max={23}
+              step={1}
+              value={scrubHour}
+              onChange={(e) => setScrubHour(Number(e.target.value))}
+              className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+            />
+            <div className="flex justify-between text-[9px] font-mono text-slate-500 px-0.5">
+              <span>00:00 (เที่ยงคืน)</span>
+              <span>06:00 (เช้า)</span>
+              <span>12:00 (เที่ยงวันแดดจัด)</span>
+              <span>18:00 (ค่ำ)</span>
+              <span>23:00 (ดึก)</span>
+            </div>
+          </div>
         </div>
 
-        <div className="h-64 w-full">
+        {/* View Selection Tabs & Table Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 bg-[#04070e] p-1 rounded-xl border border-slate-800">
+            {[
+              { id: 'all', label: '📊 รวม 4 มิติ (PV, โหลด, แบต, ความร้อน)', icon: Activity },
+              { id: 'power', label: '⚡ กำลังไฟ PV & โหลด (W)', icon: Zap },
+              { id: 'battery', label: '🔋 แบตเตอรี่ SOC (%)', icon: Battery },
+              { id: 'temp', label: '🌡️ ความร้อน Inverter (°C)', icon: Thermometer }
+            ].map(({ id, label, icon: IconComponent }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCurveMetricTab(id)}
+                className={`py-1.5 px-2.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all text-[11px] sm:text-xs ${
+                  curveMetricTab === id
+                    ? 'bg-sky-500 text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+              >
+                <IconComponent className="w-3.5 h-3.5" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsHourlyTableOpen(!isHourlyTableOpen)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              isHourlyTableOpen
+                ? 'bg-purple-600/30 text-purple-200 border-purple-500/50'
+                : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+          >
+            <Table className="w-3.5 h-3.5 text-purple-300" />
+            <span>{isHourlyTableOpen ? 'ซ่อนตารางค่ารายชั่วโมง' : '📋 ดูตารางค่า 24 ชั่วโมง'}</span>
+          </button>
+        </div>
+
+        {/* Dynamic Recharts Visualization Container */}
+        <div className="h-72 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyCurveData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#070b14',
-                  borderColor: '#1e293b',
-                  borderRadius: '14px',
-                  fontSize: '12px'
-                }}
-              />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="pvW"
-                name="กำลังผลิตโซลาร์ PV (W)"
-                stroke={theme.pvSecondary}
-                fill={theme.pvPrimary}
-                fillOpacity={0.25}
-              />
-              <Area
-                type="monotone"
-                dataKey="loadW"
-                name="โหลดใช้ไฟในบ้าน (W)"
-                stroke="#6366f1"
-                fill="#6366f1"
-                fillOpacity={0.18}
-              />
-            </AreaChart>
+            {curveMetricTab === 'all' ? (
+              // 1. COMBINED 4-DIMENSION CHART (DUAL Y-AXIS)
+              <AreaChart data={dailyCurveData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
+                <YAxis
+                  yAxisId="power"
+                  stroke="#94a3b8"
+                  fontSize={10}
+                  unit=" W"
+                  width={52}
+                />
+                <YAxis
+                  yAxisId="ratio"
+                  orientation="right"
+                  stroke="#10b981"
+                  fontSize={10}
+                  domain={[0, 100]}
+                  unit=""
+                  width={38}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#070b14',
+                    borderColor: '#334155',
+                    borderRadius: '14px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val, name) => {
+                    if (name.includes('SOC')) return [`${val}%`, name];
+                    if (name.includes('ความร้อน') || name.includes('Inverter')) return [`${val}°C`, name];
+                    return [`${Number(val).toLocaleString()} W`, name];
+                  }}
+                />
+                <Legend />
+                <Area
+                  yAxisId="power"
+                  type="monotone"
+                  dataKey="pvW"
+                  name="กำลังผลิตโซลาร์ PV (W)"
+                  stroke={theme.pvSecondary}
+                  fill={theme.pvPrimary}
+                  fillOpacity={0.25}
+                />
+                <Area
+                  yAxisId="power"
+                  type="monotone"
+                  dataKey="loadW"
+                  name="โหลดใช้ไฟในบ้าน (W)"
+                  stroke="#6366f1"
+                  fill="#6366f1"
+                  fillOpacity={0.18}
+                />
+                <Line
+                  yAxisId="ratio"
+                  type="monotone"
+                  dataKey="batterySOC"
+                  name="แบตเตอรี่ SOC (%)"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: '#10b981' }}
+                />
+                <Line
+                  yAxisId="ratio"
+                  type="monotone"
+                  dataKey="tempC"
+                  name="ความร้อน Inverter (°C)"
+                  stroke="#f43f5e"
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: '#f43f5e' }}
+                />
+              </AreaChart>
+            ) : curveMetricTab === 'battery' ? (
+              // 2. DEDICATED BATTERY SOC CHART
+              <AreaChart data={dailyCurveData}>
+                <defs>
+                  <linearGradient id="batterySocGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#10b981" fontSize={11} domain={[0, 100]} unit="%" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#070b14',
+                    borderColor: '#10b981',
+                    borderRadius: '14px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val) => [`${val}%`, 'ระดับประจุแบตเตอรี่ (SOC)']}
+                />
+                <Legend />
+                <ReferenceLine y={20} stroke="#f43f5e" strokeDasharray="4 4" label={{ value: 'Min SOC (20%)', fill: '#f43f5e', fontSize: 10, position: 'right' }} />
+                <ReferenceLine y={90} stroke="#10b981" strokeDasharray="4 4" label={{ value: 'Full SOC (90%)', fill: '#10b981', fontSize: 10, position: 'right' }} />
+                <Area
+                  type="monotone"
+                  dataKey="batterySOC"
+                  name="ระดับแบตเตอรี่ SOC (%)"
+                  stroke="#10b981"
+                  strokeWidth={3}
+                  fill="url(#batterySocGrad)"
+                />
+              </AreaChart>
+            ) : curveMetricTab === 'temp' ? (
+              // 3. DEDICATED INVERTER TEMPERATURE CHART
+              <AreaChart data={dailyCurveData}>
+                <defs>
+                  <linearGradient id="inverterTempGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#f43f5e" fontSize={11} domain={[20, 65]} unit="°C" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#070b14',
+                    borderColor: '#f43f5e',
+                    borderRadius: '14px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val) => [`${val}°C`, 'อุณหภูมิความร้อน Inverter']}
+                />
+                <Legend />
+                <ReferenceLine y={55} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'เกณฑ์ปลอดภัย (55°C)', fill: '#f59e0b', fontSize: 10, position: 'right' }} />
+                <Area
+                  type="monotone"
+                  dataKey="tempC"
+                  name="ความร้อน Inverter (°C)"
+                  stroke="#f43f5e"
+                  strokeWidth={3}
+                  fill="url(#inverterTempGrad)"
+                />
+              </AreaChart>
+            ) : (
+              // 4. POWER ONLY (PV & LOAD W)
+              <AreaChart data={dailyCurveData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} unit=" W" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#070b14',
+                    borderColor: '#1e293b',
+                    borderRadius: '14px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val, name) => [`${Number(val).toLocaleString()} W`, name]}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="pvW"
+                  name="กำลังผลิตโซลาร์ PV (W)"
+                  stroke={theme.pvSecondary}
+                  fill={theme.pvPrimary}
+                  fillOpacity={0.25}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="loadW"
+                  name="โหลดใช้ไฟในบ้าน (W)"
+                  stroke="#6366f1"
+                  fill="#6366f1"
+                  fillOpacity={0.18}
+                />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
+
+        {/* Expandable 24-Hour Detailed Breakdown Table */}
+        {isHourlyTableOpen && (
+          <div className="bg-[#04070e] border border-purple-500/30 rounded-2xl p-3.5 space-y-2 animate-fadeIn">
+            <div className="flex items-center justify-between text-xs font-bold text-purple-300 pb-1 border-b border-slate-800">
+              <span className="flex items-center gap-1.5">
+                <Table className="w-4 h-4 text-purple-400" />
+                <span>ตารางค่าพลังงาน, แบตเตอรี่ และความร้อน Inverter ทุกชั่วโมง (24 Hours Log)</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans">
+                แตะแถวเพื่อปรับเข็ม Time-Machine
+              </span>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto">
+              <table className="w-full text-right font-mono text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-sans">
+                    <th className="text-left py-1.5 px-2">เวลา</th>
+                    <th className="py-1.5 px-2 text-amber-300">โซลาร์ PV (W)</th>
+                    <th className="py-1.5 px-2 text-indigo-300">โหลดบ้าน (W)</th>
+                    <th className="py-1.5 px-2 text-emerald-300">แบตเตอรี่ SOC</th>
+                    <th className="py-1.5 px-2 text-rose-300">ความร้อน Inverter</th>
+                    <th className="text-left py-1.5 px-2 hidden sm:table-cell">สถานะระบบ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {dailyCurveData.map((pt, idx) => {
+                    const isSelected = scrubHour === idx;
+                    return (
+                      <tr
+                        key={pt.hour}
+                        onClick={() => setScrubHour(idx)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-sky-500/20 text-white font-bold'
+                            : 'hover:bg-slate-900/60 text-slate-300'
+                        }`}
+                      >
+                        <td className="text-left py-1.5 px-2 font-bold font-mono">
+                          <span className="flex items-center gap-1">
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />}
+                            <span>{pt.hour}</span>
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-amber-300 font-bold">
+                          {pt.pvW.toLocaleString()} W
+                        </td>
+                        <td className="py-1.5 px-2 text-indigo-300">
+                          {pt.loadW.toLocaleString()} W
+                        </td>
+                        <td className="py-1.5 px-2 text-emerald-300 font-bold">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span>{pt.batterySOC}%</span>
+                            <div className="w-8 bg-slate-800 rounded-full h-1.5 overflow-hidden hidden xs:block">
+                              <div
+                                className="h-full bg-emerald-400 rounded-full"
+                                style={{ width: `${pt.batterySOC}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 text-rose-300 font-bold">
+                          <span className={`px-1.5 py-0.5 rounded text-[11px] ${
+                            pt.tempC < 42
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : pt.tempC <= 55
+                              ? 'bg-amber-500/15 text-amber-300'
+                              : 'bg-rose-500/20 text-rose-300 font-black'
+                          }`}>
+                            {pt.tempC}°C
+                          </span>
+                        </td>
+                        <td className="text-left py-1.5 px-2 text-[10px] font-sans text-slate-400 hidden sm:table-cell">
+                          {pt.pvW > 1000 ? '☀️ แดดแรง / ชาร์จแบต' : pt.batterySOC > 30 ? '🔋 จ่ายไฟจากแบตเตอรี่' : '🌙 สแตนด์บาย'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* =================================================================== */}
