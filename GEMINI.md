@@ -46,4 +46,12 @@ All coding assistants and agents working on this project MUST strictly follow th
    - NEVER duplicate Logout or Admin buttons in the top navbar or in-page headers on mobile (`hidden sm:flex` for desktop-only controls).
    - API endpoints (`api/saj-sync.js`) must enforce enterprise security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`) and input size bounds checking.
 
+8. **Superpowers Skill-First Discipline (Strict User Mandate):**
+   - Whenever the user issues any task, command, or request, ALWAYS invoke the Superpowers framework (`using-superpowers`) BEFORE any response or action.
+   - Follow the Superpowers discipline strictly:
+     - Process skills come first: `brainstorming` before new features/plans, `systematic-debugging` before fixing bugs.
+     - Announce "Using [skill] to [purpose]" and maintain a checklist/task artifact for multi-step tasks.
+     - Follow TDD (`test-driven-development`), plan execution (`executing-plans`), and evidence verification (`verification-before-completion`) before marking complete.
+     - Never bypass or rationalize skipping this workflow.
+
 See full details in `PROJECT_MEMORY.md`.

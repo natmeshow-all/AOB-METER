@@ -9,3 +9,4 @@ Key Invariants:
 2. Login/Logout must gate on `!currentUser` to show `LoginPortal`.
 3. Mobile-first ergonomics with font `Prompt` must be preserved.
 4. Shell commands on Windows PowerShell must use `;` instead of `&&`.
+5. **Superpowers Skill-First Discipline:** Always invoke `using-superpowers` before any response or action for every user task.
