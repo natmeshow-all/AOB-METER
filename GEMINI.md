@@ -54,4 +54,9 @@ All coding assistants and agents working on this project MUST strictly follow th
      - Follow TDD (`test-driven-development`), plan execution (`executing-plans`), and evidence verification (`verification-before-completion`) before marking complete.
      - Never bypass or rationalize skipping this workflow.
 
+9. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
+   - Whenever completing UI/frontend implementation or modification, ALWAYS invoke skill `impeccable` to audit and polish visual craft, elegance, typography, subtle micro-interactions, and fresh modern aesthetics.
+   - Balance high-end visual novelty with mobile-first 1-thumb ergonomics, clean hierarchy, and strict avoidance of clutter.
+   - Adhere to `reference/craft-floor.md` standards: eliminate bland default styling, elevate contrast, refine spacing, and deliver an award-winning IoT dashboard feel.
+
 See full details in `PROJECT_MEMORY.md`.

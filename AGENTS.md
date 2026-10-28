@@ -10,3 +10,4 @@ Key Invariants:
 3. Mobile-first ergonomics with font `Prompt` must be preserved.
 4. Shell commands on Windows PowerShell must use `;` instead of `&&`.
 5. **Superpowers Skill-First Discipline:** Always invoke `using-superpowers` before any response or action for every user task.
+6. **Aesthetic Craft & Novelty Discipline:** Upon completion of UI/frontend tasks, run skill `impeccable` to audit and polish visual craft, elegance, novelty, and premium feel.
