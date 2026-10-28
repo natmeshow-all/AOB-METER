@@ -579,6 +579,7 @@ export const HomeInverterView = () => {
   const [curveMetricTab, setCurveMetricTab] = useState('all'); // 'all' | 'power' | 'battery' | 'temp'
   const [isHourlyTableOpen, setIsHourlyTableOpen] = useState(false);
   const [simTariffBaht, setSimTariffBaht] = useState(4.72);
+  const [dashboardSection, setDashboardSection] = useState('summary'); // 'summary' | 'curve' | 'billing' | 'all'
 
   const [statPeriod, setStatPeriod] = useState('Month'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total' | 'Custom'
   const [customStartDate, setCustomStartDate] = useState(() => getThailandDateStr(30));
@@ -3036,9 +3037,44 @@ export const HomeInverterView = () => {
       })()}
 
       {/* =================================================================== */}
-      {/* TRIPLE-DIAL SUPERCAR INSTRUMENT CLUSTER WITH INTERACTIVE CENTER HUD */}
+            {/* =================================================================== */}
+      {/* MOBILE-FIRST SECTION FOCUS SELECTOR (ใช้งานง่าย & สบายตา)           */}
       {/* =================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1.5 shadow-lg flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 w-full">
+          {[
+            { id: 'summary', icon: Zap, label: '⚡ หน้าหลัก & สรุป' },
+            { id: 'curve', icon: TrendingUp, label: '📈 กราฟ 24 ชม.' },
+            { id: 'billing', icon: FileText, label: '🧾 บิลค่าไฟ & สถิติ' },
+            { id: 'all', icon: Sparkles, label: '📑 แสดงทั้งหมด' }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = dashboardSection === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setDashboardSection(tab.id);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex-1 min-w-[105px] py-2 px-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
+                  isActive
+                    ? 'bg-sky-500/20 text-sky-200 border border-sky-400/40 shadow-sm shadow-sky-500/10'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-sky-300' : 'text-slate-500'}`} />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* TRIPLE-DIAL SUPERCAR INSTRUMENT CLUSTER WITH INTERACTIVE CENTER HUD */}
+      {(dashboardSection === 'summary' || dashboardSection === 'all') && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         {/* LEFT DIAL (4 cols): SOLAR PV ARRAY TACHOMETER */}
         <div className="lg:col-span-4">
           <SupercarRadialGauge
@@ -3310,81 +3346,26 @@ export const HomeInverterView = () => {
           />
         </div>
       </div>
+      )}
 
-      {/* =================================================================== */}
-      {/* INTERACTIVE TIME-MACHINE 24-HOUR DYNO CHART & HISTORICAL EXPLORER   */}
-      {/* =================================================================== */}
-      <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-sky-400" />
-              <span>
-                📈 กราฟ Telemetry 24 ชั่วโมง & เลือกดูย้อนหลัง:{' '}
-                <strong className="text-sky-300 font-mono">
-                  {activeHistoryDay ? activeHistoryDay.date : 'วันนี้ (Realtime)'}
-                </strong>
-              </span>
-            </h3>
-            {activeHistoryDay && (
-              <p className="text-xs text-slate-400 mt-0.5">
-                ผลิตโซลาร์วันนั้น:{' '}
-                <strong className="text-emerald-300 font-mono">
-                  {activeHistoryDay.pvGenerationKWh} kWh
-                </strong>{' '}
-                • ใช้ไฟในบ้าน:{' '}
-                <strong className="text-sky-300 font-mono">
-                  {activeHistoryDay.loadElectricityKWh} kWh
-                </strong>{' '}
-                • ประหยัดเงิน:{' '}
-                <strong className="text-amber-300 font-mono">
-                  ฿{activeHistoryDay.savedBaht}
-                </strong>
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {historicalLogs.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-300">📅 เลือกวันที่ ({historicalLogs.length} วันจริง):</span>
-                <select
-                  value={activeHistoryDay?.date || ''}
-                  onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                  className="bg-slate-950 border border-sky-500/40 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold"
-                >
-                  {[...historicalLogs].reverse().map((log) => (
-                    <option key={log.date} value={log.date}>
-                      {log.date} — ผลิต {log.pvGenerationKWh} kWh (ประหยัด ฿{log.savedBaht})
-                    </option>
-                  ))}
-                </select>
+      {/* DAILY PEAK ELECTRICITY & CURRENT ANALYSIS (วิเคราะห์พีคและกระแสแอมป์) */}
+      {(dashboardSection === 'summary' || dashboardSection === 'all') && (
+        <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-4 sm:p-5 space-y-4 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <Zap className="w-4 h-4" />
               </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSyncSajCloudAndHistory}
-              disabled={isTesting}
-              className="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-bold cursor-pointer"
-            >
-              {historicalLogs.length <= 1
-                ? '📥 ดึงประวัติย้อนหลังจาก SAJ Cloud เพิ่มเติม'
-                : '🔄 อัปเดตประวัติล่าสุด'}
-            </button>
-          </div>
-        </div>
-
-        {/* =================================================================== */}
-        {/* DAILY PEAK ELECTRICITY & CURRENT ANALYSIS (วิเคราะห์พีคและกระแสแอมป์) */}
-        {/* =================================================================== */}
-        <div className="bg-gradient-to-r from-amber-950/30 via-slate-900 to-indigo-950/30 border border-amber-500/40 rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-lg shadow-black/40">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
-            <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span>⚡ วิเคราะห์ไฟฟ้าพีคสุดประจำวัน & กระแสแอมป์ (Daily Peak & Current Intelligence)</span>
-            </h4>
-            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+              <div>
+                <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                  <span>วิเคราะห์ไฟฟ้าพีคสุดประจำวัน & กระแสแอมป์ (Daily Peak & Current)</span>
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  จุดพีคของบ้าน, กำลังผลิต PV1-PV2 และความปลอดภัยของสายส่ง
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-900 text-amber-300 border border-slate-700 font-bold">
               วันที่ {activeHistoryDay?.date || getThailandDateStr(0)}
             </span>
           </div>
@@ -3890,14 +3871,14 @@ export const HomeInverterView = () => {
                 const levelMeta = HEALTH_LEVELS[h1.level] || HEALTH_LEVELS.OK;
                 const cardBorder =
                   h1.level === 'DANGER'
-                    ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
+                    ? 'bg-rose-950/30 border-rose-500/80 border-l-4 border-l-rose-500 shadow-lg shadow-rose-950/40'
                     : h1.level === 'WARNING'
-                    ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                    ? 'bg-orange-950/25 border-orange-500/70 border-l-4 border-l-orange-500 shadow-lg shadow-orange-950/30'
                     : h1.level === 'WATCH'
-                    ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
+                    ? 'bg-amber-950/20 border-amber-500/60 border-l-4 border-l-amber-500 shadow-lg shadow-amber-950/20'
                     : h1.level === 'IDLE'
-                    ? 'bg-slate-950/50 border-slate-800 opacity-70'
-                    : 'bg-slate-950/80 border-sky-500/40';
+                    ? 'bg-slate-900/40 border-slate-800 opacity-60'
+                    : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80 border-l-4 border-l-sky-500';
 
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
@@ -3912,7 +3893,7 @@ export const HomeInverterView = () => {
                 })();
 
                 return (
-                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
+                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 ${cardBorder}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-sky-300 font-bold flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
@@ -3969,14 +3950,14 @@ export const HomeInverterView = () => {
                   : HEALTH_LEVELS[h2.level] || HEALTH_LEVELS.OK;
 
                 const cardBorder = isPv2Idle
-                  ? 'bg-slate-950/50 border-slate-800 opacity-75'
+                  ? 'bg-slate-900/40 border-slate-800 opacity-60'
                   : h2.level === 'DANGER'
-                  ? 'bg-rose-950/40 border-rose-500/80 shadow-lg shadow-rose-950/50'
+                  ? 'bg-rose-950/30 border-rose-500/80 border-l-4 border-l-rose-500 shadow-lg shadow-rose-950/40'
                   : h2.level === 'WARNING'
-                  ? 'bg-orange-950/30 border-orange-500/70 shadow-lg shadow-orange-950/40'
+                  ? 'bg-orange-950/25 border-orange-500/70 border-l-4 border-l-orange-500 shadow-lg shadow-orange-950/30'
                   : h2.level === 'WATCH'
-                  ? 'bg-amber-950/25 border-amber-500/60 shadow-lg shadow-amber-950/30'
-                  : 'bg-slate-950/80 border-emerald-500/40';
+                  ? 'bg-amber-950/20 border-amber-500/60 border-l-4 border-l-amber-500 shadow-lg shadow-amber-950/20'
+                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80 border-l-4 border-l-emerald-500';
 
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
@@ -3992,7 +3973,7 @@ export const HomeInverterView = () => {
                 })();
 
                 return (
-                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${cardBorder}`}>
+                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 ${cardBorder}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-emerald-300 font-bold flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
@@ -4125,8 +4106,116 @@ export const HomeInverterView = () => {
             })()}
           </div>
         </div>
+      )}
 
-        {/* =================================================================== */}
+      {dashboardSection === 'summary' && (
+        <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-4 sm:p-5 shadow-xl flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <span>🧾 บิลค่าไฟฟ้า กฟภ. & การประหยัดพลังงาน</span>
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  ประหยัดแล้ว ~฿{todaySavedBaht.toLocaleString()} วันนี้
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                ดูประมาณการบิล กฟภ. อัตราก้าวหน้า + ค่า Ft + VAT 7% หรือเปิดดูกราฟ 24 ชม. เต็ม
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDashboardSection('curve');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>ดูกราฟ 24 ชม.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
+                setIsPeaModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border border-purple-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>เปิดบิล กฟภ. จำลอง</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* INTERACTIVE TIME-MACHINE 24-HOUR DYNO CHART & HISTORICAL EXPLORER */}
+      {(dashboardSection === 'curve' || dashboardSection === 'all') && (
+        <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-sky-400" />
+              <span>
+                📈 กราฟ Telemetry 24 ชั่วโมง & เลือกดูย้อนหลัง:{' '}
+                <strong className="text-sky-300 font-mono">
+                  {activeHistoryDay ? activeHistoryDay.date : 'วันนี้ (Realtime)'}
+                </strong>
+              </span>
+            </h3>
+            {activeHistoryDay && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                ผลิตโซลาร์วันนั้น:{' '}
+                <strong className="text-emerald-300 font-mono">
+                  {activeHistoryDay.pvGenerationKWh} kWh
+                </strong>{' '}
+                • ใช้ไฟในบ้าน:{' '}
+                <strong className="text-sky-300 font-mono">
+                  {activeHistoryDay.loadElectricityKWh} kWh
+                </strong>{' '}
+                • ประหยัดเงิน:{' '}
+                <strong className="text-amber-300 font-mono">
+                  ฿{activeHistoryDay.savedBaht}
+                </strong>
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {historicalLogs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-300">📅 เลือกวันที่ ({historicalLogs.length} วันจริง):</span>
+                <select
+                  value={activeHistoryDay?.date || ''}
+                  onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                  className="bg-slate-950 border border-sky-500/40 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold"
+                >
+                  {[...historicalLogs].reverse().map((log) => (
+                    <option key={log.date} value={log.date}>
+                      {log.date} — ผลิต {log.pvGenerationKWh} kWh (ประหยัด ฿{log.savedBaht})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSyncSajCloudAndHistory}
+              disabled={isTesting}
+              className="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-bold cursor-pointer"
+            >
+              {historicalLogs.length <= 1
+                ? '📥 ดึงประวัติย้อนหลังจาก SAJ Cloud เพิ่มเติม'
+                : '🔄 อัปเดตประวัติล่าสุด'}
+            </button>
+          </div>
+        </div>
+{/* =================================================================== */}
         {/* INTERACTIVE 24-HOUR TIME-MACHINE INSPECTOR (สแกนตรวจดูทุกช่วงเวลา) */}
         {/* =================================================================== */}
         <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 sm:p-4 space-y-3">
@@ -4779,8 +4868,12 @@ export const HomeInverterView = () => {
           </div>
         )}
       </div>
+      )}
 
-      {/* =================================================================== */}
+      {/* ELECTRICITY STATISTICS & HISTORICAL TIMELINE */}
+      {(dashboardSection === 'billing' || dashboardSection === 'all') && (
+        <>
+          {/* =================================================================== */}
       {/* ELECTRICITY STATISTICS (DAY / WEEK / MONTH / YEAR / TOTAL)          */}
       {/* =================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -5060,7 +5153,7 @@ export const HomeInverterView = () => {
         </div>
       </div>
 
-      {/* =================================================================== */}
+          {/* =================================================================== */}
       {/* HISTORICAL TIMELINE BAR CHART (VERIFIED SAJ V2 DAYS ONLY)           */}
       {/* =================================================================== */}
       {historicalLogs.length > 0 && (
@@ -5115,6 +5208,9 @@ export const HomeInverterView = () => {
           </div>
         </div>
       )}
+        </>
+      )}
+
     </div>
   );
 };
