@@ -282,34 +282,34 @@ const COCKPIT_THEMES = {
     id: 'WEISSACH',
     name: 'Porsche Weissach',
     tag: 'ICE CYAN // TITANIUM',
-    pvPrimary: '#0ea5e9',
+    pvPrimary: '#0284c7',
     pvSecondary: '#38bdf8',
-    battPrimary: '#10b981',
-    battSecondary: '#34d399',
-    ringBorder: 'border-sky-500/30',
-    accentBadge: 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+    battPrimary: '#059669',
+    battSecondary: '#10b981',
+    ringBorder: 'border-slate-800/60',
+    accentBadge: 'bg-slate-800/80 text-sky-300 border-slate-700/60'
   },
   ARAMCO: {
     id: 'ARAMCO',
     name: 'Aston Aramco F1',
     tag: 'EMERALD // CHAMPAGNE',
-    pvPrimary: '#f59e0b',
-    pvSecondary: '#fbbf24',
-    battPrimary: '#14b8a6',
-    battSecondary: '#2dd4bf',
-    ringBorder: 'border-teal-500/30',
-    accentBadge: 'bg-teal-500/10 text-teal-300 border-teal-500/30'
+    pvPrimary: '#d97706',
+    pvSecondary: '#f59e0b',
+    battPrimary: '#0f766e',
+    battSecondary: '#14b8a6',
+    ringBorder: 'border-slate-800/60',
+    accentBadge: 'bg-slate-800/80 text-teal-300 border-slate-700/60'
   },
   REVUELTO: {
     id: 'REVUELTO',
     name: 'Lamborghini Corsa',
     tag: 'GOLD // CARBON',
-    pvPrimary: '#d97706',
-    pvSecondary: '#f59e0b',
-    battPrimary: '#06b6d4',
-    battSecondary: '#22d3ee',
-    ringBorder: 'border-amber-500/30',
-    accentBadge: 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+    pvPrimary: '#b45309',
+    pvSecondary: '#d97706',
+    battPrimary: '#0284c7',
+    battSecondary: '#0ea5e9',
+    ringBorder: 'border-slate-800/60',
+    accentBadge: 'bg-slate-800/80 text-amber-300 border-slate-700/60'
   }
 };
 
@@ -373,14 +373,14 @@ const SupercarRadialGauge = ({
   return (
     <div
       onClick={onClickGauge}
-      className="relative bg-[#080d19]/95 border border-slate-800/90 hover:border-slate-700/90 rounded-[26px] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.75)] transition-all duration-300 overflow-hidden group cursor-pointer"
+      className="relative bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 hover:border-slate-700/70 rounded-[24px] p-4 sm:p-5 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all duration-300 overflow-hidden group cursor-pointer"
     >
       {/* Brushed micro-carbon texture */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.35), transparent 70%), repeating-linear-gradient(135deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 6px)'
+            'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.3), transparent 70%), repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 6px)'
         }}
       />
 
@@ -398,8 +398,8 @@ const SupercarRadialGauge = ({
           className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border"
           style={{
             color: secondaryColor,
-            borderColor: `${accentColor}44`,
-            backgroundColor: `${accentColor}12`
+            borderColor: `${accentColor}33`,
+            backgroundColor: `${accentColor}10`
           }}
         >
           {badgeText}
@@ -414,8 +414,8 @@ const SupercarRadialGauge = ({
               <stop offset="0%" stopColor={accentColor} />
               <stop offset="100%" stopColor={secondaryColor} />
             </linearGradient>
-            <filter id={glowId} x="-25%" y="-25%" width="150%" height="150%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+            <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
           </defs>
@@ -427,7 +427,8 @@ const SupercarRadialGauge = ({
             r={rOuter + 5}
             fill="none"
             stroke="#1e293b"
-            strokeWidth="1.2"
+            strokeOpacity="0.6"
+            strokeWidth="1"
             strokeDasharray="3 3"
           />
 
@@ -435,7 +436,7 @@ const SupercarRadialGauge = ({
           <path
             d={fullTrackPath}
             fill="none"
-            stroke="#0f172a"
+            stroke="#0a0f1d"
             strokeWidth="12"
             strokeLinecap="round"
           />
@@ -443,6 +444,7 @@ const SupercarRadialGauge = ({
             d={fullTrackPath}
             fill="none"
             stroke="#1e293b"
+            strokeOpacity="0.7"
             strokeWidth="8"
             strokeLinecap="round"
           />
@@ -475,15 +477,15 @@ const SupercarRadialGauge = ({
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={isLit ? secondaryColor : isMajor ? '#475569' : '#1e293b'}
-                strokeWidth={isMajor ? '1.8' : '1'}
+                stroke={isLit ? secondaryColor : isMajor ? '#334155' : '#1e293b'}
+                strokeWidth={isMajor ? '1.5' : '0.8'}
                 strokeLinecap="round"
               />
             );
           })}
 
           {/* Inner Dial Face */}
-          <circle cx={cx} cy={cy} r={rInner} fill="#050811" stroke="#1e293b" strokeWidth="1.5" />
+          <circle cx={cx} cy={cy} r={rInner} fill="#090e18" stroke="#1e293b" strokeOpacity="0.6" strokeWidth="1.2" />
 
           {/* Sweeping Indicator Needle */}
           <polygon
@@ -497,10 +499,10 @@ const SupercarRadialGauge = ({
             cx={cx}
             cy={cy}
             r="44"
-            fill="#070b14"
+            fill="#0a0f1a"
             stroke={accentColor}
-            strokeWidth="1.2"
-            strokeOpacity="0.45"
+            strokeWidth="1"
+            strokeOpacity="0.3"
           />
 
           {/* Digital Readout */}
@@ -535,11 +537,11 @@ const SupercarRadialGauge = ({
 
         {/* Sub-Telemetry Readouts */}
         {subMetrics.length > 0 && (
-          <div className="w-full grid grid-cols-3 gap-1.5 mt-1 pt-2.5 border-t border-slate-800/80">
+          <div className="w-full grid grid-cols-3 gap-1.5 mt-1 pt-2.5 border-t border-slate-800/60">
             {subMetrics.map((m, i) => (
               <div
                 key={i}
-                className="bg-[#050811]/90 border border-slate-800/80 rounded-xl px-2 py-1.5 text-center"
+                className="bg-slate-900/50 border border-slate-800/60 rounded-xl px-2 py-1.5 text-center"
               >
                 <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">
                   {m.label}
@@ -3247,7 +3249,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         </div>
 
         {/* CENTER MASTER MULTI-FUNCTION DISPLAY (4 cols): 4 INTERACTIVE MODES! */}
-        <div className="w-full min-w-full sm:min-w-0 sm:w-auto snap-center shrink-0 sm:shrink sm:col-span-12 lg:col-span-4 bg-[#080d19]/95 border border-slate-800/90 rounded-[26px] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col justify-between">
+        <div className="w-full min-w-full sm:min-w-0 sm:w-auto snap-center shrink-0 sm:shrink sm:col-span-12 lg:col-span-4 bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-[24px] p-4 sm:p-5 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl flex flex-col justify-between">
           {/* Interactive Mode Selector Tabs */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -3258,15 +3260,15 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 className="px-2 py-0.5 rounded-md font-mono font-black text-xs border"
                 style={{
                   color: driveMode.color,
-                  borderColor: `${driveMode.color}55`,
-                  backgroundColor: `${driveMode.color}15`
+                  borderColor: `${driveMode.color}40`,
+                  backgroundColor: `${driveMode.color}12`
                 }}
               >
                 {driveMode.gear}
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1 bg-[#070a10] p-1 rounded-xl border border-slate-800/80">
+            <div className="grid grid-cols-4 gap-1 bg-slate-950/40 p-1 rounded-xl border border-slate-800/60">
               {[
                 { id: 'ODO', label: t('modeOdo') },
                 { id: 'VECTOR', label: t('modeRadar') },
@@ -3279,7 +3281,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   onClick={() => setCenterHudMode(tab.id)}
                   className={`py-1.5 rounded-lg text-[10px] font-medium transition-all cursor-pointer ${
                     centerHudMode === tab.id
-                      ? 'bg-[#141b27] text-cyan-300 border border-cyan-500/40 font-bold shadow-sm'
+                      ? 'bg-slate-800/90 text-sky-200 border border-slate-700/80 font-bold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -3292,9 +3294,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {/* MODE 1: MASTER ODOMETER & TODAY GENERATION */}
           {centerHudMode === 'ODO' && (
             <div className="my-3 flex flex-col items-center">
-              <div className="relative w-44 h-44 rounded-full border border-slate-800/80 bg-[#070a10] shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] flex flex-col items-center justify-center p-4">
-                <div className="absolute inset-2 rounded-full border border-dashed border-cyan-500/20" />
-                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400">
+              <div className="relative w-44 h-44 rounded-full border border-slate-800/60 bg-gradient-to-b from-[#0e1628]/80 to-[#090e1a]/90 shadow-[inset_0_0_20px_rgba(14,165,233,0.06)] flex flex-col items-center justify-center p-4">
+                <div className="absolute inset-2 rounded-full border border-dashed border-sky-500/15" />
+                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-sky-400">
                   {t('todayProduction')}
                 </span>
                 <div className="text-3xl sm:text-4xl font-mono font-black text-white tracking-tight mt-0.5">
@@ -3303,7 +3305,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <span className="text-[11px] font-mono font-normal text-slate-400">
                   {t('kwhToday')}
                 </span>
-                <div className="mt-2 px-3 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 font-mono text-[11px] font-bold">
+                <div className="mt-2 px-3 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 font-mono text-[11px] font-bold">
                   {t('savedToday')}{todaySavedBaht.toLocaleString()}
                 </div>
               </div>
@@ -3312,13 +3314,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
           {/* MODE 2: INTERACTIVE 4-WAY ENERGY VECTOR RADAR */}
           {centerHudMode === 'VECTOR' && (
-            <div className="my-2 bg-[#070a10] border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+            <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
               <div className="text-[11px] font-bold text-white flex items-center justify-between">
                 <span>เรดาร์ทิศทางการไหลของพลังงาน</span>
-                <span className="font-mono text-[10px] text-cyan-400">LIVE VECTOR</span>
+                <span className="font-mono text-[10px] text-sky-400">LIVE VECTOR</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
                   <div className="text-[10px] text-slate-300 font-medium">☀️ แผงโซลาร์ → อินเวอร์เตอร์</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {totalPvPowerW} W
@@ -3327,7 +3329,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     {solarData.pv1Voltage}V • {solarData.pv1Current}A
                   </div>
                 </div>
-                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
                   <div className="text-[10px] text-slate-300 font-medium">🔋 สถานะแบตเตอรี่</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {solarData.batteryPowerW || 0} W
@@ -3336,7 +3338,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     {solarData.batteryStatus} ({battSoc}%)
                   </div>
                 </div>
-                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
                   <div className="text-[10px] text-slate-300 font-medium">🏠 จ่ายเข้าโหลดในบ้าน</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {houseLoadW} W
@@ -3345,7 +3347,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     พึ่งพาตนเอง {selfSuffPct}%
                   </div>
                 </div>
-                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
                   <div className="text-[10px] text-slate-300 font-medium">🗼 สายส่งการไฟฟ้า (Grid)</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {solarData.gridAc1Voltage || 230} VAC
@@ -3360,7 +3362,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
           {/* MODE 3: BATTERY BMS & BACKUP AUTONOMY CALCULATOR */}
           {centerHudMode === 'BMS' && (
-            <div className="my-2 bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 space-y-2.5">
+            <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-emerald-300">
                   🔋 วิเคราะห์พลังงานสำรองในแบตเตอรี่
@@ -3369,7 +3371,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   SOC {battSoc}%
                 </span>
               </div>
-              <div className="bg-slate-900/90 border border-emerald-500/25 rounded-xl p-3 text-center">
+              <div className="bg-slate-900/60 border border-emerald-500/20 rounded-xl p-3 text-center">
                 <div className="text-[10px] text-slate-400">
                   ระยะเวลาจ่ายไฟสำรองได้ต่อเนื่อง (เมื่อไฟดับ/กลางคืน)
                 </div>
@@ -3381,15 +3383,15 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-1.5 text-center text-[11px] font-mono">
-                <div className="bg-slate-900 rounded-lg p-1.5 border border-slate-800">
+                <div className="bg-slate-900/60 rounded-lg p-1.5 border border-slate-800/60">
                   <span className="text-[9px] text-slate-400 block">VOLTAGE</span>
                   <strong className="text-white">{solarData.batteryVoltage || 52.8}V</strong>
                 </div>
-                <div className="bg-slate-900 rounded-lg p-1.5 border border-slate-800">
+                <div className="bg-slate-900/60 rounded-lg p-1.5 border border-slate-800/60">
                   <span className="text-[9px] text-slate-400 block">CURRENT</span>
                   <strong className="text-white">{solarData.batteryCurrent || 0}A</strong>
                 </div>
-                <div className="bg-slate-900 rounded-lg p-1.5 border border-slate-800">
+                <div className="bg-slate-900/60 rounded-lg p-1.5 border border-slate-800/60">
                   <span className="text-[9px] text-slate-400 block">TEMP</span>
                   <strong className="text-sky-300">{solarData.inverterTempC || 36.5}°C</strong>
                 </div>
@@ -3399,7 +3401,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
           {/* MODE 4: INTERACTIVE ROI & CARBON SIMULATOR */}
           {centerHudMode === 'ROI' && (
-            <div className="my-2 bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 space-y-2.5">
+            <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-bold text-amber-300 flex items-center gap-1">
                   <Leaf className="w-3.5 h-3.5 text-emerald-400" /> คำนวณผลตอบแทน & ลดคาร์บอน
@@ -3423,13 +3425,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2">
                   <div className="text-[9px] text-slate-400">ประหยัดต่อเดือน (คาดการณ์)</div>
                   <div className="text-sm font-mono font-black text-emerald-400 mt-0.5">
                     ฿{Math.round(todayGenKWh * 30 * simTariffBaht).toLocaleString()}
                   </div>
                 </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2">
+                <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2">
                   <div className="text-[9px] text-slate-400">ลดก๊าซ CO₂ สะสม</div>
                   <div className="text-sm font-mono font-black text-sky-300 mt-0.5">
                     {co2ReducedKg} kg ({treesEquivalent} {t('treesUnit')})
@@ -3440,8 +3442,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           )}
 
           {/* Bottom 6-Digit Supercar Rolling Odometer */}
-          <div className="space-y-2 pt-2 border-t border-slate-800/80">
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-2 flex items-center justify-between">
+          <div className="space-y-2 pt-2 border-t border-slate-800/60">
+            <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl px-3 py-2 flex items-center justify-between">
               <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">
                 {t('totalOdometer')}
               </span>
@@ -3449,7 +3451,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 {formattedOdometer.split('').map((digit, i) => (
                   <span
                     key={i}
-                    className="w-5 h-6 rounded bg-slate-900 border border-slate-700/80 text-slate-100 font-black text-xs flex items-center justify-center"
+                    className="w-5 h-6 rounded bg-slate-900 border border-slate-700/60 text-slate-100 font-black text-xs flex items-center justify-center"
                   >
                     {digit}
                   </span>
@@ -3459,13 +3461,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-1.5 flex items-center justify-between">
+              <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl px-3 py-1.5 flex items-center justify-between">
                 <span className="text-[10px] text-slate-400">{t('homeLoad')}</span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {houseLoadW.toLocaleString()} W
                 </span>
               </div>
-              <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-1.5 flex items-center justify-between">
+              <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl px-3 py-1.5 flex items-center justify-between">
                 <span className="text-[10px] text-slate-400">{t('gridVoltage')}</span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {solarData.gridAc1Voltage || 231.5} V
@@ -4317,7 +4319,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
       {/* INTERACTIVE TIME-MACHINE 24-HOUR DYNO CHART & HISTORICAL EXPLORER */}
       {(dashboardSection === 'curve' || dashboardSection === 'all') && (
-        <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4 shadow-xl">
+        <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-[24px] p-4 sm:p-5 space-y-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -4354,7 +4356,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <select
                   value={activeHistoryDay?.date || ''}
                   onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                  className="bg-slate-950 border border-sky-500/40 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold"
+                  className="bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold outline-none"
                 >
                   {[...historicalLogs].reverse().map((log) => (
                     <option key={log.date} value={log.date}>
@@ -4369,7 +4371,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               type="button"
               onClick={handleSyncSajCloudAndHistory}
               disabled={isTesting}
-              className="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-bold cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 border border-slate-700/60 text-xs font-bold cursor-pointer transition-colors"
             >
               {historicalLogs.length <= 1
                 ? '📥 ดึงประวัติย้อนหลังจาก SAJ Cloud เพิ่มเติม'
@@ -4380,17 +4382,17 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 {/* =================================================================== */}
         {/* INTERACTIVE 24-HOUR TIME-MACHINE INSPECTOR (สแกนตรวจดูทุกช่วงเวลา) */}
         {/* =================================================================== */}
-        <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 sm:p-4 space-y-3">
+        <div className="bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 sm:p-4 space-y-3">
           {/* Top Bar: Active Hour & Quick-Jump Presets */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/60">
             <span className="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />
               <span>🎚️ ตรวจสอบค่าไฟฟ้าและสถานะระบบรายชั่วโมง:</span>
-              <span className="font-mono text-amber-300 text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/30">
+              <span className="font-mono text-amber-300 text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/25">
                 {scrubbedPoint.hour} น.
               </span>
               {isViewingToday && effectiveScrubHour === currentThaiHour && (
-                <span className="text-[10px] font-sans font-bold text-sky-400 bg-sky-500/10 border border-sky-500/30 px-1.5 py-0.5 rounded-md">
+                <span className="text-[10px] font-sans font-bold text-sky-400 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.5 rounded-md">
                   ⏱️ ปัจจุบัน
                 </span>
               )}
@@ -4416,8 +4418,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     onClick={() => setScrubHour(h)}
                     className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-all ${
                       effectiveScrubHour === h
-                        ? 'bg-sky-500 text-slate-950 shadow-md font-black'
-                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        ? 'bg-slate-800 text-sky-300 border border-slate-700/80 shadow-sm font-black'
+                        : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800/60'
                     }`}
                   >
                     {label}
@@ -4429,8 +4431,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   onClick={() => setScrubHour(maxScrubHour)}
                   className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-all ${
                     effectiveScrubHour === maxScrubHour
-                      ? 'bg-sky-500 text-slate-950 shadow-md font-black'
-                      : 'bg-slate-900 text-sky-400 hover:text-white border border-sky-500/40'
+                      ? 'bg-slate-800 text-sky-300 border border-slate-700/80 shadow-sm font-black'
+                      : 'bg-slate-900/60 text-sky-400 hover:text-white border border-slate-800/60'
                   }`}
                 >
                   {String(maxScrubHour).padStart(2, '0')}:00 (ปัจจุบัน)
@@ -4442,10 +4444,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {/* 5-Card Live Value Dashboard for the Selected Hour */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {/* 1. Solar PV Power & Strings */}
-            <div className={`p-2.5 rounded-xl border flex flex-col justify-between ${
+            <div className={`p-2.5 rounded-xl border flex flex-col justify-between transition-colors ${
               scrubbedPoint.isPv1Overcurrent || scrubbedPoint.isPv2Overcurrent
-                ? 'bg-rose-950/40 border-rose-500/60'
-                : 'bg-slate-950/90 border-amber-500/30'
+                ? 'bg-rose-950/30 border-rose-500/50'
+                : 'bg-slate-900/50 border-slate-800/60 hover:border-slate-700/60'
             }`}>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-amber-300/90 font-bold flex items-center gap-1">
@@ -4459,7 +4461,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 )}
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
-                <span className="text-base sm:text-lg font-black text-amber-300">
+                <span className="text-base sm:text-lg font-bold text-amber-200">
                   {scrubbedPoint.pvW != null ? scrubbedPoint.pvW.toLocaleString() : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400">
@@ -4479,13 +4481,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </div>
 
             {/* 2. House Load Power */}
-            <div className="bg-slate-950/90 border border-purple-500/40 rounded-xl p-2.5 flex flex-col justify-between">
-              <span className="text-[11px] text-purple-300 font-bold flex items-center gap-1">
-                <Home className="w-3.5 h-3.5 text-purple-400" />
+            <div className="bg-slate-900/50 border border-slate-800/60 hover:border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between transition-colors">
+              <span className="text-[11px] text-sky-300/90 font-bold flex items-center gap-1">
+                <Home className="w-3.5 h-3.5 text-sky-400" />
                 <span>โหลดใช้ไฟในบ้าน</span>
               </span>
               <div className="flex items-baseline justify-between mt-1 font-mono">
-                <span className="text-base sm:text-lg font-black text-purple-300">
+                <span className="text-base sm:text-lg font-bold text-sky-200">
                   {scrubbedPoint.loadW != null ? scrubbedPoint.loadW.toLocaleString() : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400">
@@ -4493,14 +4495,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                กระแสไฟ: <span className="text-purple-300 font-bold">{scrubbedPoint.loadCurrentA != null ? `${scrubbedPoint.loadCurrentA} A` : '—'}</span> (@230V)
+                กระแสไฟ: <span className="text-sky-300 font-bold">{scrubbedPoint.loadCurrentA != null ? `${scrubbedPoint.loadCurrentA} A` : '—'}</span> (@230V)
               </div>
             </div>
 
             {/* 3. Battery SOC % */}
-            <div className="bg-slate-950/90 border border-emerald-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+            <div className="bg-slate-900/50 border border-slate-800/60 hover:border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between transition-colors">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-emerald-300 font-bold flex items-center gap-1">
+                <span className="text-emerald-300/90 font-bold flex items-center gap-1">
                   <Battery className="w-3.5 h-3.5 text-emerald-400" />
                   <span>แบตเตอรี่ (SOC)</span>
                 </span>
@@ -4508,19 +4510,19 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   scrubbedPoint.batterySOC == null
                     ? 'bg-slate-800 text-slate-400'
                     : scrubbedPoint.batterySOC >= 80
-                    ? 'bg-emerald-500/20 text-emerald-300'
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
                     : scrubbedPoint.batterySOC >= 40
-                    ? 'bg-sky-500/20 text-sky-300'
-                    : 'bg-amber-500/20 text-amber-300'
+                    ? 'bg-sky-500/15 text-sky-300 border border-sky-500/20'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
                 }`}>
                   {scrubbedPoint.batterySOC == null ? '—' : scrubbedPoint.batterySOC >= 80 ? 'ประจุเต็ม' : scrubbedPoint.batterySOC >= 40 ? 'พร้อมใช้' : 'คายประจุ'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
-                <span className="text-base sm:text-lg font-black text-emerald-300">
+                <span className="text-base sm:text-lg font-bold text-emerald-200">
                   {scrubbedPoint.batterySOC != null ? `${scrubbedPoint.batterySOC}%` : '—'}
                 </span>
-                <div className="w-16 bg-slate-800 rounded-full h-2 overflow-hidden self-center ml-2">
+                <div className="w-16 bg-slate-800/80 rounded-full h-2 overflow-hidden self-center ml-2">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(100, Math.max(5, scrubbedPoint.batterySOC ?? 0))}%` }}
@@ -4533,9 +4535,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </div>
 
             {/* 4. Inverter Temperature °C */}
-            <div className="bg-slate-950/90 border border-rose-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+            <div className="bg-slate-900/50 border border-slate-800/60 hover:border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between transition-colors">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-rose-300 font-bold flex items-center gap-1">
+                <span className="text-rose-300/90 font-bold flex items-center gap-1">
                   <Thermometer className="w-3.5 h-3.5 text-rose-400" />
                   <span>ความร้อน Inverter</span>
                 </span>
@@ -4543,16 +4545,16 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   scrubbedPoint.tempC == null
                     ? 'bg-slate-800 text-slate-400'
                     : scrubbedPoint.tempC < 42
-                    ? 'bg-emerald-500/20 text-emerald-300'
+                    ? 'bg-emerald-500/15 text-emerald-300'
                     : scrubbedPoint.tempC <= 55
-                    ? 'bg-amber-500/20 text-amber-300'
-                    : 'bg-rose-500/20 text-rose-300'
+                    ? 'bg-amber-500/15 text-amber-300'
+                    : 'bg-rose-500/15 text-rose-300'
                 }`}>
                   {scrubbedPoint.tempC == null ? '—' : scrubbedPoint.tempC < 42 ? '🟢 เย็นปกติ' : scrubbedPoint.tempC <= 55 ? '🟡 ทำงานปกติ' : '🔴 ร้อนสูง'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
-                <span className="text-base sm:text-lg font-black text-rose-300">
+                <span className="text-base sm:text-lg font-bold text-slate-100">
                   {scrubbedPoint.tempC != null ? `${scrubbedPoint.tempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
@@ -4560,23 +4562,23 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                ฮีตซิงก์: <span className="text-rose-300 font-bold">{scrubbedPoint.tempC != null ? 'ทำงานปกติ' : '—'}</span>
+                ฮีตซิงก์: <span className="text-slate-300 font-bold">{scrubbedPoint.tempC != null ? 'ทำงานปกติ' : '—'}</span>
               </div>
             </div>
 
             {/* 5. Battery Temperature °C */}
-            <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 flex flex-col justify-between">
+            <div className="bg-slate-900/50 border border-slate-800/60 hover:border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between transition-colors">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-amber-300 font-bold flex items-center gap-1">
-                  <BatteryCharging className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-teal-300/90 font-bold flex items-center gap-1">
+                  <BatteryCharging className="w-3.5 h-3.5 text-teal-400" />
                   <span>ความร้อน แบตเตอรี่</span>
                 </span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold bg-emerald-500/20 text-emerald-300">
+                <span className="text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold bg-emerald-500/15 text-emerald-300">
                   {scrubbedPoint.batteryTempC != null ? '🟢 ปลอดภัย' : '—'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
-                <span className="text-base sm:text-lg font-black text-amber-300">
+                <span className="text-base sm:text-lg font-bold text-slate-100">
                   {scrubbedPoint.batteryTempC != null ? `${scrubbedPoint.batteryTempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
@@ -4741,7 +4743,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   name="กำลังผลิตโซลาร์ PV (W)"
                   stroke={theme.pvSecondary}
                   fill={theme.pvPrimary}
-                  fillOpacity={0.25}
+                  fillOpacity={0.12}
+                  strokeWidth={2}
                   connectNulls={false}
                 />
                 <Area
@@ -4749,10 +4752,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   type="monotone"
                   dataKey="loadW"
                   name="โหลดใช้ไฟในบ้าน (W)"
-                  stroke="#a855f7"
-                  fill="#a855f7"
-                  fillOpacity={0.25}
-                  strokeWidth={2.5}
+                  stroke="#818cf8"
+                  fill="#818cf8"
+                  fillOpacity={0.12}
+                  strokeWidth={2}
                   connectNulls={false}
                 />
                 <Line
@@ -4761,7 +4764,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   dataKey="batterySOC"
                   name="แบตเตอรี่ SOC (%)"
                   stroke="#10b981"
-                  strokeWidth={2.5}
+                  strokeWidth={2}
                   dot={{ r: 2, fill: '#10b981' }}
                   connectNulls={false}
                 />
@@ -4770,9 +4773,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   type="monotone"
                   dataKey="tempC"
                   name="ความร้อน Inverter (°C)"
-                  stroke="#f43f5e"
-                  strokeWidth={2.5}
-                  dot={{ r: 2, fill: '#f43f5e' }}
+                  stroke="#f87171"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={{ r: 1.5, fill: '#f87171' }}
                   connectNulls={false}
                 />
                 <Line
@@ -4780,10 +4784,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   type="monotone"
                   dataKey="batteryTempC"
                   name="ความร้อน แบตเตอรี่ (°C)"
-                  stroke="#f59e0b"
-                  strokeWidth={2.5}
-                  strokeDasharray="4 4"
-                  dot={{ r: 2, fill: '#f59e0b' }}
+                  stroke="#fbbf24"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 3"
+                  dot={{ r: 1.5, fill: '#fbbf24' }}
                   connectNulls={false}
                 />
               </AreaChart>

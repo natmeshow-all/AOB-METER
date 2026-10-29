@@ -561,7 +561,7 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
       {/* ===================================================================== */}
       {/* HEADER: SUPER ADMIN ALL-IN-ONE SETTING & AUTO-READ CONTROL CENTER     */}
       {/* ===================================================================== */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/90 to-slate-900 border border-amber-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold mb-2">

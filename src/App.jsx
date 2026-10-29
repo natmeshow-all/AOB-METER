@@ -122,7 +122,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-transparent text-slate-100 flex flex-col font-sans selection:bg-sky-500/25 selection:text-white">
       {/* Top App Header */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -172,7 +172,7 @@ export function App() {
           />
 
           {/* Sheet Panel */}
-          <div className="relative bg-[#0c1424] border-t border-slate-700/80 rounded-t-[32px] p-5 pb-8 shadow-[0_-20px_50px_rgba(0,0,0,0.9)] space-y-4 max-w-lg mx-auto w-full animate-in slide-in-from-bottom duration-200">
+          <div className="relative bg-gradient-to-b from-[#131b2e] to-[#0c1220] border-t border-slate-700/60 rounded-t-[32px] p-5 pb-8 shadow-[0_-16px_40px_rgba(0,0,0,0.8)] backdrop-blur-2xl space-y-4 max-w-lg mx-auto w-full animate-in slide-in-from-bottom duration-200">
             {/* Drag indicator handle */}
             <div className="w-12 h-1.5 bg-slate-700/80 rounded-full mx-auto -mt-1 mb-2" />
 

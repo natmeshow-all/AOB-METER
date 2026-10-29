@@ -121,10 +121,10 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
   return (
     <div className="space-y-5">
       {/* 1. Executive Summary Hero Card (Large Crisp Numbers, No Cost) */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-800/80">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-800/60">
           <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             <h2 className="text-sm sm:text-base font-bold text-white">
               ภาพรวมพาวเวอร์มิเตอร์ทั้งหมดของ {currentCompany.name}
             </h2>
@@ -133,8 +133,8 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
           <div
             className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border ${
               isOnPeakNow
-                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+                : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -146,7 +146,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
 
         {/* 4 Key Electrical Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4">
-          <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>กำลังไฟฟ้ารวมขณะนี้</span>
               <Zap className="w-4 h-4 text-amber-400" />
@@ -160,15 +160,15 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
             </div>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>ภาระหม้อแปลง ({summary.trCapacity} kVA)</span>
-              <Gauge className="w-4 h-4 text-blue-400" />
+              <Gauge className="w-4 h-4 text-sky-400" />
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span
                 className={`text-2xl sm:text-3xl font-extrabold font-mono ${
-                  summary.loadPct > 85 ? 'text-rose-400' : 'text-blue-400'
+                  summary.loadPct > 85 ? 'text-rose-400' : 'text-sky-400'
                 }`}
               >
                 {summary.loadPct}%
@@ -182,14 +182,14 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                     ? 'bg-rose-500'
                     : summary.loadPct > 70
                     ? 'bg-amber-500'
-                    : 'bg-blue-500'
+                    : 'bg-sky-500'
                 }`}
                 style={{ width: `${summary.loadPct}%` }}
               />
             </div>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>พลังงานไฟฟ้าสะสมวันนี้</span>
               <Activity className="w-4 h-4 text-emerald-400" />
@@ -198,12 +198,12 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               {summary.totalTodayKWh.toLocaleString()}{' '}
               <span className="text-xs font-sans font-normal text-slate-400">kWh</span>
             </div>
-            <div className="text-xs text-cyan-300 mt-1 font-mono">
+            <div className="text-xs text-slate-400 mt-1 font-mono">
               กระแสรวม {summary.totalCurrentA.toLocaleString()} A
             </div>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>ค่าเพาเวอร์แฟกเตอร์เฉลี่ย</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -265,10 +265,10 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               <div
                 key={meter.id}
                 onClick={() => onSelectMeter && onSelectMeter(meter.id)}
-                className={`group bg-slate-900/90 hover:bg-slate-900 border rounded-2xl p-4 transition-all cursor-pointer shadow-md hover:shadow-xl active:scale-[0.99] ${
+                className={`group bg-gradient-to-b from-slate-900/80 to-slate-950/90 hover:bg-slate-900/90 border rounded-2xl p-4 transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-[0.99] ${
                   isHighConsumer
-                    ? 'border-amber-500/40 hover:border-amber-400'
-                    : 'border-slate-800 hover:border-blue-500/60'
+                    ? 'border-amber-500/30 hover:border-amber-400/50'
+                    : 'border-slate-800/60 hover:border-slate-700/80'
                 }`}
               >
                 {/* Card Top: Meter Tag, Slave ID, Name & Status Badge */}

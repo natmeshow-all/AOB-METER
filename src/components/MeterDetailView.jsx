@@ -38,38 +38,14 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
     return meters.find((m) => m.id === selectedMeterId) || meters[0] || null;
   }, [meters, selectedMeterId]);
 
-  if (!activeMeter) {
-    return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center text-slate-400">
-        ยังไม่มีพาวเวอร์มิเตอร์ในบริษัทนี้ กรุณาเพิ่มมิเตอร์ในหน้าจัดการลูกค้า (Super Admin)
-      </div>
-    );
-  }
-
   // Real 3-phase telemetry for the selected meter
-  const liveKW = Number((Number(activeMeter.liveKW ?? activeMeter.baseKW) || 0).toFixed(1));
-  const pf = Number((Number(activeMeter.pf) || 0.95).toFixed(2));
-  const liveKVA = Number((liveKW / (pf || 0.95)).toFixed(1));
-  const liveKVAR = Number(Math.sqrt(Math.max(0, liveKVA * liveKVA - liveKW * liveKW)).toFixed(1));
-
-  // 3-Phase Voltage & Current
-  const vLL = Number((Number(activeMeter.voltageLL) || 400.0).toFixed(1));
-  const vLN = Number((vLL / 1.732).toFixed(1));
-  const vL1N = vLN;
-  const vL2N = vLN;
-  const vL3N = vLN;
-
-  const avgCurrent =
-    activeMeter.currentA !== undefined && Number(activeMeter.currentA) > 0
-      ? Number(activeMeter.currentA)
-      : Number((liveKW * 1.52).toFixed(1));
-  const iL1 = avgCurrent;
-  const iL2 = avgCurrent;
-  const iL3 = avgCurrent;
-  const frequency = 50.0;
+  const liveKW = activeMeter
+    ? Number((Number(activeMeter.liveKW ?? activeMeter.baseKW) || 0).toFixed(1))
+    : 0;
 
   // Generate 24-hour profile specifically for this meter (Pure Electrical kWh)
   const hourlyMeterData = useMemo(() => {
+    if (!activeMeter) return [];
     const list = [];
     for (let h = 0; h < 24; h++) {
       const isOnPeak = h >= 9 && h < 22;
@@ -91,7 +67,35 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
       });
     }
     return list;
-  }, [liveKW]);
+  }, [activeMeter, liveKW]);
+
+  if (!activeMeter) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center text-slate-400">
+        ยังไม่มีพาวเวอร์มิเตอร์ในบริษัทนี้ กรุณาเพิ่มมิเตอร์ในหน้าจัดการลูกค้า (Super Admin)
+      </div>
+    );
+  }
+
+  const pf = Number((Number(activeMeter.pf) || 0.95).toFixed(2));
+  const liveKVA = Number((liveKW / (pf || 0.95)).toFixed(1));
+  const liveKVAR = Number(Math.sqrt(Math.max(0, liveKVA * liveKVA - liveKW * liveKW)).toFixed(1));
+
+  // 3-Phase Voltage & Current
+  const vLL = Number((Number(activeMeter.voltageLL) || 400.0).toFixed(1));
+  const vLN = Number((vLL / 1.732).toFixed(1));
+  const vL1N = vLN;
+  const vL2N = vLN;
+  const vL3N = vLN;
+
+  const avgCurrent =
+    activeMeter.currentA !== undefined && Number(activeMeter.currentA) > 0
+      ? Number(activeMeter.currentA)
+      : Number((liveKW * 1.52).toFixed(1));
+  const iL1 = avgCurrent;
+  const iL2 = avgCurrent;
+  const iL3 = avgCurrent;
+  const frequency = 50.0;
 
   const totalDayKWh = hourlyMeterData.reduce((s, h) => s + h.kwh, 0);
   const onPeakKWh = hourlyMeterData.filter((h) => h.isOnPeak).reduce((s, h) => s + h.kwh, 0);
@@ -154,19 +158,19 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
       </div>
 
       {/* Selected Meter Hero Digital Faceplate */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/60">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs">
+              <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono font-bold text-xs">
                 Slave ID #{activeMeter.slaveId || 1} • {activeMeter.tag} • ตู้ {activeMeter.panel}
               </span>
-              <span className="px-2.5 py-0.5 rounded-lg bg-slate-800 text-slate-300 font-mono text-xs flex items-center gap-1">
-                <Cpu className="w-3.5 h-3.5 text-blue-400" />
+              <span className="px-2.5 py-0.5 rounded-lg bg-slate-800/80 text-slate-300 font-mono text-xs flex items-center gap-1 border border-slate-700/60">
+                <Cpu className="w-3.5 h-3.5 text-sky-400" />
                 {activeMeter.model || 'Schneider PM2200'} (CT {activeMeter.ctRatio || '400/5A'})
               </span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-mono flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Reg kW: {activeMeter.regActivePowerKW || 3060}
               </span>
             </div>
@@ -175,11 +179,11 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
             </h2>
           </div>
 
-          <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl px-5 py-3 text-right shrink-0">
+          <div className="bg-slate-900/60 border border-slate-800/70 rounded-2xl px-5 py-3 text-right shrink-0">
             <span className="text-xs text-slate-400 block">
               กำลังไฟฟ้าใช้งานขณะนี้ (Active Power)
             </span>
-            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-300">
               {liveKW} <span className="text-sm font-sans text-slate-300">kW</span>
             </div>
           </div>
@@ -187,7 +191,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
 
         {/* 4 Core Power Parameters */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">เพาเวอร์แฟกเตอร์ (PF)</span>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 mt-1">
               {pf}
@@ -195,7 +199,7 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
             <span className="text-xs text-slate-500">เกณฑ์มาตรฐาน &ge; 0.85</span>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">กำลังไฟฟ้าปรากฏ (Apparent)</span>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white mt-1">
               {liveKVA} <span className="text-xs font-sans text-slate-400">kVA</span>
@@ -203,18 +207,18 @@ export const MeterDetailView = ({ selectedMeterId, onSelectMeter, onBackToOvervi
             <span className="text-xs text-slate-500">Reactive: {liveKVAR} kVAR</span>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">หน่วยการใช้ไฟวันนี้ (24 ชม.)</span>
-            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-blue-300 mt-1">
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono text-sky-200 mt-1">
               {totalDayKWh.toLocaleString()}{' '}
               <span className="text-xs font-sans text-slate-400">kWh</span>
             </div>
-            <span className="text-xs text-amber-300 font-semibold">
+            <span className="text-xs text-amber-300/90 font-semibold">
               On-Peak {onPeakKWh.toLocaleString()} kWh ({onPeakPct}%)
             </span>
           </div>
 
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+          <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <span className="text-xs text-slate-400 block">หน่วยไฟช่วง Off-Peak</span>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 mt-1">
               {offPeakKWh.toLocaleString()}{' '}

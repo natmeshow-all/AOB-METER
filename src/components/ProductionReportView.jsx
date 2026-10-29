@@ -846,7 +846,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       {/* =================================================================== */}
       {/* STANDARD PAGE: PERIOD SELECTOR + "GO" BUTTON (ไร้ราคาค่าไฟ)         */}
       {/* =================================================================== */}
-      <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-4 sm:p-5 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
@@ -1014,7 +1014,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       </div>
 
       {/* Main Visual Report Chart */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-white">
@@ -1120,7 +1120,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       </div>
 
       {/* Complete All-Meters Table on Standard Page (No Cost Column) */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-3xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">

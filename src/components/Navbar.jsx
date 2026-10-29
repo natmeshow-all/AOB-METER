@@ -44,7 +44,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
   const isHomeSolarSite = activeOrganization?.siteType === 'HOME_SOLAR';
 
   return (
-    <header className="bg-[#070b14]/90 backdrop-blur-2xl border-b border-slate-800/90 sticky top-0 z-40 transition-colors">
+    <header className="bg-gradient-to-b from-[#0e1628]/95 via-[#09101e]/90 to-[#070b16]/95 backdrop-blur-2xl border-b border-slate-800/60 sticky top-0 z-40 transition-colors">
       <div className="max-w-6xl mx-auto px-3 sm:px-6">
         {/* Top Command Bar: Station Identity, Live Telemetry, Flag Switcher & Actions */}
         <div className="flex items-center justify-between py-2.5 sm:py-3 gap-2">
@@ -141,13 +141,13 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
 
             {/* INTERACTIVE DUAL-FLAG SLIDING CAPSULE SWITCHER (ไทย 🇹🇭 / อังกฤษ 🇬🇧) */}
             <div
-              className="relative flex items-center bg-[#040814] p-0.5 rounded-full border border-slate-700/80 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]"
+              className="relative flex items-center bg-[#070d1a] p-0.5 rounded-full border border-slate-700/60 shadow-inner"
               role="radiogroup"
               aria-label="Language selector"
             >
-              {/* Sliding Neon Highlight Pill */}
+              {/* Sliding Subtle Highlight Pill */}
               <div
-                className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out bg-gradient-to-r from-sky-500 to-cyan-400 shadow-[0_0_14px_rgba(14,165,233,0.55)] ${
+                className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out bg-gradient-to-r from-slate-700/90 to-slate-800/90 border border-slate-600/60 shadow-sm ${
                   lang === 'th' ? 'left-0.5' : 'left-[calc(50%+1px)]'
                 }`}
               />
@@ -158,7 +158,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                 onClick={() => setLang('th')}
                 className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   lang === 'th'
-                    ? 'text-slate-950 font-black'
+                    ? 'text-white font-extrabold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
                 title="เปลี่ยนภาษาเป็นไทย (Thai)"
@@ -166,7 +166,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                 role="radio"
               >
                 <span className="text-sm leading-none drop-shadow-sm">🇹🇭</span>
-                <span className="text-[10px] font-mono tracking-wider font-extrabold">TH</span>
+                <span className="text-[10px] font-mono tracking-wider">TH</span>
               </button>
 
               {/* English Flag Button */}
@@ -175,7 +175,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                 onClick={() => setLang('en')}
                 className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   lang === 'en'
-                    ? 'text-slate-950 font-black'
+                    ? 'text-white font-extrabold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
                 title="Switch to English"
@@ -183,7 +183,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
                 role="radio"
               >
                 <span className="text-sm leading-none drop-shadow-sm">🇬🇧</span>
-                <span className="text-[10px] font-mono tracking-wider font-extrabold">EN</span>
+                <span className="text-[10px] font-mono tracking-wider">EN</span>
               </button>
             </div>
 
@@ -264,8 +264,8 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
         )}
       </div>
 
-      {/* Cyberpunk Ambient Laser Highlight Line under Navbar */}
-      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-cyan-500/40 via-sky-400/40 to-transparent" />
+      {/* Subtle Ambient Depth Line under Navbar */}
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-700/50 via-sky-500/20 to-transparent" />
     </header>
   );
 };
