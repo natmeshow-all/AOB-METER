@@ -54,7 +54,15 @@ All coding assistants and agents working on this project MUST strictly follow th
      - Follow TDD (`test-driven-development`), plan execution (`executing-plans`), and evidence verification (`verification-before-completion`) before marking complete.
      - Never bypass or rationalize skipping this workflow.
 
-9. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
+9. **Automatic Contextual Skill Orchestration Pipeline (Zero-Manual-Order Discipline):**
+   - The user never needs to manually specify which skill to run first or last. The agent automatically detects the task context and executes skills in the following strict order:
+     1. **`grill-me` (Requirements & Architecture Stress-Testing):** Triggers automatically on new feature requests, architecture discussions, or plan proposals. Relentlessly walks the decision tree one question at a time (offering recommended options) and explores the codebase before asking questions.
+     2. **`systematic-debugging`:** Triggers automatically on bugs, mismatches, or unexpected errors to find root cause before fixing.
+     3. **`frontend-design` (Production UI & Domain Aesthetics):** Triggers automatically when building, structuring, or restyling frontend components, dashboards, and layouts to ensure domain grounding and eliminate generic AI-slop.
+     4. **`hyperframes` (Deterministic HTML-to-Video & Motion Graphics):** Triggers automatically when creating animations, video clips, animated explainers, kinetic typography, or frame-by-frame renders using seekable HTML/CSS/GSAP timelines.
+     5. **`impeccable` (Post-Task Aesthetic Craft & Novelty Audit):** Triggers automatically upon completion of any UI modification to inspect typography, contrast, 1-thumb touch targets, and visual elegance.
+
+10. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
    - Whenever completing UI/frontend implementation or modification, ALWAYS invoke skill `impeccable` to audit and polish visual craft, elegance, typography, subtle micro-interactions, and fresh modern aesthetics.
    - Balance high-end visual novelty with mobile-first 1-thumb ergonomics, clean hierarchy, and strict avoidance of clutter.
    - Adhere to `reference/craft-floor.md` standards: eliminate bland default styling, elevate contrast, refine spacing, and deliver an award-winning IoT dashboard feel.
