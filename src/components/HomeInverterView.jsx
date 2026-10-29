@@ -47,6 +47,7 @@ import {
   Table,
   CheckCircle2,
   AlertTriangle,
+  Radio,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -3194,9 +3195,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {/* MOBILE QUICK-JUMP DIAL SELECTOR PILLS */}
           <div className="sm:hidden bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1 shadow-lg grid grid-cols-3 gap-1 mb-2">
             {[
-              { index: 0, label: t('dialSolarPv'), val: `${totalPvPowerW.toLocaleString()} W` },
-              { index: 1, label: t('dialMasterHud'), val: `${todayGenKWh.toFixed(1)} kWh` },
-              { index: 2, label: t('dialBattery'), val: `${battSoc}%` }
+              { index: 0, icon: Sun, label: t('dialSolarPv'), val: `${totalPvPowerW.toLocaleString()} W` },
+              { index: 1, icon: Zap, label: t('dialMasterHud'), val: `${todayGenKWh.toFixed(1)} kWh` },
+              { index: 2, icon: Battery, label: t('dialBattery'), val: `${battSoc}%` }
             ].map((tab) => (
               <button
                 key={tab.index}
@@ -3204,11 +3205,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 onClick={() => scrollToDial(tab.index)}
                 className={`py-1.5 px-1 rounded-xl text-center transition-all cursor-pointer ${
                   mobileDialIndex === tab.index
-                    ? 'bg-sky-500/20 text-sky-200 border border-sky-400/40 shadow-sm'
+                    ? 'bg-slate-800 text-sky-200 border border-slate-700/80 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <div className="text-[11px] font-bold truncate">{tab.label}</div>
+                <div className="flex items-center justify-center gap-1 text-[11px] font-bold truncate">
+                  <tab.icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                  <span>{tab.label}</span>
+                </div>
                 <div className="text-[10px] font-mono text-slate-300 font-semibold mt-0.5 truncate">{tab.val}</div>
               </button>
             ))}
@@ -3462,13 +3466,19 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">{t('homeLoad')}</span>
+                <span className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 text-sky-400" strokeWidth={1.75} />
+                  <span>{t('homeLoad')}</span>
+                </span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {houseLoadW.toLocaleString()} W
                 </span>
               </div>
               <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">{t('gridVoltage')}</span>
+                <span className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5 text-indigo-400" strokeWidth={1.75} />
+                  <span>{t('gridVoltage')}</span>
+                </span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {solarData.gridAc1Voltage || 231.5} V
                 </span>

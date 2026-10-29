@@ -13,5 +13,6 @@ Key Invariants:
 6. **Automatic Contextual Skill Orchestration Pipeline:**
    - **Requirement Stress-Testing (`grill-me`):** When proposing new features, architectures, or non-trivial plans, automatically trigger `grill-me` to relentlessly interview decisions one-by-one with recommended answers before coding.
    - **Production UI Craft (`frontend-design`):** When authoring or styling frontend pages, dashboards, or components, automatically trigger `frontend-design` for domain-grounded typography, token systems, and anti-cliché layouts.
+   - **Elite Iconography & Geometry (`icon-craft`):** When adding, styling, or auditing icons, glyphs, badges, or telemetry indicators, automatically trigger `icon-craft` for optical size balance, stroke-weight harmony (1.5px), frosted badge containers, and vector precision.
    - **Deterministic Video & Motion (`hyperframes`):** When handling video generation, animations, kinetic typography, or motion graphics, automatically trigger `hyperframes` for seekable HTML/CSS/GSAP timeline compositions.
    - **Aesthetic Craft & Novelty Polish (`impeccable`):** Upon completion of any UI/frontend task, automatically trigger `impeccable` to audit and polish visual craft, elegance, novelty, and premium feel.

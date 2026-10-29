@@ -59,8 +59,9 @@ All coding assistants and agents working on this project MUST strictly follow th
      1. **`grill-me` (Requirements & Architecture Stress-Testing):** Triggers automatically on new feature requests, architecture discussions, or plan proposals. Relentlessly walks the decision tree one question at a time (offering recommended options) and explores the codebase before asking questions.
      2. **`systematic-debugging`:** Triggers automatically on bugs, mismatches, or unexpected errors to find root cause before fixing.
      3. **`frontend-design` (Production UI & Domain Aesthetics):** Triggers automatically when building, structuring, or restyling frontend components, dashboards, and layouts to ensure domain grounding and eliminate generic AI-slop.
-     4. **`hyperframes` (Deterministic HTML-to-Video & Motion Graphics):** Triggers automatically when creating animations, video clips, animated explainers, kinetic typography, or frame-by-frame renders using seekable HTML/CSS/GSAP timelines.
-     5. **`impeccable` (Post-Task Aesthetic Craft & Novelty Audit):** Triggers automatically upon completion of any UI modification to inspect typography, contrast, 1-thumb touch targets, and visual elegance.
+     4. **`icon-craft` (Elite Iconography & Visual Geometry):** Triggers automatically when adding, selecting, styling, or auditing icons, glyphs, badges, or telemetry symbols in components, enforcing optical bounding-box balance, stroke-weight harmony (1.5px-2px), duotone frosted badge containers, semantic icon-to-metric pairing, and crisp vector geometry.
+     5. **`hyperframes` (Deterministic HTML-to-Video & Motion Graphics):** Triggers automatically when creating animations, video clips, animated explainers, kinetic typography, or frame-by-frame renders using seekable HTML/CSS/GSAP timelines.
+     6. **`impeccable` (Post-Task Aesthetic Craft & Novelty Audit):** Triggers automatically upon completion of any UI modification to inspect typography, contrast, 1-thumb touch targets, and visual elegance.
 
 10. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
    - Whenever completing UI/frontend implementation or modification, ALWAYS invoke skill `impeccable` to audit and polish visual craft, elegance, typography, subtle micro-interactions, and fresh modern aesthetics.
