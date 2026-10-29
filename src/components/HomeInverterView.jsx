@@ -1802,20 +1802,20 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       {/* =================================================================== */}
       {/* MINIMALIST EXECUTIVE STATUS BAR (ACTIONS UNIFIED IN MOBILE BAR)    */}
       {/* =================================================================== */}
-      <div className="bg-[#070b14] border border-slate-800/90 rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 shadow-lg flex flex-wrap items-center justify-between gap-2.5">
+      <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 shadow-lg flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <h2 className="text-base sm:text-xl font-black tracking-tight text-white">
+            <h2 className="text-sm sm:text-lg font-bold tracking-tight text-white">
               {currentCompany.name}
             </h2>
-            <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900 text-sky-400 border border-slate-800">
+            <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900/80 text-sky-400 border border-slate-800">
               {solarData.inverterModel || 'H2-6K-LS2'}
             </span>
           </div>
           {solarData.lastCloudSyncAt && (
             <span className="text-[11px] text-slate-400 font-mono">
-              • ซิงก์ล่าสุด {solarData.lastCloudSyncAt.slice(-8)} ({autoSyncCountdown}s)
+              • {t('syncLastAt')} {solarData.lastCloudSyncAt.slice(-8)} ({autoSyncCountdown}s)
             </span>
           )}
         </div>
@@ -1827,10 +1827,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             onClick={handleSyncSajCloudAndHistory}
             disabled={isTesting}
             className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
-            title="ซิงก์ข้อมูลล่าสุดจาก SAJ Cloud"
+            title={t('syncDesc')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-            <span>{isTesting ? 'กำลังซิงก์...' : 'ซิงก์ข้อมูล'}</span>
+            <span>{isTesting ? t('syncingCloud') : t('syncAction')}</span>
           </button>
 
           <button
@@ -3320,13 +3320,16 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {centerHudMode === 'VECTOR' && (
             <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
               <div className="text-[11px] font-bold text-white flex items-center justify-between">
-                <span>เรดาร์ทิศทางการไหลของพลังงาน</span>
+                <span>{t('flowRadarTitle')}</span>
                 <span className="font-mono text-[10px] text-sky-400">LIVE VECTOR</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
-                  <div className="text-[10px] text-slate-300 font-medium">☀️ แผงโซลาร์ → อินเวอร์เตอร์</div>
-                  <div className="text-base font-mono font-black text-white mt-0.5">
+                  <div className="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                    <Sun className="w-3 h-3 text-amber-400" />
+                    <span>{t('pvArrayTitle')}</span>
+                  </div>
+                  <div className="text-base font-mono font-bold text-white mt-0.5">
                     {totalPvPowerW} W
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
@@ -3334,8 +3337,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   </div>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
-                  <div className="text-[10px] text-slate-300 font-medium">🔋 สถานะแบตเตอรี่</div>
-                  <div className="text-base font-mono font-black text-white mt-0.5">
+                  <div className="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                    <Battery className="w-3 h-3 text-emerald-400" />
+                    <span>{t('dialBattery')}</span>
+                  </div>
+                  <div className="text-base font-mono font-bold text-white mt-0.5">
                     {solarData.batteryPowerW || 0} W
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
@@ -3343,17 +3349,23 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   </div>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
-                  <div className="text-[10px] text-slate-300 font-medium">🏠 จ่ายเข้าโหลดในบ้าน</div>
-                  <div className="text-base font-mono font-black text-white mt-0.5">
+                  <div className="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                    <Home className="w-3 h-3 text-sky-400" />
+                    <span>{t('homeLoad')}</span>
+                  </div>
+                  <div className="text-base font-mono font-bold text-white mt-0.5">
                     {houseLoadW} W
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
-                    พึ่งพาตนเอง {selfSuffPct}%
+                    {t('selfSuffLabel')} {selfSuffPct}%
                   </div>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5">
-                  <div className="text-[10px] text-slate-300 font-medium">🗼 สายส่งการไฟฟ้า (Grid)</div>
-                  <div className="text-base font-mono font-black text-white mt-0.5">
+                  <div className="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                    <Radio className="w-3 h-3 text-indigo-400" />
+                    <span>{t('gridTransmission')}</span>
+                  </div>
+                  <div className="text-base font-mono font-bold text-white mt-0.5">
                     {solarData.gridAc1Voltage || 230} VAC
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
@@ -3369,7 +3381,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-emerald-300">
-                  🔋 วิเคราะห์พลังงานสำรองในแบตเตอรี่
+                  🔋 {t('estAutonomyTitle')}
                 </span>
                 <span className="font-mono text-xs font-black text-emerald-400">
                   SOC {battSoc}%
@@ -3377,13 +3389,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               </div>
               <div className="bg-slate-900/60 border border-emerald-500/20 rounded-xl p-3 text-center">
                 <div className="text-[10px] text-slate-400">
-                  ระยะเวลาจ่ายไฟสำรองได้ต่อเนื่อง (เมื่อไฟดับ/กลางคืน)
+                  {t('estAutonomyDesc')}
                 </div>
-                <div className="text-2xl font-mono font-black text-emerald-400 mt-0.5">
-                  ≈ {estAutonomyHours} ชั่วโมง
+                <div className="text-2xl font-mono font-bold text-emerald-400 mt-0.5">
+                  ≈ {estAutonomyHours} {t('hoursShort')}
                 </div>
                 <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                  พลังงานที่ใช้ได้จริง: {usableBatKWh} kWh (จากความจุ {battCapKWh} kWh)
+                  {t('usableRealPower')} {usableBatKWh} kWh ({t('fromCapacity')} {battCapKWh} kWh)
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-1.5 text-center text-[11px] font-mono">
@@ -3408,9 +3420,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="my-2 bg-slate-950/40 border border-slate-800/50 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-bold text-amber-300 flex items-center gap-1">
-                  <Leaf className="w-3.5 h-3.5 text-emerald-400" /> คำนวณผลตอบแทน & ลดคาร์บอน
+                  <Leaf className="w-3.5 h-3.5 text-emerald-400" /> {t('energyRoiTitle')}
                 </span>
-                <span className="font-mono text-sky-300">เรต ฿{simTariffBaht.toFixed(2)}/หน่วย</span>
+                <span className="font-mono text-sky-300">฿{simTariffBaht.toFixed(2)}/kWh</span>
               </div>
               <div>
                 <input
@@ -3423,21 +3435,21 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   className="w-full accent-sky-400 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                  <span>เรตบ้าน ฿3.50</span>
-                  <span>เลื่อนปรับเรตค่าไฟ</span>
-                  <span>เรตธุรกิจ ฿6.50</span>
+                  <span>฿3.50</span>
+                  <span>{lang === 'th' ? 'เลื่อนปรับเรตค่าไฟ' : 'Drag to adjust tariff'}</span>
+                  <span>฿6.50</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2">
-                  <div className="text-[9px] text-slate-400">ประหยัดต่อเดือน (คาดการณ์)</div>
-                  <div className="text-sm font-mono font-black text-emerald-400 mt-0.5">
+                  <div className="text-[9px] text-slate-400">{t('estMonthlySaving')}</div>
+                  <div className="text-sm font-mono font-bold text-emerald-400 mt-0.5">
                     ฿{Math.round(todayGenKWh * 30 * simTariffBaht).toLocaleString()}
                   </div>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2">
-                  <div className="text-[9px] text-slate-400">ลดก๊าซ CO₂ สะสม</div>
-                  <div className="text-sm font-mono font-black text-sky-300 mt-0.5">
+                  <div className="text-[9px] text-slate-400">{t('co2Reduced')}</div>
+                  <div className="text-sm font-mono font-bold text-sky-300 mt-0.5">
                     {co2ReducedKg} kg ({treesEquivalent} {t('treesUnit')})
                   </div>
                 </div>
@@ -4332,26 +4344,26 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-[24px] p-4 sm:p-5 space-y-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-black text-white flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Calendar className="w-4 h-4 text-sky-400" />
               <span>
-                📈 กราฟ Telemetry 24 ชั่วโมง & เลือกดูย้อนหลัง:{' '}
+                📈 {t('telemetry24hTitle')}{' '}
                 <strong className="text-sky-300 font-mono">
-                  {activeHistoryDay ? activeHistoryDay.date : 'วันนี้ (Realtime)'}
+                  {activeHistoryDay ? activeHistoryDay.date : t('realtimeToday')}
                 </strong>
               </span>
             </h3>
             {activeHistoryDay && (
               <p className="text-xs text-slate-400 mt-0.5">
-                ผลิตโซลาร์วันนั้น:{' '}
+                {t('solarGenThatDay')}{' '}
                 <strong className="text-emerald-300 font-mono">
                   {activeHistoryDay.pvGenerationKWh} kWh
                 </strong>{' '}
-                • ใช้ไฟในบ้าน:{' '}
+                • {t('houseLoadThatDay')}{' '}
                 <strong className="text-sky-300 font-mono">
                   {activeHistoryDay.loadElectricityKWh} kWh
                 </strong>{' '}
-                • ประหยัดเงิน:{' '}
+                • {t('savedThatDay')}{' '}
                 <strong className="text-amber-300 font-mono">
                   ฿{activeHistoryDay.savedBaht}
                 </strong>
@@ -4359,18 +4371,21 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             {historicalLogs.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-300">📅 เลือกวันที่ ({historicalLogs.length} วันจริง):</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-xs font-semibold text-slate-300 whitespace-nowrap flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>{t('selectDateLabel', { days: historicalLogs.length })}</span>
+                </span>
                 <select
                   value={activeHistoryDay?.date || ''}
                   onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                  className="bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold outline-none"
+                  className="w-full sm:w-auto bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-sky-300 font-mono font-bold outline-none"
                 >
                   {[...historicalLogs].reverse().map((log) => (
                     <option key={log.date} value={log.date}>
-                      {log.date} — ผลิต {log.pvGenerationKWh} kWh (ประหยัด ฿{log.savedBaht})
+                      {log.date} — {t('solarGenShort')} {log.pvGenerationKWh} kWh ({t('savedShort')} ฿{log.savedBaht})
                     </option>
                   ))}
                 </select>
@@ -4381,11 +4396,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               type="button"
               onClick={handleSyncSajCloudAndHistory}
               disabled={isTesting}
-              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 border border-slate-700/60 text-xs font-bold cursor-pointer transition-colors"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 border border-slate-700/60 text-xs font-bold cursor-pointer transition-colors whitespace-nowrap"
             >
               {historicalLogs.length <= 1
-                ? '📥 ดึงประวัติย้อนหลังจาก SAJ Cloud เพิ่มเติม'
-                : '🔄 อัปเดตประวัติล่าสุด'}
+                ? t('fetchMoreHistoryBtn')
+                : t('updateHistoryBtn')}
             </button>
           </div>
         </div>
@@ -4397,20 +4412,20 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/60">
             <span className="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />
-              <span>🎚️ ตรวจสอบค่าไฟฟ้าและสถานะระบบรายชั่วโมง:</span>
+              <span>🎚️ {t('hourlyInspectorTitle')}</span>
               <span className="font-mono text-amber-300 text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/25">
-                {scrubbedPoint.hour} น.
+                {scrubbedPoint.hour} {lang === 'th' ? 'น.' : ''}
               </span>
               {isViewingToday && effectiveScrubHour === currentThaiHour && (
                 <span className="text-[10px] font-sans font-bold text-sky-400 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.5 rounded-md">
-                  ⏱️ ปัจจุบัน
+                  ⏱️ {t('currentLiveBadge')}
                 </span>
               )}
             </span>
 
             {/* Quick-Jump Hour Presets (Bounded strictly to elapsed hours) */}
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] font-mono">
-              <span className="text-[10px] text-slate-500 font-sans pr-1">ลัดไป:</span>
+              <span className="text-[10px] text-slate-500 font-sans pr-1 whitespace-nowrap">{t('jumpTo')}</span>
               {[
                 { h: 0, label: '00:00' },
                 { h: 6, label: '06:00' },
@@ -4445,7 +4460,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                       : 'bg-slate-900/60 text-sky-400 hover:text-white border border-slate-800/60'
                   }`}
                 >
-                  {String(maxScrubHour).padStart(2, '0')}:00 (ปัจจุบัน)
+                  {String(maxScrubHour).padStart(2, '0')}:00 ({t('currentLiveBadge')})
                 </button>
               )}
             </div>
@@ -4462,11 +4477,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-amber-300/90 font-bold flex items-center gap-1">
                   <Sun className="w-3.5 h-3.5 text-amber-400" />
-                  <span>กำลังผลิตโซลาร์ PV</span>
+                  <span>{t('pvPowerCard')}</span>
                 </span>
                 {(scrubbedPoint.isPv1Overcurrent || scrubbedPoint.isPv2Overcurrent) && (
                   <span className="text-[9px] font-bold text-rose-300 bg-rose-500/20 px-1 rounded animate-pulse">
-                    ⚠️ กระแสเกิน
+                    ⚠️ {t('pvOvercurrent')}
                   </span>
                 )}
               </div>
@@ -4494,7 +4509,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-slate-900/50 border border-slate-800/60 hover:border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between transition-colors">
               <span className="text-[11px] text-sky-300/90 font-bold flex items-center gap-1">
                 <Home className="w-3.5 h-3.5 text-sky-400" />
-                <span>โหลดใช้ไฟในบ้าน</span>
+                <span>{t('loadPowerCard')}</span>
               </span>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-bold text-sky-200">
@@ -4505,7 +4520,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                กระแสไฟ: <span className="text-sky-300 font-bold">{scrubbedPoint.loadCurrentA != null ? `${scrubbedPoint.loadCurrentA} A` : '—'}</span> (@230V)
+                {t('loadCurrentLabel')} <span className="text-sky-300 font-bold">{scrubbedPoint.loadCurrentA != null ? `${scrubbedPoint.loadCurrentA} A` : '—'}</span> (@230V)
               </div>
             </div>
 
@@ -4514,7 +4529,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-emerald-300/90 font-bold flex items-center gap-1">
                   <Battery className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>แบตเตอรี่ (SOC)</span>
+                  <span>{t('batterySocCard')}</span>
                 </span>
                 <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
                   scrubbedPoint.batterySOC == null
@@ -4525,7 +4540,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     ? 'bg-sky-500/15 text-sky-300 border border-sky-500/20'
                     : 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
                 }`}>
-                  {scrubbedPoint.batterySOC == null ? '—' : scrubbedPoint.batterySOC >= 80 ? 'ประจุเต็ม' : scrubbedPoint.batterySOC >= 40 ? 'พร้อมใช้' : 'คายประจุ'}
+                  {scrubbedPoint.batterySOC == null ? '—' : scrubbedPoint.batterySOC >= 80 ? t('battStatusFull') : scrubbedPoint.batterySOC >= 40 ? t('battStatusReady') : t('battStatusDischarging')}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
@@ -4540,7 +4555,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </div>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                ความจุ: <span className="text-emerald-300 font-bold">{scrubbedPoint.batterySOC != null ? `${((scrubbedPoint.batterySOC / 100) * 10.24).toFixed(2)} kWh` : '—'}</span>
+                {t('capacityLabel')} <span className="text-emerald-300 font-bold">{scrubbedPoint.batterySOC != null ? `${((scrubbedPoint.batterySOC / 100) * 10.24).toFixed(2)} kWh` : '—'}</span>
               </div>
             </div>
 
@@ -4549,7 +4564,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-rose-300/90 font-bold flex items-center gap-1">
                   <Thermometer className="w-3.5 h-3.5 text-rose-400" />
-                  <span>ความร้อน Inverter</span>
+                  <span>{t('inverterTempCard')}</span>
                 </span>
                 <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
                   scrubbedPoint.tempC == null
@@ -4560,7 +4575,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     ? 'bg-amber-500/15 text-amber-300'
                     : 'bg-rose-500/15 text-rose-300'
                 }`}>
-                  {scrubbedPoint.tempC == null ? '—' : scrubbedPoint.tempC < 42 ? '🟢 เย็นปกติ' : scrubbedPoint.tempC <= 55 ? '🟡 ทำงานปกติ' : '🔴 ร้อนสูง'}
+                  {scrubbedPoint.tempC == null ? '—' : scrubbedPoint.tempC < 42 ? t('tempCoolNormal') : scrubbedPoint.tempC <= 55 ? t('tempNormal') : t('tempHigh')}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
@@ -4568,11 +4583,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   {scrubbedPoint.tempC != null ? `${scrubbedPoint.tempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
-                  ปลอดภัย &lt; 55°C
+                  {t('safeUnder55')}
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                ฮีตซิงก์: <span className="text-slate-300 font-bold">{scrubbedPoint.tempC != null ? 'ทำงานปกติ' : '—'}</span>
+                {t('heatsinkStatus')} <span className="text-slate-300 font-bold">{scrubbedPoint.tempC != null ? t('heatsinkNormal') : '—'}</span>
               </div>
             </div>
 
@@ -4581,10 +4596,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-teal-300/90 font-bold flex items-center gap-1">
                   <BatteryCharging className="w-3.5 h-3.5 text-teal-400" />
-                  <span>ความร้อน แบตเตอรี่</span>
+                  <span>{t('batteryTempCard')}</span>
                 </span>
                 <span className="text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold bg-emerald-500/15 text-emerald-300">
-                  {scrubbedPoint.batteryTempC != null ? '🟢 ปลอดภัย' : '—'}
+                  {scrubbedPoint.batteryTempC != null ? t('tempSafe') : '—'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
@@ -4592,11 +4607,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   {scrubbedPoint.batteryTempC != null ? `${scrubbedPoint.batteryTempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
-                  ปลอดภัย &lt; 45°C
+                  {t('safeUnder45')}
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                BMS เซลล์: <span className="text-emerald-300 font-bold">{scrubbedPoint.batteryTempC != null ? 'สมบูรณ์' : '—'}</span>
+                {t('bmsCellStatus')} <span className="text-emerald-300 font-bold">{scrubbedPoint.batteryTempC != null ? t('bmsHealthy') : '—'}</span>
               </div>
             </div>
           </div>
@@ -4658,7 +4673,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             }`}
           >
             <Table className="w-3.5 h-3.5 text-purple-300" />
-            <span>{isHourlyTableOpen ? 'ซ่อนตารางค่ารายชั่วโมง' : '📋 ดูตารางค่า 24 ชั่วโมง'}</span>
+            <span>{isHourlyTableOpen ? t('hideHourlyTable') : t('showHourlyTable')}</span>
           </button>
         </div>
 
@@ -4696,21 +4711,21 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                         <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
                           <span className="font-bold flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5 text-sky-400" />
-                            <span>เวลา {label} น.</span>
+                            <span>{t('chartTimeAt', { time: label })}</span>
                           </span>
                           {isFuture ? (
                             <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
-                              ⏳ ยังไม่ถึงเวลา
+                              ⏳ {t('chartNotYet')}
                             </span>
                           ) : isViewingToday && label === `${String(currentThaiHour).padStart(2, '0')}:00` ? (
                             <span className="text-[10px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/30">
-                              ⏱️ ปัจจุบัน
+                              ⏱️ {t('currentLiveBadge')}
                             </span>
                           ) : null}
                         </div>
                         {isFuture ? (
                           <div className="text-[11px] text-slate-400 font-sans py-0.5">
-                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                            {t('chartNoDataYet')}
                           </div>
                         ) : (
                           <div className="space-y-1">
@@ -4719,7 +4734,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                               .map((item, idx) => {
                                 let formattedVal = `${Number(item.value).toLocaleString()} W`;
                                 if (item.name.includes('SOC')) formattedVal = `${item.value}%`;
-                                else if (item.name.includes('°C') || item.name.includes('ความร้อน')) formattedVal = `${item.value}°C`;
+                                else if (item.name.includes('°C') || item.name.includes('ความร้อน') || item.name.includes('Temp')) formattedVal = `${item.value}°C`;
                                 return (
                                   <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
                                     <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
@@ -4743,14 +4758,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     x={`${String(currentThaiHour).padStart(2, '0')}:00`}
                     stroke="#38bdf8"
                     strokeDasharray="3 3"
-                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                    label={{ value: t('currentLiveBadge'), fill: '#38bdf8', fontSize: 10, position: 'top' }}
                   />
                 )}
                 <Area
                   yAxisId="power"
                   type="monotone"
                   dataKey="pvW"
-                  name="กำลังผลิตโซลาร์ PV (W)"
+                  name={t('chartLegendPv')}
                   stroke={theme.pvSecondary}
                   fill={theme.pvPrimary}
                   fillOpacity={0.12}
@@ -4761,7 +4776,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   yAxisId="power"
                   type="monotone"
                   dataKey="loadW"
-                  name="โหลดใช้ไฟในบ้าน (W)"
+                  name={t('chartLegendLoad')}
                   stroke="#818cf8"
                   fill="#818cf8"
                   fillOpacity={0.12}
@@ -4772,7 +4787,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   yAxisId="ratio"
                   type="monotone"
                   dataKey="batterySOC"
-                  name="แบตเตอรี่ SOC (%)"
+                  name={t('chartLegendSoc')}
                   stroke="#10b981"
                   strokeWidth={2}
                   dot={{ r: 2, fill: '#10b981' }}
@@ -4782,7 +4797,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   yAxisId="ratio"
                   type="monotone"
                   dataKey="tempC"
-                  name="ความร้อน Inverter (°C)"
+                  name={t('chartLegendInvTemp')}
                   stroke="#f87171"
                   strokeWidth={1.5}
                   strokeDasharray="4 4"
@@ -4793,7 +4808,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   yAxisId="ratio"
                   type="monotone"
                   dataKey="batteryTempC"
-                  name="ความร้อน แบตเตอรี่ (°C)"
+                  name={t('chartLegendBatTemp')}
                   stroke="#fbbf24"
                   strokeWidth={1.5}
                   strokeDasharray="3 3"
@@ -5328,23 +5343,39 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
                 <Coins className="w-4 h-4 text-cyan-400" />
-                <span>ประหยัดค่าไฟสุทธิ ({statPeriod === 'Custom' ? 'ช่วงที่เลือก' : statPeriod === 'Day' ? 'วันนี้' : statPeriod === 'Week' ? '7 วัน' : statPeriod === 'Month' ? '30 วัน' : statPeriod === 'Year' ? 'รายปี' : 'สะสมทั้งหมด'})</span>
+                <span>
+                  {t('netSavingsTitle')} (
+                  {statPeriod === 'Custom'
+                    ? t('periodSelectedRange')
+                    : statPeriod === 'Day'
+                    ? t('periodToday')
+                    : statPeriod === 'Week'
+                    ? t('period7Days')
+                    : statPeriod === 'Month'
+                    ? t('period30Days')
+                    : statPeriod === 'Year'
+                    ? t('periodYearly')
+                    : t('periodAllTime')}
+                  )
+                </span>
               </span>
               <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-full">
-                สุทธิ
+                {t('netBadge')}
               </span>
             </div>
             <div className="my-2.5">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono text-white tracking-tight">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-bold font-mono text-white tracking-tight">
                 {formatBaht(periodStats.savedBaht)}
               </div>
               <p className="text-[11px] text-slate-400 mt-1 font-sans">
-                ลดค่าไฟจากการใช้โซลาร์เอง + รายได้ขายไฟคืน กฟภ. (@2.20฿/หน่วย)
+                {t('savingsDesc')}
               </p>
             </div>
             <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/80 flex items-center justify-between font-mono">
-              <span>รวม {periodStats.daysCount} วันจริง</span>
-              <span className="text-cyan-400">เฉลี่ย ฿{(periodStats.savedBaht / Math.max(1, periodStats.daysCount)).toFixed(2)}/วัน</span>
+              <span>{t('realDaysTotal', { days: periodStats.daysCount })}</span>
+              <span className="text-cyan-400">
+                {t('avgPerDay', { avg: (periodStats.savedBaht / Math.max(1, periodStats.daysCount)).toFixed(2) })}
+              </span>
             </div>
           </div>
 
@@ -5359,23 +5390,29 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-cyan-400" />
-                <span>จ่ายการไฟฟ้า กฟภ. ({statPeriod === 'Month' ? 'รอบบิลนี้' : `รวม ${periodStats.daysCount} วัน`})</span>
+                <span>
+                  {t('peaBillCardTitle')} (
+                  {statPeriod === 'Month'
+                    ? t('periodThisBillingCycle')
+                    : t('realDaysTotal', { days: periodStats.daysCount })}
+                  )
+                </span>
               </span>
               <span className="text-[10px] font-sans font-bold text-slate-300 bg-slate-800/90 group-hover:text-cyan-300 group-hover:border-cyan-500/40 border border-slate-700/80 px-2 py-0.5 rounded-full transition-colors">
-                บิล กฟภ. ฉบับจริง ↗
+                {t('peaBillOfficialBtn')}
               </span>
             </div>
             <div className="my-2.5">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono text-white tracking-tight">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-bold font-mono text-white tracking-tight">
                 {formatBaht(periodStats.gridBill || 0)}
               </div>
               <p className="text-[11px] text-slate-400 mt-1 font-sans">
-                คำนวณตามบิล กฟภ. ทางการ (ฐานขั้นบันได + Ft + บริการ + VAT 7%)
+                {t('peaBillDesc')}
               </p>
             </div>
             <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/80 flex items-center justify-between font-mono">
-              <span>ตัดยอดทุกวันที่ {billingCutoffDay}</span>
-              <span className="text-cyan-400 group-hover:underline">แตะเพื่อเปิดดูใบแจ้งหนี้ ↗</span>
+              <span>{t('billingCutoffPrefix')} {billingCutoffDay}</span>
+              <span className="text-cyan-400 group-hover:underline">{t('tapToViewInvoice')}</span>
             </div>
           </div>
         </div>
@@ -5385,32 +5422,32 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {/* Header with Period Filters */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
             <div>
-              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Activity className="w-4 h-4 text-cyan-400" />
-                <span>สถิติพลังงานไฟฟ้า (kWh)</span>
+                <span>{t('energyStatsTitle')}</span>
                 <span className="text-xs text-slate-400 font-normal font-sans">
                   ({statPeriod === 'Custom'
                     ? `${formatSlashDate(customStartDate)} – ${formatSlashDate(customEndDate)}`
                     : statPeriod === 'Day'
-                    ? 'วันนี้'
+                    ? t('periodToday')
                     : statPeriod === 'Week'
-                    ? '7 วันย้อนหลัง'
+                    ? t('period7Days')
                     : statPeriod === 'Month'
-                    ? '30 วันย้อนหลัง'
+                    ? t('period30Days')
                     : statPeriod === 'Year'
-                    ? 'สถิติรายปี'
-                    : 'สะสมทั้งหมด'} • {periodStats.daysCount} วันจริง)
+                    ? t('periodYearly')
+                    : t('periodAllTime')} • {t('realDaysTotal', { days: periodStats.daysCount })})
                 </span>
               </h3>
             </div>
             <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#060910] p-1 rounded-xl border border-slate-800/80">
               {[
-                { id: 'Day', label: 'วัน' },
-                { id: 'Week', label: 'สัปดาห์' },
-                { id: 'Month', label: 'เดือน' },
-                { id: 'Year', label: 'ปี' },
-                { id: 'Total', label: 'รวม' },
-                { id: 'Custom', label: 'ช่วงวันที่' }
+                { id: 'Day', label: t('periodDay') },
+                { id: 'Week', label: t('periodWeek') },
+                { id: 'Month', label: t('periodMonth') },
+                { id: 'Year', label: t('periodYear') },
+                { id: 'Total', label: t('periodTotal') },
+                { id: 'Custom', label: t('periodCustom') }
               ].map((p) => (
                 <button
                   key={p.id}
@@ -5432,7 +5469,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#070a10] border border-slate-800/80 rounded-2xl p-3.5 space-y-2 text-xs">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5">
                 <div className="flex-1">
-                  <label className="block text-slate-400 font-bold mb-1">วันที่เริ่มต้น</label>
+                  <label className="block text-slate-400 font-bold mb-1">{t('startDateLabel')}</label>
                   <input
                     type="date"
                     value={customStartDate}
@@ -5441,9 +5478,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     className="w-full bg-[#0d111a] border border-slate-700/80 rounded-xl px-3 py-2 text-white font-mono [color-scheme:dark]"
                   />
                 </div>
-                <span className="text-slate-500 text-center self-center py-0.5 sm:pb-2">ถึง</span>
+                <span className="text-slate-500 text-center self-center py-0.5 sm:pb-2">{t('dateTo')}</span>
                 <div className="flex-1">
-                  <label className="block text-slate-400 font-bold mb-1">วันที่สิ้นสุด</label>
+                  <label className="block text-slate-400 font-bold mb-1">{t('endDateLabel')}</label>
                   <input
                     type="date"
                     value={customEndDate}
@@ -5455,9 +5492,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </div>
               </div>
               <div className="text-[11px] text-slate-400 pt-1">
-                พบข้อมูลจริง <strong className="text-cyan-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
+                {t('foundRealData')} <strong className="text-cyan-300 font-mono">{filteredHistoryLogs.length}</strong> {t('daysInRange')}
                 {historicalLogs.length > 0 && (
-                  <span> (มีข้อมูลตั้งแต่ {formatSlashDate(historicalLogs[0].date)})</span>
+                  <span> ({t('dataAvailableSince')} {formatSlashDate(historicalLogs[0].date)})</span>
                 )}
               </div>
             </div>
@@ -5469,14 +5506,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <Sun className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">ผลิตโซลาร์</span>
+                <span className="truncate">{t('solarGenStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.pvGen.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                เฉลี่ย {(periodStats.pvGen / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+                {t('avgKWhPerDay', { avg: (periodStats.pvGen / Math.max(1, periodStats.daysCount)).toFixed(1) })}
               </div>
             </div>
 
@@ -5484,14 +5521,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <Home className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">โหลดใช้ไฟบ้าน</span>
+                <span className="truncate">{t('houseLoadStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.load.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                เฉลี่ย {(periodStats.load / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+                {t('avgKWhPerDay', { avg: (periodStats.load / Math.max(1, periodStats.daysCount)).toFixed(1) })}
               </div>
             </div>
 
@@ -5499,14 +5536,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <TrendingDown className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">ดึงไฟหลวง</span>
+                <span className="truncate">{t('gridImportStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.imp.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                เฉลี่ย {(periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+                {t('avgKWhPerDay', { avg: (periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1) })}
               </div>
             </div>
 
@@ -5514,14 +5551,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">ส่งออก (ขายไฟ)</span>
+                <span className="truncate">{t('gridExportStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.exp.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                ขายคืน กฟภ. @2.20฿
+                {t('peaFeedInRate')}
               </div>
             </div>
 
@@ -5529,14 +5566,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <BatteryCharging className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">ชาร์จลงแบต</span>
+                <span className="truncate">{t('battChargeStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.chg.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                เก็บไฟสำรองแดด
+                {t('solarBackupStorage')}
               </div>
             </div>
 
@@ -5544,14 +5581,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
                 <Battery className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">จ่ายไฟจากแบต</span>
+                <span className="truncate">{t('battDischargeStat')}</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.dis.toLocaleString()}{' '}
                 <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
               <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
-                จ่ายโหลดค่ำ/คืน
+                {t('powerHouseNight')}
               </div>
             </div>
           </div>
@@ -5565,7 +5602,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <FileText className="w-4 h-4 text-cyan-400" />
-                  <span>ประวัติรอบบิล กฟภ. (7 เดือนล่าสุด)</span>
+                  <span>{t('billingHistoryTitle')}</span>
                 </h3>
                 <button
                   type="button"
@@ -5576,21 +5613,21 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   className="px-3 py-1.5 rounded-xl bg-[#141b27] hover:bg-[#1a2333] border border-cyan-500/40 text-cyan-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
                 >
                   <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ดูใบแจ้งหนี้ฉบับจริง</span>
+                  <span>{t('viewOfficialInvoiceBtn')}</span>
                 </button>
               </div>
               <p className="text-[11px] text-slate-400">
-                ตัดยอดทุกวันที่ <span className="text-white font-bold font-mono">{billingCutoffDay}</span> ของเดือน (คลิกแถวเพื่อเปิดดูบิล)
+                {t('billingCutoffPrefix')} <span className="text-white font-bold font-mono">{billingCutoffDay}</span> {t('billingCutoffDayOfMo')}
               </p>
             </div>
 
             {/* Monthly Billing Breakdown Table */}
             <div className="bg-[#060910] border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 space-y-2 flex-1 flex flex-col justify-between">
               <div className="grid grid-cols-4 text-[10px] sm:text-xs font-semibold text-slate-400 pb-2 border-b border-slate-800 text-right">
-                <span className="text-left text-slate-300">รอบบิล</span>
-                <span>ดึงไฟ (kWh)</span>
-                <span>จ่ายการไฟฟ้า</span>
-                <span className="text-cyan-300">ประหยัดได้</span>
+                <span className="text-left text-slate-300">{t('colBillingCycle')}</span>
+                <span>{t('colGridImport')}</span>
+                <span>{t('colPeaBill')}</span>
+                <span className="text-cyan-300">{t('colSavings')}</span>
               </div>
               <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 flex-1">
                 {Array.isArray(billingCycles) && billingCycles.length > 0 ? (
@@ -5602,12 +5639,12 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                         setIsPeaModalOpen(true);
                       }}
                       className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2.5 rounded-xl bg-[#101522] border border-slate-800/70 hover:border-cyan-500/50 hover:bg-[#161c2b] text-right cursor-pointer transition-colors"
-                      title={`คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}`}
+                      title={lang === 'th' ? `คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}` : `Click to view PEA bill for ${c.periodLabel}`}
                     >
                       <div className="font-sans font-medium text-slate-200 text-left truncate flex flex-col">
                         <span className="flex items-center gap-1.5 text-slate-200 text-[11px]">
                           <span className="text-cyan-400 text-[10px]">📄</span>
-                          {c.monthLabel.split(' ')[0]} {c.year + 543}
+                          {c.monthLabel.split(' ')[0]} {lang === 'th' ? c.year + 543 : c.year}
                         </span>
                         <span className="text-[9px] text-slate-500 font-mono pl-3.5">{c.periodLabel}</span>
                       </div>
@@ -5617,13 +5654,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center text-xs text-slate-500 py-4">ไม่มีข้อมูลรอบบิล</div>
+                  <div className="text-center text-xs text-slate-500 py-4">{t('noBillingData')}</div>
                 )}
               </div>
 
               <div className="pt-2 border-t border-slate-800/80">
                 <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold font-mono text-right">
-                  <span className="text-slate-400 font-sans text-left">รวม 7 รอบ:</span>
+                  <span className="text-slate-400 font-sans text-left">{t('totalCycles', { count: 7 })}</span>
                   <span className="text-slate-200">
                     {billingCycles.reduce((acc, c) => acc + c.imp, 0).toFixed(2)}
                   </span>
@@ -5646,10 +5683,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             <div className="space-y-1">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-cyan-400" />
-                <span>ดัชนีประสิทธิภาพ & การพึ่งพาพลังงานสะอาด</span>
+                <span>{t('energyIndexTitle')}</span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                วิเคราะห์ประสิทธิภาพการใช้พลังงานแสงอาทิตย์และการพึ่งพาตนเอง
+                {t('energyIndexDesc')}
               </p>
             </div>
 
@@ -5659,9 +5696,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <Sun className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>อัตราใช้ไฟโซลาร์ในบ้าน (Self-Consumption)</span>
+                    <span>{t('selfConsumptionRate')}</span>
                   </span>
-                  <span className="text-base font-black font-mono text-cyan-300">
+                  <span className="text-base font-bold font-mono text-cyan-300">
                     {selfConsPct}%
                   </span>
                 </div>
@@ -5670,8 +5707,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   <div className="h-full bg-slate-600 transition-all duration-500" style={{ width: `${expPct}%` }} />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                  <span>ใช้ในบ้าน: <strong className="text-white font-mono">{selfConsKWh} kWh</strong> ({selfConsPct}%)</span>
-                  <span>ส่งออกขายไฟ: <strong className="text-slate-300 font-mono">{periodStats.exp} kWh</strong> ({expPct}%)</span>
+                  <span>{t('usedInHome')} <strong className="text-white font-mono">{selfConsKWh} kWh</strong> ({selfConsPct}%)</span>
+                  <span>{t('exportToGrid')} <strong className="text-slate-300 font-mono">{periodStats.exp} kWh</strong> ({expPct}%)</span>
                 </div>
               </div>
 
@@ -5680,9 +5717,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <Battery className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>ดัชนีพึ่งพาตนเอง (Self-Sufficiency)</span>
+                    <span>{t('selfSufficiencyRate')}</span>
                   </span>
-                  <span className="text-base font-black font-mono text-cyan-300">
+                  <span className="text-base font-bold font-mono text-cyan-300">
                     {selfSuffPct}%
                   </span>
                 </div>
@@ -5691,8 +5728,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   <div className="h-full bg-slate-600 transition-all duration-500" style={{ width: `${impPct}%` }} />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                  <span>โซลาร์ + แบต: <strong className="text-white font-mono">{selfSuffKWh} kWh</strong> ({selfSuffPct}%)</span>
-                  <span>ดึงไฟหลวง: <strong className="text-slate-300 font-mono">{periodStats.imp} kWh</strong> ({impPct}%)</span>
+                  <span>{t('solarPlusBattery')} <strong className="text-white font-mono">{selfSuffKWh} kWh</strong> ({selfSuffPct}%)</span>
+                  <span>{t('fromGrid')} <strong className="text-slate-300 font-mono">{periodStats.imp} kWh</strong> ({impPct}%)</span>
                 </div>
               </div>
 
@@ -5700,10 +5737,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="bg-[#101522] border border-cyan-500/20 rounded-2xl p-3 flex items-center justify-between text-xs">
                 <span className="text-slate-300 flex items-center gap-1.5">
                   <Coins className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>ประหยัดค่าไฟรวมตลอดการติดตั้ง:</span>
+                  <span>{t('totalLifetimeSavings')}</span>
                 </span>
-                <span className="text-sm font-black font-mono text-cyan-300">
-                  {formatBaht(periodStats.savedBaht)}
+                <span className="text-sm font-bold font-mono text-cyan-300">
+                  {formatBaht(historicalLogs.reduce((acc, log) => acc + (log.savedBaht || 0), 0) + (periodStats.savedBaht || 0))}
                 </span>
               </div>
             </div>
@@ -5717,14 +5754,16 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       {historicalLogs.length > 0 && (
         <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
               <History className="w-4 h-4 text-sky-400" />
               <span>
-                📊 กราฟรายวันตามช่วงที่เลือก ({(statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length} วัน)
+                {t('dailyTimelineTitle', {
+                  count: (statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length
+                })}
               </span>
             </h3>
             <span className="text-xs text-slate-400">
-              ข้อมูลจริงจากเซิร์ฟเวอร์ SAJ ทั้งหมด {historicalLogs.length} วัน
+              {t('sajServerVerifiedDays', { total: historicalLogs.length })}
             </span>
           </div>
 
@@ -5745,19 +5784,19 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <Legend />
                 <Bar
                   dataKey="pvGenerationKWh"
-                  name="ผลิตโซลาร์จริง (kWh/วัน)"
+                  name={t('barPvGen')}
                   fill={theme.pvSecondary}
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="loadElectricityKWh"
-                  name="ใช้ไฟในบ้าน (kWh/วัน)"
+                  name={t('barHouseLoad')}
                   fill="#6366f1"
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="importKWh"
-                  name="ดึงไฟการไฟฟ้า (kWh/วัน)"
+                  name={t('barGridImport')}
                   fill="#f59e0b"
                   radius={[6, 6, 0, 0]}
                 />
