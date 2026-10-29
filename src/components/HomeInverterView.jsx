@@ -5203,15 +5203,76 @@ export const HomeInverterView = () => {
       {(dashboardSection === 'billing' || dashboardSection === 'all') && (
         <>
           {/* =================================================================== */}
-      {/* ELECTRICITY STATISTICS (DAY / WEEK / MONTH / YEAR / TOTAL)          */}
+      {/* BALANCED ELECTRICITY STATISTICS & FINANCIAL REPORTING               */}
       {/* =================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-7 bg-[#0d111a] border border-slate-800/80 rounded-[28px] p-4 sm:p-5 space-y-4 shadow-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-4">
+        {/* 1. HERO FINANCIAL HIGHLIGHTS (2 BALANCED 50/50 CARDS) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Card 1: Total Savings */}
+          <div className="bg-[#0b101a] border border-cyan-500/30 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                <Coins className="w-4 h-4 text-cyan-400" />
+                <span>ประหยัดค่าไฟสุทธิ ({statPeriod === 'Custom' ? 'ช่วงที่เลือก' : statPeriod === 'Day' ? 'วันนี้' : statPeriod === 'Week' ? '7 วัน' : statPeriod === 'Month' ? '30 วัน' : statPeriod === 'Year' ? 'รายปี' : 'สะสมทั้งหมด'})</span>
+              </span>
+              <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-full">
+                สุทธิ
+              </span>
+            </div>
+            <div className="my-2.5">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono text-white tracking-tight">
+                {formatBaht(periodStats.savedBaht)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 font-sans">
+                ลดค่าไฟจากการใช้โซลาร์เอง + รายได้ขายไฟคืน กฟภ. (@2.20฿/หน่วย)
+              </p>
+            </div>
+            <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/80 flex items-center justify-between font-mono">
+              <span>รวม {periodStats.daysCount} วันจริง</span>
+              <span className="text-cyan-400">เฉลี่ย ฿{(periodStats.savedBaht / Math.max(1, periodStats.daysCount)).toFixed(2)}/วัน</span>
+            </div>
+          </div>
+
+          {/* Card 2: PEA Grid Bill */}
+          <div
+            onClick={() => {
+              setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
+              setIsPeaModalOpen(true);
+            }}
+            className="bg-[#0b101a] hover:bg-[#111726] border border-slate-800/90 hover:border-cyan-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-lg cursor-pointer transition-all group active:scale-[0.99]"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-cyan-400" />
+                <span>จ่ายการไฟฟ้า กฟภ. ({statPeriod === 'Month' ? 'รอบบิลนี้' : `รวม ${periodStats.daysCount} วัน`})</span>
+              </span>
+              <span className="text-[10px] font-sans font-bold text-slate-300 bg-slate-800/90 group-hover:text-cyan-300 group-hover:border-cyan-500/40 border border-slate-700/80 px-2 py-0.5 rounded-full transition-colors">
+                บิล กฟภ. ฉบับจริง ↗
+              </span>
+            </div>
+            <div className="my-2.5">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono text-white tracking-tight">
+                {formatBaht(periodStats.gridBill || 0)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 font-sans">
+                คำนวณตามบิล กฟภ. ทางการ (ฐานขั้นบันได + Ft + บริการ + VAT 7%)
+              </p>
+            </div>
+            <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/80 flex items-center justify-between font-mono">
+              <span>ตัดยอดทุกวันที่ {billingCutoffDay}</span>
+              <span className="text-cyan-400 group-hover:underline">แตะเพื่อเปิดดูใบแจ้งหนี้ ↗</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. REAL ENERGY TELEMETRY (6 CARDS - SYMMETRICAL 6-GRID) */}
+        <div className="bg-[#0b101a] border border-slate-800/80 rounded-[24px] p-4 sm:p-5 space-y-3.5 shadow-xl">
+          {/* Header with Period Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
             <div>
               <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <Activity className="w-4 h-4 text-cyan-400" />
-                <span>สถิติไฟฟ้า</span>
+                <span>สถิติพลังงานไฟฟ้า (kWh)</span>
                 <span className="text-xs text-slate-400 font-normal font-sans">
                   ({statPeriod === 'Custom'
                     ? `${formatSlashDate(customStartDate)} – ${formatSlashDate(customEndDate)}`
@@ -5223,11 +5284,11 @@ export const HomeInverterView = () => {
                     ? '30 วันย้อนหลัง'
                     : statPeriod === 'Year'
                     ? 'สถิติรายปี'
-                    : 'สะสมทั้งหมด'} • {periodStats.daysCount} วัน)
+                    : 'สะสมทั้งหมด'} • {periodStats.daysCount} วันจริง)
                 </span>
               </h3>
             </div>
-            <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#070a10] p-1 rounded-xl border border-slate-800/80">
+            <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#060910] p-1 rounded-xl border border-slate-800/80">
               {[
                 { id: 'Day', label: 'วัน' },
                 { id: 'Week', label: 'สัปดาห์' },
@@ -5281,268 +5342,255 @@ export const HomeInverterView = () => {
               <div className="text-[11px] text-slate-400 pt-1">
                 พบข้อมูลจริง <strong className="text-cyan-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
                 {historicalLogs.length > 0 && (
-                  <span>
-                    {' '}(มีข้อมูลตั้งแต่ {formatSlashDate(historicalLogs[0].date)})
-                  </span>
+                  <span> (มีข้อมูลตั้งแต่ {formatSlashDate(historicalLogs[0].date)})</span>
                 )}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          {/* 6 Symmetrical Cards (2x3 on mobile, 3x2 on tablet, 6 across on desktop) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
             {/* 1. Solar Production */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <Sun className="w-3.5 h-3.5 text-cyan-400" />
-                <span>การผลิตไฟฟ้าโซลาร์</span>
+                <Sun className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">ผลิตโซลาร์</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.pvGen.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
                 เฉลี่ย {(periodStats.pvGen / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
               </div>
             </div>
 
             {/* 2. House Load */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <Home className="w-3.5 h-3.5 text-cyan-400" />
-                <span>โหลดไฟฟ้าในบ้าน</span>
+                <Home className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">โหลดใช้ไฟบ้าน</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.load.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
                 เฉลี่ย {(periodStats.load / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
               </div>
             </div>
 
             {/* 3. Grid Import */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <TrendingDown className="w-3.5 h-3.5 text-cyan-400" />
-                <span>นำเข้า (ดึงไฟ)</span>
+                <TrendingDown className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">ดึงไฟหลวง</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.imp.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
                 เฉลี่ย {(periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
               </div>
             </div>
 
             {/* 4. Grid Export */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-                <span>ส่งออก (ขายไฟ)</span>
+                <TrendingUp className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">ส่งออก (ขายไฟ)</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.exp.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
-                ขายคืน กฟภ. @2.20฿/หน่วย
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
+                ขายคืน กฟภ. @2.20฿
               </div>
             </div>
 
             {/* 5. Battery Charge */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <BatteryCharging className="w-3.5 h-3.5 text-cyan-400" />
-                <span>ชาร์จแบตเตอรี่</span>
+                <BatteryCharging className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">ชาร์จลงแบต</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.chg.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
-                เก็บไฟสำรองจากโซลาร์
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
+                เก็บไฟสำรองแดด
               </div>
             </div>
 
             {/* 6. Battery Discharge */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+            <div className="bg-[#101522] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] transition-all">
               <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                <Battery className="w-3.5 h-3.5 text-cyan-400" />
-                <span>การคายประจุ</span>
+                <Battery className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">จ่ายไฟจากแบต</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1 tracking-tight truncate">
                 {periodStats.dis.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+                <span className="text-[11px] font-normal text-slate-400 font-sans">kWh</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
-                จ่ายโหลดค่ำ/กลางคืน
-              </div>
-            </div>
-
-            {/* 7. Total Savings */}
-            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
-              <div className="text-xs text-slate-300 font-medium flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Coins className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ประหยัดได้</span>
-                </div>
-                <span className="text-[10px] text-cyan-300 font-mono bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20">สุทธิ</span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
-                {formatBaht(periodStats.savedBaht)}
-              </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
-                ลดค่าไฟจากแดด & ขายไฟ
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate">
+                จ่ายโหลดค่ำ/คืน
               </div>
             </div>
-
-            {/* 8. PEA Grid Bill */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
-                setIsPeaModalOpen(true);
-              }}
-              className="bg-[#121622] hover:bg-[#161c2b] border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] text-left transition-all cursor-pointer group active:scale-95 shadow-sm"
-              title="คลิกเพื่อเปิดดูใบแจ้งหนี้ กฟภ. ฉบับทางการ"
-            >
-              <div className="text-xs text-slate-300 font-medium flex items-center justify-between w-full">
-                <div className="flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>จ่ายการไฟฟ้า</span>
-                </div>
-                <span className="text-[10px] text-slate-300 bg-slate-800/90 border border-slate-700/80 px-1.5 py-0.5 rounded font-mono group-hover:text-cyan-300 group-hover:border-cyan-500/30 transition-colors">
-                  บิล กฟภ. ↗
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
-                {formatBaht(periodStats.gridBill || 0)}
-              </div>
-              <div className="text-[10px] text-slate-500 font-sans mt-0.5 flex justify-between items-center">
-                <span>{statPeriod === 'Month' ? 'รอบบิลนี้' : `รวม ${periodStats.daysCount} วัน`}</span>
-                <span className="text-slate-400 group-hover:text-cyan-300 text-[10px]">ดูใบแจ้งหนี้ ↗</span>
-              </div>
-            </button>
           </div>
         </div>
 
-        <div className="lg:col-span-5 bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 flex flex-col justify-between space-y-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* 3. BALANCED 50/50 DUAL PANELS: BILLING CYCLES & ENERGY INDEPENDENCE */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          {/* Panel A (Left): Monthly Billing History Table */}
+          <div className="bg-[#0b101a] border border-slate-800/90 rounded-[24px] p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-xl">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-cyan-400" />
+                  <span>ประวัติรอบบิล กฟภ. (7 เดือนล่าสุด)</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
+                    setIsPeaModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-[#141b27] hover:bg-[#1a2333] border border-cyan-500/40 text-cyan-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                >
+                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>ดูใบแจ้งหนี้ฉบับจริง</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                ตัดยอดทุกวันที่ <span className="text-white font-bold font-mono">{billingCutoffDay}</span> ของเดือน (คลิกแถวเพื่อเปิดดูบิล)
+              </p>
+            </div>
+
+            {/* Monthly Billing Breakdown Table */}
+            <div className="bg-[#060910] border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+              <div className="grid grid-cols-4 text-[10px] sm:text-xs font-semibold text-slate-400 pb-2 border-b border-slate-800 text-right">
+                <span className="text-left text-slate-300">รอบบิล</span>
+                <span>ดึงไฟ (kWh)</span>
+                <span>จ่ายการไฟฟ้า</span>
+                <span className="text-cyan-300">ประหยัดได้</span>
+              </div>
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 flex-1">
+                {Array.isArray(billingCycles) && billingCycles.length > 0 ? (
+                  billingCycles.map((c) => (
+                    <div
+                      key={c.cycleKey}
+                      onClick={() => {
+                        setSelectedPeaCycleKey(c.cycleKey);
+                        setIsPeaModalOpen(true);
+                      }}
+                      className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2.5 rounded-xl bg-[#101522] border border-slate-800/70 hover:border-cyan-500/50 hover:bg-[#161c2b] text-right cursor-pointer transition-colors"
+                      title={`คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}`}
+                    >
+                      <div className="font-sans font-medium text-slate-200 text-left truncate flex flex-col">
+                        <span className="flex items-center gap-1.5 text-slate-200 text-[11px]">
+                          <span className="text-cyan-400 text-[10px]">📄</span>
+                          {c.monthLabel.split(' ')[0]} {c.year + 543}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono pl-3.5">{c.periodLabel}</span>
+                      </div>
+                      <span className="text-slate-300 font-bold">{c.imp.toFixed(2)}</span>
+                      <span className="text-white font-bold">{formatBaht(c.importBill)}</span>
+                      <span className="text-cyan-300 font-bold">{formatBaht(c.savedBaht)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-xs text-slate-500 py-4">ไม่มีข้อมูลรอบบิล</div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80">
+                <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold font-mono text-right">
+                  <span className="text-slate-400 font-sans text-left">รวม 7 รอบ:</span>
+                  <span className="text-slate-200">
+                    {billingCycles.reduce((acc, c) => acc + c.imp, 0).toFixed(2)}
+                  </span>
+                  <span className="text-white">
+                    {formatBaht(billingCycles.reduce((acc, c) => acc + c.importBill, 0))}
+                  </span>
+                  <span className="text-cyan-300">
+                    {formatBaht(billingCycles.reduce((acc, c) => acc + c.savedBaht, 0))}
+                  </span>
+                </div>
+                <div className="text-[9px] text-slate-500 font-mono pt-1 text-center">
+                  * รวม: ฐานขั้นบันได + Ft ฿{tariffSettings.ftRate ?? DEFAULT_FT_RATE}/หน่วย (ก.ย.-ธ.ค.) + บริการ ฿{tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE} + VAT {tariffSettings.vatPct ?? DEFAULT_VAT_PCT}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel B (Right): Energy Independence & Self-Consumption */}
+          <div className="bg-[#0b101a] border border-slate-800/90 rounded-[24px] p-4 sm:p-5 flex flex-col justify-between space-y-3.5 shadow-xl">
+            <div className="space-y-1">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-cyan-400" />
-                <span>สรุปค่าไฟฟ้าและเงินที่ประหยัดได้</span>
+                <span>ดัชนีประสิทธิภาพ & การพึ่งพาพลังงานสะอาด</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
-                  setIsPeaModalOpen(true);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-[#141b27] hover:bg-[#1a2333] border border-cyan-500/40 text-cyan-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
-              >
-                <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                <span>ดูบิล กฟภ. ฉบับจริง</span>
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
-              <p>
-                ตัดยอดทุกวันที่ <span className="text-white font-bold font-mono">{billingCutoffDay}</span> ของเดือน (เช่น รอบ ต.ค. 69: {billingCycles[0]?.periodLabel})
+              <p className="text-[11px] text-slate-400">
+                วิเคราะห์ประสิทธิภาพการใช้พลังงานแสงอาทิตย์และการพึ่งพาตนเอง
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
-                  setIsPeaModalOpen(true);
-                }}
-                className="text-cyan-400 hover:text-cyan-300 underline font-medium cursor-pointer text-[10px]"
-              >
-                เปลี่ยนวันตัดยอด
-              </button>
             </div>
-          </div>
 
-          {/* Monthly Billing Breakdown Table */}
-          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 space-y-2 overflow-hidden">
-            <div className="grid grid-cols-4 text-[10px] sm:text-xs font-semibold text-slate-400 pb-2 border-b border-slate-800 text-right">
-              <span className="text-left text-slate-300">รอบบิล</span>
-              <span>ดึงไฟ (kWh)</span>
-              <span>จ่ายการไฟฟ้า</span>
-              <span className="text-cyan-300">ประหยัดได้</span>
-            </div>
-            <div className="max-h-52 overflow-y-auto space-y-1.5 pr-0.5">
-              {Array.isArray(billingCycles) && billingCycles.length > 0 ? (
-                billingCycles.map((c) => (
-                  <div
-                    key={c.cycleKey}
-                    onClick={() => {
-                      setSelectedPeaCycleKey(c.cycleKey);
-                      setIsPeaModalOpen(true);
-                    }}
-                    className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2.5 rounded-xl bg-[#121622] border border-slate-800/70 hover:border-cyan-500/50 hover:bg-[#161c2b] text-right cursor-pointer transition-colors"
-                    title={`คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}`}
-                  >
-                    <div className="font-sans font-medium text-slate-200 text-left truncate flex flex-col">
-                      <span className="flex items-center gap-1.5 text-slate-200 text-[11px]">
-                        <span className="text-cyan-400 text-[10px]">📄</span>
-                        {c.monthLabel.split(' ')[0]} {c.year + 543}
-                      </span>
-                      <span className="text-[9px] text-slate-500 font-mono pl-3.5">{c.periodLabel}</span>
-                    </div>
-                    <span className="text-slate-300 font-bold">{c.imp.toFixed(2)}</span>
-                    <span className="text-white font-bold">{formatBaht(c.importBill)}</span>
-                    <span className="text-cyan-300 font-bold">{formatBaht(c.savedBaht)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-xs text-slate-500 py-2">ไม่มีข้อมูลรอบบิล</div>
-              )}
-            </div>
-            <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold pt-2 border-t border-slate-800 font-mono text-right">
-              <span className="text-slate-400 font-sans text-left">รวม 7 รอบบิล:</span>
-              <span className="text-slate-200">
-                {billingCycles.reduce((acc, c) => acc + c.imp, 0).toFixed(2)}
-              </span>
-              <span className="text-white">
-                {formatBaht(billingCycles.reduce((acc, c) => acc + c.importBill, 0))}
-              </span>
-              <span className="text-cyan-300">
-                {formatBaht(billingCycles.reduce((acc, c) => acc + c.savedBaht, 0))}
-              </span>
-            </div>
-            <div className="text-[10px] text-slate-500 font-mono pt-1 text-center">
-              * รวม: ฐานขั้นบันได + Ft ฿{tariffSettings.ftRate ?? DEFAULT_FT_RATE}/หน่วย (รอบ ก.ย.-ธ.ค.) + บริการ ฿{tariffSettings.serviceFee ?? DEFAULT_SERVICE_FEE} + VAT {tariffSettings.vatPct ?? DEFAULT_VAT_PCT}%
-            </div>
-          </div>
+            <div className="space-y-3 flex-1 flex flex-col justify-around">
+              {/* 1. Self-Consumption */}
+              <div className="bg-[#060910] border border-slate-800/80 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Sun className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>อัตราใช้ไฟโซลาร์ในบ้าน (Self-Consumption)</span>
+                  </span>
+                  <span className="text-base font-black font-mono text-cyan-300">
+                    {selfConsPct}%
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex">
+                  <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: `${selfConsPct}%` }} />
+                  <div className="h-full bg-slate-600 transition-all duration-500" style={{ width: `${expPct}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+                  <span>ใช้ในบ้าน: <strong className="text-white font-mono">{selfConsKWh} kWh</strong> ({selfConsPct}%)</span>
+                  <span>ส่งออกขายไฟ: <strong className="text-slate-300 font-mono">{periodStats.exp} kWh</strong> ({expPct}%)</span>
+                </div>
+              </div>
 
-          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-4 space-y-2 shadow-sm">
-            <div className="flex justify-between text-xs font-medium">
-              <span className="text-slate-300">
-                ใช้ไฟโซลาร์ในบ้าน: <strong className="text-white font-mono">{selfConsKWh} kWh</strong> ({selfConsPct}%)
-              </span>
-              <span className="text-slate-400">
-                ส่งออก: <strong className="text-slate-200 font-mono">{periodStats.exp} kWh</strong> ({expPct}%)
-              </span>
-            </div>
-            <div className="w-full h-2 bg-slate-800/90 rounded-full overflow-hidden flex">
-              <div className="h-full bg-cyan-500" style={{ width: `${selfConsPct}%` }} />
-              <div className="h-full bg-slate-600" style={{ width: `${expPct}%` }} />
-            </div>
-          </div>
+              {/* 2. Self-Sufficiency */}
+              <div className="bg-[#060910] border border-slate-800/80 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Battery className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>ดัชนีพึ่งพาตนเอง (Self-Sufficiency)</span>
+                  </span>
+                  <span className="text-base font-black font-mono text-cyan-300">
+                    {selfSuffPct}%
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex">
+                  <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: `${selfSuffPct}%` }} />
+                  <div className="h-full bg-slate-600 transition-all duration-500" style={{ width: `${impPct}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+                  <span>โซลาร์ + แบต: <strong className="text-white font-mono">{selfSuffKWh} kWh</strong> ({selfSuffPct}%)</span>
+                  <span>ดึงไฟหลวง: <strong className="text-slate-300 font-mono">{periodStats.imp} kWh</strong> ({impPct}%)</span>
+                </div>
+              </div>
 
-          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-4 space-y-2 shadow-sm">
-            <div className="flex justify-between text-xs font-medium">
-              <span className="text-slate-300">
-                พึ่งพาโซลาร์ + แบต: <strong className="text-white font-mono">{selfSuffKWh} kWh</strong> ({selfSuffPct}%)
-              </span>
-              <span className="text-slate-400">
-                ดึงไฟหลวง: <strong className="text-slate-200 font-mono">{periodStats.imp} kWh</strong> ({impPct}%)
-              </span>
-            </div>
-            <div className="w-full h-2 bg-slate-800/90 rounded-full overflow-hidden flex">
-              <div className="h-full bg-cyan-500" style={{ width: `${selfSuffPct}%` }} />
-              <div className="h-full bg-slate-600" style={{ width: `${impPct}%` }} />
+              {/* 3. Summary Pill / Insight */}
+              <div className="bg-[#101522] border border-cyan-500/20 rounded-2xl p-3 flex items-center justify-between text-xs">
+                <span className="text-slate-300 flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>ประหยัดค่าไฟรวมตลอดการติดตั้ง:</span>
+                </span>
+                <span className="text-sm font-black font-mono text-cyan-300">
+                  {formatBaht(periodStats.savedBaht)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
