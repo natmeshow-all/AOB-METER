@@ -30,6 +30,8 @@ import {
   History,
   Lock,
   TrendingUp,
+  TrendingDown,
+  Coins,
   Gauge,
   Cpu,
   Compass,

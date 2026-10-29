@@ -6,6 +6,7 @@ import { ProductionReportView } from './components/ProductionReportView';
 import { HomeInverterView } from './components/HomeInverterView';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { LoginPortal } from './components/LoginPortal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 import { TENANT_COMPANIES } from './data/tenantData';
 import {
@@ -99,10 +100,14 @@ export function App() {
         )}
 
         {/* CUSTOMER DASHBOARD: AUTOMATICALLY RENDERS BY USER TYPE (HOME_SOLAR vs INDUSTRIAL) */}
-        {activeTab !== 'super-admin' && isHomeSolarSite && <HomeInverterView />}
+        {activeTab !== 'super-admin' && isHomeSolarSite && (
+          <ErrorBoundary>
+            <HomeInverterView />
+          </ErrorBoundary>
+        )}
 
         {activeTab !== 'super-admin' && !isHomeSolarSite && (
-          <>
+          <ErrorBoundary>
             {activeTab === 'overview' && (
               <OverviewMetersView onSelectMeter={handleInspectMeter} />
             )}
@@ -116,7 +121,7 @@ export function App() {
             {activeTab === 'report' && (
               <ProductionReportView onSelectMeter={handleInspectMeter} />
             )}
-          </>
+          </ErrorBoundary>
         )}
       </main>
 
