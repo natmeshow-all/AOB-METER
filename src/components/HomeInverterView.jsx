@@ -3117,7 +3117,7 @@ export const HomeInverterView = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1 bg-[#04070e] p-1 rounded-xl border border-slate-800/90">
+            <div className="grid grid-cols-4 gap-1 bg-[#070a10] p-1 rounded-xl border border-slate-800/80">
               {[
                 { id: 'ODO', label: '1. ไมล์สะสม' },
                 { id: 'VECTOR', label: '2. เรดาร์ไฟ' },
@@ -3128,9 +3128,9 @@ export const HomeInverterView = () => {
                   key={tab.id}
                   type="button"
                   onClick={() => setCenterHudMode(tab.id)}
-                  className={`py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`py-1.5 rounded-lg text-[10px] font-medium transition-all cursor-pointer ${
                     centerHudMode === tab.id
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow'
+                      ? 'bg-[#141b27] text-cyan-300 border border-cyan-500/40 font-bold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -3143,18 +3143,18 @@ export const HomeInverterView = () => {
           {/* MODE 1: MASTER ODOMETER & TODAY GENERATION */}
           {centerHudMode === 'ODO' && (
             <div className="my-3 flex flex-col items-center">
-              <div className="relative w-44 h-44 rounded-full border-2 border-slate-800 bg-[#04070e] shadow-[inset_0_0_30px_rgba(14,165,233,0.15)] flex flex-col items-center justify-center p-4">
-                <div className="absolute inset-2 rounded-full border border-dashed border-sky-500/30" />
-                <span className="text-[9px] font-mono uppercase tracking-[0.22em] text-sky-400">
+              <div className="relative w-44 h-44 rounded-full border border-slate-800/80 bg-[#070a10] shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] flex flex-col items-center justify-center p-4">
+                <div className="absolute inset-2 rounded-full border border-dashed border-cyan-500/20" />
+                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400">
                   TODAY PRODUCTION
                 </span>
                 <div className="text-3xl sm:text-4xl font-mono font-black text-white tracking-tight mt-0.5">
                   {todayGenKWh.toFixed(2)}
                 </div>
-                <span className="text-[11px] font-mono font-bold text-slate-400">
+                <span className="text-[11px] font-mono font-normal text-slate-400">
                   kWh วันนี้
                 </span>
-                <div className="mt-2 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold">
+                <div className="mt-2 px-3 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 font-mono text-[11px] font-bold">
                   ประหยัด +฿{todaySavedBaht.toLocaleString()}
                 </div>
               </div>
@@ -3163,14 +3163,14 @@ export const HomeInverterView = () => {
 
           {/* MODE 2: INTERACTIVE 4-WAY ENERGY VECTOR RADAR */}
           {centerHudMode === 'VECTOR' && (
-            <div className="my-2 bg-[#04070e] border border-slate-800/90 rounded-2xl p-3.5 space-y-2.5">
-              <div className="text-[11px] font-bold text-sky-300 flex items-center justify-between">
-                <span>⚡ เรดาร์ทิศทางการไหลของพลังงานสด</span>
-                <span className="font-mono text-[10px] text-emerald-400">LIVE VECTOR</span>
+            <div className="my-2 bg-[#070a10] border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+              <div className="text-[11px] font-bold text-white flex items-center justify-between">
+                <span>เรดาร์ทิศทางการไหลของพลังงาน</span>
+                <span className="font-mono text-[10px] text-cyan-400">LIVE VECTOR</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
-                  <div className="text-[10px] text-amber-300 font-bold">☀️ แผงโซลาร์ → อินเวอร์เตอร์</div>
+                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                  <div className="text-[10px] text-slate-300 font-medium">☀️ แผงโซลาร์ → อินเวอร์เตอร์</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {totalPvPowerW} W
                   </div>
@@ -3178,17 +3178,17 @@ export const HomeInverterView = () => {
                     {solarData.pv1Voltage}V • {solarData.pv1Current}A
                   </div>
                 </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
-                  <div className="text-[10px] text-emerald-300 font-bold">🔋 สถานะแบตเตอรี่</div>
-                  <div className="text-base font-mono font-black text-emerald-400 mt-0.5">
+                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                  <div className="text-[10px] text-slate-300 font-medium">🔋 สถานะแบตเตอรี่</div>
+                  <div className="text-base font-mono font-black text-white mt-0.5">
                     {solarData.batteryPowerW || 0} W
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
                     {solarData.batteryStatus} ({battSoc}%)
                   </div>
                 </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
-                  <div className="text-[10px] text-sky-300 font-bold">🏠 จ่ายเข้าโหลดในบ้าน</div>
+                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                  <div className="text-[10px] text-slate-300 font-medium">🏠 จ่ายเข้าโหลดในบ้าน</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {houseLoadW} W
                   </div>
@@ -3196,8 +3196,8 @@ export const HomeInverterView = () => {
                     พึ่งพาตนเอง {selfSuffPct}%
                   </div>
                 </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
-                  <div className="text-[10px] text-purple-300 font-bold">🗼 สายส่งการไฟฟ้า (Grid)</div>
+                <div className="bg-[#121622] border border-slate-800/80 rounded-xl p-2.5">
+                  <div className="text-[10px] text-slate-300 font-medium">🗼 สายส่งการไฟฟ้า (Grid)</div>
                   <div className="text-base font-mono font-black text-white mt-0.5">
                     {solarData.gridAc1Voltage || 230} VAC
                   </div>
@@ -3373,122 +3373,118 @@ export const HomeInverterView = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             {/* 1. Peak House Load & Current */}
-            <div className="bg-slate-950/80 border border-purple-500/40 rounded-xl p-3 space-y-1.5 flex flex-col justify-between">
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between transition-all shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-purple-300 font-bold flex items-center gap-1">
-                  <Home className="w-3.5 h-3.5 text-purple-400" />
-                  <span>ไฟฟ้าพีคสุดของบ้าน (Peak Load)</span>
+                <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>ไฟฟ้าพีคสุดของบ้าน</span>
                 </span>
-                <span className="text-[10px] text-amber-300 font-mono font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
                   {dailyPeakStats.peakLoadHour} น.
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
-                <span className="text-lg sm:text-xl font-black text-purple-300">
-                  {dailyPeakStats.peakLoadW.toLocaleString()} W
+                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  {dailyPeakStats.peakLoadW.toLocaleString()} <span className="text-xs text-slate-400 font-normal font-sans">W</span>
                 </span>
                 <span className="text-xs text-slate-400">
                   ({(dailyPeakStats.peakLoadW / 1000).toFixed(2)} kW)
                 </span>
               </div>
-              <div className="pt-1.5 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
                 <div className="flex justify-between items-center text-slate-300 font-mono">
-                  <span>กระแสไฟฟ้าขณะพีค:</span>
-                  <span className="font-bold text-amber-300 text-xs sm:text-sm">
-                    {dailyPeakStats.peakLoadCurrentA} A <span className="text-[10px] text-slate-400">(@230V)</span>
+                  <span className="text-slate-400 text-[10px]">กระแสพีค (@230V):</span>
+                  <span className="font-bold text-white text-xs sm:text-sm">
+                    {dailyPeakStats.peakLoadCurrentA} A
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 pt-0.5">
+                <p className="text-[10px] text-slate-500 pt-0.5">
                   {dailyPeakStats.peakLoadCurrentA < 16
-                    ? '🟢 ปกติ (สายไฟ 2.5–4.0 sq.mm. เบรกเกอร์ 16–20A รองรับสบาย)'
+                    ? '🟢 ปกติ (สาย 2.5–4.0 mm² เบรกเกอร์ 16–20A)'
                     : dailyPeakStats.peakLoadCurrentA <= 25
-                    ? '🟡 กระแสค่อนข้างสูง (โหลดแอร์/ต้มน้ำ) สายไฟ 4 sq.mm. ขึ้นไปรองรับได้ดี'
-                    : '🔴 โหลดกระแสสูง แนะนำตรวจสอบเบรกเกอร์เมน 32–40A'}
+                    ? '🟡 ปานกลาง (แอร์/ต้มน้ำ สาย 4 mm²)'
+                    : '🔴 โหลดสูง (ตรวจเบรกเกอร์เมน 32–40A)'}
                 </p>
               </div>
             </div>
 
             {/* 2. Peak Solar PV & DC Current */}
-            <div className="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3 space-y-1.5 flex flex-col justify-between">
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between transition-all shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-amber-300 font-bold flex items-center gap-1">
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
-                  <span>ผลิตโซลาร์พีคสุด (Peak PV)</span>
+                <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                  <Sun className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>ผลิตโซลาร์พีคสุด (PV)</span>
                 </span>
-                <span className="text-[10px] text-amber-300 font-mono font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
                   {dailyPeakStats.peakPvHour} น.
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
-                <span className="text-lg sm:text-xl font-black text-amber-300">
-                  {dailyPeakStats.peakPvW.toLocaleString()} W
+                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  {dailyPeakStats.peakPvW.toLocaleString()} <span className="text-xs text-slate-400 font-normal font-sans">W</span>
                 </span>
                 <span className="text-xs text-slate-400">
                   ({(dailyPeakStats.peakPvW / 1000).toFixed(2)} kW)
                 </span>
               </div>
-              <div className="pt-1.5 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
                 <div className="flex justify-between items-center text-slate-300 font-mono">
-                  <span>กระแส DC จากแผงโซลาร์:</span>
-                  <span className="font-bold text-amber-300 text-xs sm:text-sm">
-                    {dailyPeakStats.peakPvCurrentA} A <span className="text-[10px] text-slate-400">(@380V)</span>
+                  <span className="text-slate-400 text-[10px]">กระแส DC พีค (@380V):</span>
+                  <span className="font-bold text-white text-xs sm:text-sm">
+                    {dailyPeakStats.peakPvCurrentA} A
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 pt-0.5">
-                  ☀️ พีคช่วงแดดจัดเที่ยงวัน เลี้ยงโหลดบ้านพร้อมชาร์จแบตเต็มที่
+                <p className="text-[10px] text-slate-500 pt-0.5">
+                  ☀️ พีคช่วงแดดเที่ยง เลี้ยงโหลดและชาร์จแบต
                 </p>
               </div>
             </div>
 
             {/* 3. Inverter Max Temperature */}
-            <div className="bg-slate-950/80 border border-rose-500/40 rounded-xl p-3 space-y-1.5 flex flex-col justify-between">
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between transition-all shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-rose-300 font-bold flex items-center gap-1">
-                  <Thermometer className="w-3.5 h-3.5 text-rose-400" />
+                <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                  <Thermometer className="w-3.5 h-3.5 text-cyan-400" />
                   <span>ความร้อน Inverter สูงสุด</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
                   {dailyPeakStats.maxInverterTempHour} น.
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
-                <span className="text-lg sm:text-xl font-black text-rose-300">
+                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {dailyPeakStats.maxInverterTempC}°C
                 </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-sans font-bold ${
-                  dailyPeakStats.maxInverterTempC < 50
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : 'bg-amber-500/20 text-amber-300'
-                }`}>
-                  {dailyPeakStats.maxInverterTempC < 50 ? '🟢 ระบายความร้อนดีเยี่ยม' : '🟡 อุ่นปกติ'}
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-sans font-bold text-slate-300 bg-slate-800 border border-slate-700/80">
+                  {dailyPeakStats.maxInverterTempC < 50 ? '🟢 ระบายความร้อนดี' : '🟡 อุ่นปกติ'}
                 </span>
               </div>
-              <div className="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 font-sans">
-                เกณฑ์ปลอดภัยมาตรฐาน &lt; 55°C (ฮีตซิงก์ทำงานสมบูรณ์)
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-sans">
+                เกณฑ์ปลอดภัย &lt; 55°C (ฮีตซิงก์ทำงานสมบูรณ์)
               </div>
             </div>
 
             {/* 4. Battery Max Temperature */}
-            <div className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-3 space-y-1.5 flex flex-col justify-between">
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between transition-all shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-emerald-300 font-bold flex items-center gap-1">
-                  <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                  <BatteryCharging className="w-3.5 h-3.5 text-cyan-400" />
                   <span>ความร้อน แบตเตอรี่ สูงสุด</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
                   {dailyPeakStats.maxBatteryTempHour} น.
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
-                <span className="text-lg sm:text-xl font-black text-emerald-300">
+                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {dailyPeakStats.maxBatteryTempC}°C
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-sans font-bold">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/80 text-slate-300 font-sans font-bold">
                   🟢 ปลอดภัย (Safe)
                 </span>
               </div>
-              <div className="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 font-sans">
-                เกณฑ์ปลอดภัยแบตลิเธียม LiFePO4 &lt; 45°C
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-sans">
+                เกณฑ์ปลอดภัยแบตเตอรี่ LiFePO4 &lt; 45°C
               </div>
             </div>
           </div>
@@ -3497,26 +3493,26 @@ export const HomeInverterView = () => {
           <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-col">
-                <span className="text-xs sm:text-sm font-black text-amber-300 flex items-center gap-1.5">
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <span>☀️ ข้อมูลสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, วัตต์ W, พีคสุด & ตรวจจับกระแสเกิน)</span>
+                <span className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-cyan-400" />
+                  <span>ข้อมูลสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, วัตต์ W)</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans mt-0.5">
-                  แผงปัจจุบัน: <strong className="text-slate-200">{solarData.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon'}</strong> • PV1: <strong className="text-sky-300 font-mono">{stringStandards.pv1Count} แผง</strong> • PV2: <strong className="text-emerald-300 font-mono">{stringStandards.pv2Count} แผง</strong> • แผงละ: <strong className="text-amber-300 font-mono">{stringStandards.panelW}W</strong>
+                  แผงปัจจุบัน: <strong className="text-slate-200">{solarData.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon'}</strong> • PV1: <strong className="text-white font-mono">{stringStandards.pv1Count} แผง</strong> • PV2: <strong className="text-white font-mono">{stringStandards.pv2Count} แผง</strong> • แผงละ: <strong className="text-white font-mono">{stringStandards.panelW}W</strong>
                 </span>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsStringConfigOpen(!isStringConfigOpen)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm ${
                   isStringConfigOpen
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-amber-400/20'
-                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold'
+                    : 'bg-[#141b27] hover:bg-[#192231] text-slate-300 hover:text-white border-slate-700/80'
                 }`}
               >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>{isStringConfigOpen ? '✕ ปิดช่องกรอกข้อมูลแผง' : '✏️ กรอก/ปรับตั้งค่าแผงโซลาร์ PV1 & PV2'}</span>
+                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{isStringConfigOpen ? '✕ ปิดช่องกรอกข้อมูลแผง' : '✏️ ปรับตั้งค่าสเปกแผง PV1 & PV2'}</span>
               </button>
             </div>
 
@@ -3872,14 +3868,14 @@ export const HomeInverterView = () => {
                 const levelMeta = HEALTH_LEVELS[h1.level] || HEALTH_LEVELS.OK;
                 const cardBorder =
                   h1.level === 'DANGER'
-                    ? 'bg-rose-950/30 border-rose-500/80 border-l-4 border-l-rose-500 shadow-lg shadow-rose-950/40'
+                    ? 'bg-rose-950/20 border-rose-500/60 shadow-lg'
                     : h1.level === 'WARNING'
-                    ? 'bg-orange-950/25 border-orange-500/70 border-l-4 border-l-orange-500 shadow-lg shadow-orange-950/30'
+                    ? 'bg-orange-950/20 border-orange-500/50 shadow-md'
                     : h1.level === 'WATCH'
-                    ? 'bg-amber-950/20 border-amber-500/60 border-l-4 border-l-amber-500 shadow-lg shadow-amber-950/20'
+                    ? 'bg-amber-950/20 border-amber-500/40 shadow-sm'
                     : h1.level === 'IDLE'
-                    ? 'bg-slate-900/40 border-slate-800 opacity-60'
-                    : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80 border-l-4 border-l-sky-500';
+                    ? 'bg-[#121622]/60 border-slate-800/60 opacity-60'
+                    : 'bg-[#121622] border-slate-800/80 hover:border-slate-700/80';
 
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
@@ -3894,10 +3890,10 @@ export const HomeInverterView = () => {
                 })();
 
                 return (
-                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 ${cardBorder}`}>
+                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 shadow-sm ${cardBorder}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-sky-300 font-bold flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                      <span className="text-slate-200 font-bold flex items-center gap-2 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-cyan-400" />
                         <span>สตริงที่ 1 (PV1): อนุกรม {stringStandards.pv1Count} แผง</span>
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
@@ -3906,33 +3902,33 @@ export const HomeInverterView = () => {
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 font-mono text-center">
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
-                        <strong className="text-sky-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1V} V</strong>
-                        <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv1StdVmp}V</span>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                        <strong className="text-white text-sm sm:text-base block">{dailyPeakStats.peakPv1V} V</strong>
+                        <span className="text-[9px] text-slate-500">Vmp {stringStandards.pv1StdVmp}V</span>
                       </div>
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">กระแสสูงสุด</span>
                         <strong className={`text-sm sm:text-base block ${
                           isPv1OverLimit
                             ? 'text-rose-400 font-black'
                             : h1.level === 'WATCH'
                             ? 'text-amber-300 font-black'
-                            : 'text-emerald-300'
+                            : 'text-white'
                         }`}>
                           {dailyPeakStats.maxPv1A} A
                         </strong>
-                        <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv1StdImp}A</span>
+                        <span className="text-[9px] text-slate-500">Imp {stringStandards.pv1StdImp}A</span>
                       </div>
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
-                        <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                        <strong className="text-white text-sm sm:text-base block">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong>
                         <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv1Hour} น.)</span>
                       </div>
                     </div>
 
-                    <div className="text-[10px] pt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
-                      <span>สเปกติดตั้ง: <strong className="text-sky-300 font-mono">{((stringStandards.pv1StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv1StdVoc}V &lt; 550V)</span>
+                    <div className="text-[10px] pt-1.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
+                      <span>สเปกติดตั้ง: <strong className="text-slate-200 font-mono">{((stringStandards.pv1StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv1StdVoc}V &lt; 550V)</span>
                       <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv1AHour || '12:00'} น.</span>
                     </div>
                   </div>
@@ -3951,14 +3947,14 @@ export const HomeInverterView = () => {
                   : HEALTH_LEVELS[h2.level] || HEALTH_LEVELS.OK;
 
                 const cardBorder = isPv2Idle
-                  ? 'bg-slate-900/40 border-slate-800 opacity-60'
+                  ? 'bg-[#121622]/40 border-slate-800/60 opacity-60'
                   : h2.level === 'DANGER'
-                  ? 'bg-rose-950/30 border-rose-500/80 border-l-4 border-l-rose-500 shadow-lg shadow-rose-950/40'
+                  ? 'bg-rose-950/20 border-rose-500/60 shadow-lg'
                   : h2.level === 'WARNING'
-                  ? 'bg-orange-950/25 border-orange-500/70 border-l-4 border-l-orange-500 shadow-lg shadow-orange-950/30'
+                  ? 'bg-orange-950/20 border-orange-500/50 shadow-md'
                   : h2.level === 'WATCH'
-                  ? 'bg-amber-950/20 border-amber-500/60 border-l-4 border-l-amber-500 shadow-lg shadow-amber-950/20'
-                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80 border-l-4 border-l-emerald-500';
+                  ? 'bg-amber-950/20 border-amber-500/40 shadow-sm'
+                  : 'bg-[#121622] border-slate-800/80 hover:border-slate-700/80';
 
                 const badgeTone =
                   HEALTH_TONE_CLASSES[levelMeta.tone] || HEALTH_TONE_CLASSES.slate;
@@ -3974,10 +3970,10 @@ export const HomeInverterView = () => {
                 })();
 
                 return (
-                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 ${cardBorder}`}>
+                  <div className={`p-3.5 rounded-2xl border space-y-2.5 flex flex-col justify-between transition-all duration-200 shadow-sm ${cardBorder}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-emerald-300 font-bold flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                      <span className="text-slate-200 font-bold flex items-center gap-2 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-cyan-400" />
                         <span>สตริงที่ 2 (PV2): อนุกรม {stringStandards.pv2Count} แผง</span>
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono border ${badgeTone}`}>
@@ -3986,33 +3982,33 @@ export const HomeInverterView = () => {
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 font-mono text-center">
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
-                        <strong className="text-emerald-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2V} V</strong>
-                        <span className="text-[9px] text-slate-500">Vmp มาตรฐาน {stringStandards.pv2StdVmp}V</span>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">แรงดันขณะพีค</span>
+                        <strong className="text-white text-sm sm:text-base block">{dailyPeakStats.peakPv2V} V</strong>
+                        <span className="text-[9px] text-slate-500">Vmp {stringStandards.pv2StdVmp}V</span>
                       </div>
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">กระแสสูงสุด</span>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">กระแสสูงสุด</span>
                         <strong className={`text-sm sm:text-base block ${
                           isPv2Idle
                             ? 'text-slate-500'
                             : dailyPeakStats.maxPv2A > stringStandards.maxInvA
                             ? 'text-rose-400 font-black'
-                            : 'text-emerald-300'
+                            : 'text-white'
                         }`}>
                           {dailyPeakStats.maxPv2A} A
                         </strong>
-                        <span className="text-[9px] text-slate-500">Imp มาตรฐาน {stringStandards.pv2StdImp}A</span>
+                        <span className="text-[9px] text-slate-500">Imp {stringStandards.pv2StdImp}A</span>
                       </div>
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-2">
-                        <span className="text-[9px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
-                        <strong className="text-amber-300 text-sm sm:text-base block">{dailyPeakStats.peakPv2W.toLocaleString()} W</strong>
+                      <div className="bg-[#0b0f17] border border-slate-800/80 rounded-xl p-2.5">
+                        <span className="text-[10px] text-slate-400 block font-sans">กำลังผลิตพีค</span>
+                        <strong className="text-white text-sm sm:text-base block">{dailyPeakStats.peakPv2W.toLocaleString()} W</strong>
                         <span className="text-[9px] text-slate-500">(@ {dailyPeakStats.peakPv2Hour} น.)</span>
                       </div>
                     </div>
 
-                    <div className="text-[10px] pt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
-                      <span>สเปกติดตั้ง: <strong className="text-emerald-300 font-mono">{((stringStandards.pv2StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv2StdVoc}V &lt; 550V)</span>
+                    <div className="text-[10px] pt-1.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1 text-slate-400 font-sans">
+                      <span>สเปกติดตั้ง: <strong className="text-slate-200 font-mono">{((stringStandards.pv2StdW) / 1000).toFixed(2)} kWp</strong> (Voc {stringStandards.pv2StdVoc}V &lt; 550V)</span>
                       <span className="text-slate-400 font-mono">พีคกระแส: {dailyPeakStats.maxPv2AHour || '12:00'} น.</span>
                     </div>
                   </div>
@@ -4028,21 +4024,21 @@ export const HomeInverterView = () => {
               const isOvercurrent = dailyPeakStats.maxPv1A > stringStandards.maxInvA;
 
               return (
-                <div className="bg-[#050811]/90 border border-slate-800/90 rounded-xl p-2.5 sm:p-3 text-xs">
+                <div className="bg-[#121622] border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 text-xs shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-1 min-w-[240px]">
                       <ShieldCheck className={`w-4 h-4 shrink-0 ${
-                        isOvercurrent ? 'text-amber-400' : 'text-emerald-400'
+                        isOvercurrent ? 'text-amber-400' : 'text-cyan-400'
                       }`} />
-                      <div className="text-[11px] sm:text-xs text-slate-200">
-                        <span className="font-bold text-white">⚡ สรุปผลตรวจ: </span>
+                      <div className="text-[11px] sm:text-xs text-slate-300">
+                        <span className="font-bold text-white">ผลตรวจความปลอดภัย: </span>
                         {isOvercurrent ? (
-                          <span className="text-amber-300 font-bold">
-                            ⚠️ กระแส PV1 ({dailyPeakStats.maxPv1A}A) เกินขีดจำกัด {stringStandards.maxInvA}A ควรตรวจสายส่ง DC (แนะนำ PV1-F ≥ 4 mm²) และขันขั้วต่อ MC4 ให้แน่น
+                          <span className="text-amber-300 font-medium">
+                            ⚠️ กระแส PV1 ({dailyPeakStats.maxPv1A}A) เกินขีดจำกัด {stringStandards.maxInvA}A ควรตรวจสายส่ง DC (แนะนำ PV1-F ≥ 4 mm²)
                           </span>
                         ) : (
                           <span className="text-slate-300">
-                            สตริง PV1 จ่ายไฟปกติพีค <strong className="text-amber-300 font-mono">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong> ({dailyPeakStats.maxPv1A}A / {dailyPeakStats.peakPv1V}V) ไม่พบกระแสเกิน ขั้วต่อและสายส่งปลอดภัย
+                            สตริง PV1 จ่ายไฟปกติพีค <strong className="text-white font-mono">{dailyPeakStats.peakPv1W.toLocaleString()} W</strong> ({dailyPeakStats.maxPv1A}A / {dailyPeakStats.peakPv1V}V) อยู่ในเกณฑ์ปลอดภัย (&lt; {stringStandards.maxInvA}A)
                             {isPv2Idle && <span className="text-slate-500 font-sans"> • PV2 ไม่ได้ต่อสาย</span>}
                           </span>
                         )}
@@ -4053,9 +4049,9 @@ export const HomeInverterView = () => {
                     <button
                       type="button"
                       onClick={() => setIsStringAdvisoryExpanded(!isStringAdvisoryExpanded)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                      className="px-2.5 py-1 rounded-lg bg-[#0b0f17] hover:bg-slate-800 border border-slate-700/80 text-[10px] text-slate-300 font-medium flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
                     >
-                      <span>{isStringAdvisoryExpanded ? '✕ ย่อสรุป' : 'ℹ️ สเปกสาย & ฟิวส์ ▾'}</span>
+                      <span>{isStringAdvisoryExpanded ? '✕ ย่อสรุป' : 'สเปกสาย & ฟิวส์ ▾'}</span>
                     </button>
                   </div>
 
@@ -4878,35 +4874,44 @@ export const HomeInverterView = () => {
       {/* ELECTRICITY STATISTICS (DAY / WEEK / MONTH / YEAR / TOTAL)          */}
       {/* =================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-7 bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-sky-400" />
-              <span>
-                สถิติพลังงานไฟฟ้าจริง (
-                {statPeriod === 'Custom'
-                  ? `${formatSlashDate(customStartDate)} – ${formatSlashDate(customEndDate)}`
-                  : statPeriod}{' '}
-                • ข้อมูลจริง {periodStats.daysCount} วัน)
-              </span>
-            </h3>
-            <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#04070e] p-1 rounded-xl border border-slate-800">
+        <div className="lg:col-span-7 bg-[#0d111a] border border-slate-800/80 rounded-[28px] p-4 sm:p-5 space-y-4 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <Activity className="w-4 h-4 text-cyan-400" />
+                <span>สถิติไฟฟ้า</span>
+                <span className="text-xs text-slate-400 font-normal font-sans">
+                  ({statPeriod === 'Custom'
+                    ? `${formatSlashDate(customStartDate)} – ${formatSlashDate(customEndDate)}`
+                    : statPeriod === 'Day'
+                    ? 'วันนี้'
+                    : statPeriod === 'Week'
+                    ? '7 วันย้อนหลัง'
+                    : statPeriod === 'Month'
+                    ? '30 วันย้อนหลัง'
+                    : statPeriod === 'Year'
+                    ? 'สถิติรายปี'
+                    : 'สะสมทั้งหมด'} • {periodStats.daysCount} วัน)
+                </span>
+              </h3>
+            </div>
+            <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-wrap gap-1 bg-[#070a10] p-1 rounded-xl border border-slate-800/80">
               {[
-                { id: 'Day', label: 'วันนี้' },
-                { id: 'Week', label: '7 วัน' },
-                { id: 'Month', label: '30 วัน' },
-                { id: 'Year', label: 'รายปี' },
-                { id: 'Total', label: 'สะสมทั้งหมด' },
-                { id: 'Custom', label: '📅 ช่วงวันที่' }
+                { id: 'Day', label: 'วัน' },
+                { id: 'Week', label: 'สัปดาห์' },
+                { id: 'Month', label: 'เดือน' },
+                { id: 'Year', label: 'ปี' },
+                { id: 'Total', label: 'รวม' },
+                { id: 'Custom', label: 'ช่วงวันที่' }
               ].map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setStatPeriod(p.id)}
-                  className={`py-1.5 px-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all text-center cursor-pointer active:scale-95 ${
+                  className={`py-1.5 px-3 text-xs rounded-lg transition-all text-center cursor-pointer active:scale-95 ${
                     statPeriod === p.id
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-[#141b27] text-cyan-300 border border-cyan-500/40 font-bold shadow-sm'
+                      : 'text-slate-400 hover:text-white font-medium'
                   }`}
                 >
                   {p.label}
@@ -4916,7 +4921,7 @@ export const HomeInverterView = () => {
           </div>
 
           {statPeriod === 'Custom' && (
-            <div className="bg-[#04070e] border border-sky-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
+            <div className="bg-[#070a10] border border-slate-800/80 rounded-2xl p-3.5 space-y-2 text-xs">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5">
                 <div className="flex-1">
                   <label className="block text-slate-400 font-bold mb-1">วันที่เริ่มต้น</label>
@@ -4925,7 +4930,7 @@ export const HomeInverterView = () => {
                     value={customStartDate}
                     max={customEndDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                    className="w-full bg-[#0d111a] border border-slate-700/80 rounded-xl px-3 py-2 text-white font-mono [color-scheme:dark]"
                   />
                 </div>
                 <span className="text-slate-500 text-center self-center py-0.5 sm:pb-2">ถึง</span>
@@ -4937,12 +4942,12 @@ export const HomeInverterView = () => {
                     min={customStartDate}
                     max={getThailandDateStr(0)}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-mono [color-scheme:dark]"
+                    className="w-full bg-[#0d111a] border border-slate-700/80 rounded-xl px-3 py-2 text-white font-mono [color-scheme:dark]"
                   />
                 </div>
               </div>
               <div className="text-[11px] text-slate-400 pt-1">
-                พบข้อมูลจริง <strong className="text-sky-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
+                พบข้อมูลจริง <strong className="text-cyan-300 font-mono">{filteredHistoryLogs.length}</strong> วันในช่วงนี้
                 {historicalLogs.length > 0 && (
                   <span>
                     {' '}(มีข้อมูลตั้งแต่ {formatSlashDate(historicalLogs[0].date)})
@@ -4953,116 +4958,148 @@ export const HomeInverterView = () => {
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-sky-500">
-              <div className="text-[11px] sm:text-xs text-sky-300 font-bold">☀️ ผลิตไฟโซลาร์ (PV)</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
-                {periodStats.pvGen.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
+            {/* 1. Solar Production */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <Sun className="w-3.5 h-3.5 text-cyan-400" />
+                <span>การผลิตไฟฟ้าโซลาร์</span>
               </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.pvGen.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
                 เฉลี่ย {(periodStats.pvGen / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
               </div>
             </div>
 
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-indigo-500">
-              <div className="text-[11px] sm:text-xs text-indigo-300 font-bold">🏠 ใช้ไฟในบ้าน (Load)</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
-                {periodStats.load.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
+            {/* 2. House Load */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <Home className="w-3.5 h-3.5 text-cyan-400" />
+                <span>โหลดไฟฟ้าในบ้าน</span>
               </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.load.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
                 เฉลี่ย {(periodStats.load / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
               </div>
             </div>
 
-            <div className="bg-[#090e1a]/90 border border-emerald-500/30 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-emerald-400 shadow-sm shadow-emerald-500/5">
-              <div className="text-[11px] sm:text-xs text-emerald-300 font-bold flex items-center justify-between">
-                <span>💰 ประหยัดได้</span>
-                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/15 px-1 py-0.2 rounded border border-emerald-500/25">สุทธิ</span>
+            {/* 3. Grid Import */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <TrendingDown className="w-3.5 h-3.5 text-cyan-400" />
+                <span>นำเข้า (ดึงไฟ)</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.imp.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                เฉลี่ย {(periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+              </div>
+            </div>
+
+            {/* 4. Grid Export */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ส่งออก (ขายไฟ)</span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.exp.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                ขายคืน กฟภ. @2.20฿/หน่วย
+              </div>
+            </div>
+
+            {/* 5. Battery Charge */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <BatteryCharging className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ชาร์จแบตเตอรี่</span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.chg.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                เก็บไฟสำรองจากโซลาร์
+              </div>
+            </div>
+
+            {/* 6. Battery Discharge */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <Battery className="w-3.5 h-3.5 text-cyan-400" />
+                <span>การคายประจุ</span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
+                {periodStats.dis.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-400 font-sans">kWh</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                จ่ายโหลดค่ำ/กลางคืน
+              </div>
+            </div>
+
+            {/* 7. Total Savings */}
+            <div className="bg-[#121622] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] transition-all shadow-sm">
+              <div className="text-xs text-slate-300 font-medium flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>ประหยัดได้</span>
+                </div>
+                <span className="text-[10px] text-cyan-300 font-mono bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20">สุทธิ</span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
                 {formatBaht(periodStats.savedBaht)}
               </div>
-              <div className="text-[9px] text-emerald-500/80 font-sans mt-0.5">
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5">
                 ลดค่าไฟจากแดด & ขายไฟ
               </div>
             </div>
 
+            {/* 8. PEA Grid Bill */}
             <button
               type="button"
               onClick={() => {
                 setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                 setIsPeaModalOpen(true);
               }}
-              className="bg-[#090e1a]/90 hover:bg-slate-900/90 border border-slate-800/80 hover:border-purple-400/80 border-l-2 border-l-rose-500 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] text-left transition-all cursor-pointer group active:scale-95 shadow-sm"
+              className="bg-[#121622] hover:bg-[#161c2b] border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-3.5 flex flex-col justify-between min-h-[102px] text-left transition-all cursor-pointer group active:scale-95 shadow-sm"
               title="คลิกเพื่อเปิดดูใบแจ้งหนี้ กฟภ. ฉบับทางการ"
             >
-              <div className="text-[11px] sm:text-xs text-rose-300 font-bold flex items-center justify-between w-full">
-                <span>⚡ จ่ายการไฟฟ้า</span>
-                <span className="text-[9px] sm:text-[10px] text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono group-hover:scale-105 transition-transform flex items-center gap-1">
-                  <FileText className="w-3 h-3" /> บิล กฟภ.
+              <div className="text-xs text-slate-300 font-medium flex items-center justify-between w-full">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>จ่ายการไฟฟ้า</span>
+                </div>
+                <span className="text-[10px] text-slate-300 bg-slate-800/90 border border-slate-700/80 px-1.5 py-0.5 rounded font-mono group-hover:text-cyan-300 group-hover:border-cyan-500/30 transition-colors">
+                  บิล กฟภ. ↗
                 </span>
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1 tracking-tight">
                 {formatBaht(periodStats.gridBill || 0)}
               </div>
-              <div className="text-[9px] text-slate-400 font-sans mt-0.5 flex justify-between items-center">
+              <div className="text-[10px] text-slate-500 font-sans mt-0.5 flex justify-between items-center">
                 <span>{statPeriod === 'Month' ? 'รอบบิลนี้' : `รวม ${periodStats.daysCount} วัน`}</span>
-                <span className="text-purple-400 group-hover:underline">ดูบิลฉบับเต็ม ↗</span>
+                <span className="text-slate-400 group-hover:text-cyan-300 text-[10px]">ดูใบแจ้งหนี้ ↗</span>
               </div>
             </button>
-
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-amber-500">
-              <div className="text-[11px] sm:text-xs text-amber-300 font-bold">🗼 ดึงไฟการไฟฟ้า (Import)</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-amber-300 mt-1">
-                {periodStats.imp.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
-              </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
-                เฉลี่ย {(periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
-              </div>
-            </div>
-
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-emerald-500">
-              <div className="text-[11px] sm:text-xs text-emerald-300 font-bold">🔋 ชาร์จลงแบต</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
-                {periodStats.chg.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
-              </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
-                เก็บไฟสำรองจากโซลาร์
-              </div>
-            </div>
-
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-teal-500">
-              <div className="text-[11px] sm:text-xs text-teal-300 font-bold">🔋 จ่ายไฟจากแบต</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-teal-300 mt-1">
-                {periodStats.dis.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
-              </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
-                เลี้ยงโหลดช่วงค่ำ/กลางคืน
-              </div>
-            </div>
-
-            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-sky-400">
-              <div className="text-[11px] sm:text-xs text-sky-300 font-bold">📤 ส่งออกขายไฟ (Export)</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-sky-300 mt-1">
-                {periodStats.exp.toLocaleString()}{' '}
-                <span className="text-xs font-normal text-slate-400">kWh</span>
-              </div>
-              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
-                ขายคืน กฟภ. @2.20฿/หน่วย
-              </div>
-            </div>
           </div>
         </div>
 
         <div className="lg:col-span-5 bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 flex flex-col justify-between space-y-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-black text-white flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
                 <span>สรุปค่าไฟฟ้าและเงินที่ประหยัดได้</span>
               </h3>
               <button
@@ -5071,15 +5108,15 @@ export const HomeInverterView = () => {
                   setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                   setIsPeaModalOpen(true);
                 }}
-                className="px-2.5 py-1 rounded-xl bg-purple-600/25 hover:bg-purple-600/35 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                className="px-3 py-1.5 rounded-xl bg-[#141b27] hover:bg-[#1a2333] border border-cyan-500/40 text-cyan-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
               >
-                <FileText className="w-3.5 h-3.5 text-purple-300" />
-                <span>📄 ดูบิล กฟภ. ฉบับจริง</span>
+                <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ดูบิล กฟภ. ฉบับจริง</span>
               </button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
               <p>
-                ตัดยอดทุกวันที่ <span className="text-amber-300 font-bold font-mono">{billingCutoffDay}</span> ของเดือน (เช่น รอบ ต.ค. 69: {billingCycles[0]?.periodLabel})
+                ตัดยอดทุกวันที่ <span className="text-white font-bold font-mono">{billingCutoffDay}</span> ของเดือน (เช่น รอบ ต.ค. 69: {billingCycles[0]?.periodLabel})
               </p>
               <button
                 type="button"
@@ -5087,7 +5124,7 @@ export const HomeInverterView = () => {
                   setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                   setIsPeaModalOpen(true);
                 }}
-                className="text-purple-400 hover:text-purple-300 underline font-semibold cursor-pointer text-[10px]"
+                className="text-cyan-400 hover:text-cyan-300 underline font-medium cursor-pointer text-[10px]"
               >
                 เปลี่ยนวันตัดยอด
               </button>
@@ -5095,12 +5132,12 @@ export const HomeInverterView = () => {
           </div>
 
           {/* Monthly Billing Breakdown Table */}
-          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 space-y-2 overflow-hidden">
-            <div className="grid grid-cols-4 text-[10px] sm:text-xs font-bold text-slate-400 pb-1.5 border-b border-slate-800 text-right">
-              <span className="text-left text-slate-300">รอบบิล (คลิกดูบิล)</span>
+          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 space-y-2 overflow-hidden">
+            <div className="grid grid-cols-4 text-[10px] sm:text-xs font-semibold text-slate-400 pb-2 border-b border-slate-800 text-right">
+              <span className="text-left text-slate-300">รอบบิล</span>
               <span>ดึงไฟ (kWh)</span>
-              <span className="text-rose-400">จ่ายการไฟฟ้า</span>
-              <span className="text-emerald-400">ประหยัดได้</span>
+              <span>จ่ายการไฟฟ้า</span>
+              <span className="text-cyan-300">ประหยัดได้</span>
             </div>
             <div className="max-h-52 overflow-y-auto space-y-1.5 pr-0.5">
               {Array.isArray(billingCycles) && billingCycles.length > 0 ? (
@@ -5111,19 +5148,19 @@ export const HomeInverterView = () => {
                       setSelectedPeaCycleKey(c.cycleKey);
                       setIsPeaModalOpen(true);
                     }}
-                    className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2 rounded-xl bg-slate-900/60 border border-slate-800/60 hover:border-purple-500/60 hover:bg-purple-950/20 text-right cursor-pointer transition-colors"
+                    className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-mono py-1.5 px-2.5 rounded-xl bg-[#121622] border border-slate-800/70 hover:border-cyan-500/50 hover:bg-[#161c2b] text-right cursor-pointer transition-colors"
                     title={`คลิกเพื่อดูใบแจ้งหนี้ กฟภ. รอบ ${c.periodLabel}`}
                   >
-                    <div className="font-sans font-bold text-slate-200 text-left truncate flex flex-col">
-                      <span className="flex items-center gap-1 text-slate-200 text-[11px]">
-                        <span className="text-purple-400 text-[10px]">📄</span>
+                    <div className="font-sans font-medium text-slate-200 text-left truncate flex flex-col">
+                      <span className="flex items-center gap-1.5 text-slate-200 text-[11px]">
+                        <span className="text-cyan-400 text-[10px]">📄</span>
                         {c.monthLabel.split(' ')[0]} {c.year + 543}
                       </span>
-                      <span className="text-[9px] text-slate-400 font-mono pl-3">{c.periodLabel}</span>
+                      <span className="text-[9px] text-slate-500 font-mono pl-3.5">{c.periodLabel}</span>
                     </div>
-                    <span className="text-amber-300 font-bold">{c.imp.toFixed(2)}</span>
-                    <span className="text-rose-400 font-bold">{formatBaht(c.importBill)}</span>
-                    <span className="text-emerald-400 font-bold">{formatBaht(c.savedBaht)}</span>
+                    <span className="text-slate-300 font-bold">{c.imp.toFixed(2)}</span>
+                    <span className="text-white font-bold">{formatBaht(c.importBill)}</span>
+                    <span className="text-cyan-300 font-bold">{formatBaht(c.savedBaht)}</span>
                   </div>
                 ))
               ) : (
@@ -5131,14 +5168,14 @@ export const HomeInverterView = () => {
               )}
             </div>
             <div className="grid grid-cols-4 items-center text-[10px] sm:text-xs font-bold pt-2 border-t border-slate-800 font-mono text-right">
-              <span className="text-slate-300 font-sans text-left">รวม 7 รอบบิล:</span>
-              <span className="text-amber-300">
+              <span className="text-slate-400 font-sans text-left">รวม 7 รอบบิล:</span>
+              <span className="text-slate-200">
                 {billingCycles.reduce((acc, c) => acc + c.imp, 0).toFixed(2)}
               </span>
-              <span className="text-rose-400">
+              <span className="text-white">
                 {formatBaht(billingCycles.reduce((acc, c) => acc + c.importBill, 0))}
               </span>
-              <span className="text-emerald-400">
+              <span className="text-cyan-300">
                 {formatBaht(billingCycles.reduce((acc, c) => acc + c.savedBaht, 0))}
               </span>
             </div>
@@ -5147,33 +5184,33 @@ export const HomeInverterView = () => {
             </div>
           </div>
 
-          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-4 space-y-2">
-            <div className="flex justify-between text-xs font-bold">
-              <span className="text-emerald-300">
-                ใช้ไฟโซลาร์ในบ้าน: {selfConsKWh} kWh ({selfConsPct}%)
+          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-4 space-y-2 shadow-sm">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="text-slate-300">
+                ใช้ไฟโซลาร์ในบ้าน: <strong className="text-white font-mono">{selfConsKWh} kWh</strong> ({selfConsPct}%)
               </span>
-              <span className="text-sky-300">
-                ส่งออก Export: {periodStats.exp} kWh ({expPct}%)
+              <span className="text-slate-400">
+                ส่งออก: <strong className="text-slate-200 font-mono">{periodStats.exp} kWh</strong> ({expPct}%)
               </span>
             </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
-              <div className="h-full bg-emerald-500" style={{ width: `${selfConsPct}%` }} />
-              <div className="h-full bg-sky-400" style={{ width: `${expPct}%` }} />
+            <div className="w-full h-2 bg-slate-800/90 rounded-full overflow-hidden flex">
+              <div className="h-full bg-cyan-500" style={{ width: `${selfConsPct}%` }} />
+              <div className="h-full bg-slate-600" style={{ width: `${expPct}%` }} />
             </div>
           </div>
 
-          <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-4 space-y-2">
-            <div className="flex justify-between text-xs font-bold">
-              <span className="text-emerald-300">
-                พึ่งพาโซลาร์+แบต: {selfSuffKWh} kWh ({selfSuffPct}%)
+          <div className="bg-[#0b0f17] border border-slate-800/80 rounded-2xl p-4 space-y-2 shadow-sm">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="text-slate-300">
+                พึ่งพาโซลาร์ + แบต: <strong className="text-white font-mono">{selfSuffKWh} kWh</strong> ({selfSuffPct}%)
               </span>
-              <span className="text-amber-300">
-                ดึงไฟหลวง: {periodStats.imp} kWh ({impPct}%)
+              <span className="text-slate-400">
+                ดึงไฟหลวง: <strong className="text-slate-200 font-mono">{periodStats.imp} kWh</strong> ({impPct}%)
               </span>
             </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
-              <div className="h-full bg-emerald-500" style={{ width: `${selfSuffPct}%` }} />
-              <div className="h-full bg-amber-500" style={{ width: `${impPct}%` }} />
+            <div className="w-full h-2 bg-slate-800/90 rounded-full overflow-hidden flex">
+              <div className="h-full bg-cyan-500" style={{ width: `${selfSuffPct}%` }} />
+              <div className="h-full bg-slate-600" style={{ width: `${impPct}%` }} />
             </div>
           </div>
         </div>
