@@ -558,7 +558,7 @@ const SupercarRadialGauge = ({
   );
 };
 
-export const HomeInverterView = () => {
+export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const { activeOrgId, updateOrganization, testRealGatewayConnection } = useAuth();
   const currentCompany = TENANT_COMPANIES[activeOrgId] || Object.values(TENANT_COMPANIES)[0];
 
@@ -581,7 +581,37 @@ export const HomeInverterView = () => {
   const [curveMetricTab, setCurveMetricTab] = useState('all'); // 'all' | 'power' | 'battery' | 'temp'
   const [isHourlyTableOpen, setIsHourlyTableOpen] = useState(false);
   const [simTariffBaht, setSimTariffBaht] = useState(4.72);
-  const [dashboardSection, setDashboardSection] = useState('summary'); // 'summary' | 'curve' | 'billing' | 'all'
+  const [dashboardSection, setDashboardSection] = useState(activeSection || 'summary'); // 'summary' | 'curve' | 'billing' | 'all'
+
+  // Mobile Single-Gauge Carousel Swipe State & Handlers
+  const carouselRef = useRef(null);
+  const [mobileDialIndex, setMobileDialIndex] = useState(0);
+
+  const handleCarouselScroll = () => {
+    if (!carouselRef.current) return;
+    const { scrollLeft, clientWidth } = carouselRef.current;
+    if (clientWidth > 0) {
+      const index = Math.round(scrollLeft / clientWidth);
+      setMobileDialIndex(Math.max(0, Math.min(2, index)));
+    }
+  };
+
+  const scrollToDial = (index) => {
+    setMobileDialIndex(index);
+    if (carouselRef.current) {
+      carouselRef.current.scrollTo({
+        left: index * carouselRef.current.clientWidth,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Sync section prop if parent switches tab
+  useEffect(() => {
+    if (activeSection && activeSection !== dashboardSection) {
+      setDashboardSection(activeSection);
+    }
+  }, [activeSection]);
 
   const [statPeriod, setStatPeriod] = useState('Month'); // 'Day' | 'Week' | 'Month' | 'Year' | 'Total' | 'Custom'
   const [customStartDate, setCustomStartDate] = useState(() => getThailandDateStr(30));
@@ -796,13 +826,14 @@ export const HomeInverterView = () => {
     });
   }, [historicalLogs, billingCutoffDay, tariffSettings]);
 
-  if (!currentCompany) {
-    return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center text-slate-400">
-        ยังไม่มีข้อมูลผู้ใช้งานในฐานข้อมูล กรุณาตั้งค่าและบันทึกข้อมูลในหน้า Super Admin
-      </div>
-    );
-  }
+  useEffect(() => {
+    const handleOpenPea = () => {
+      setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
+      setIsPeaModalOpen(true);
+    };
+    window.addEventListener('OPEN_PEA_MODAL', handleOpenPea);
+    return () => window.removeEventListener('OPEN_PEA_MODAL', handleOpenPea);
+  }, [billingCycles]);
 
   const totalPvPowerW = Number(solarData.pv1PowerW || 0) + Number(solarData.pv2PowerW || 0);
   const todayGenKWh = Number(solarData.todayEnergyKWh || 0);
@@ -3102,10 +3133,9 @@ export const HomeInverterView = () => {
       })()}
 
       {/* =================================================================== */}
-            {/* =================================================================== */}
-      {/* MOBILE-FIRST SECTION FOCUS SELECTOR (ใช้งานง่าย & สบายตา)           */}
+      {/* SECTION FOCUS SELECTOR (แสดงเฉพาะหน้าจอกว้าง Desktop / Tablet)      */}
       {/* =================================================================== */}
-      <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1.5 shadow-lg flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
+      <div className="hidden sm:flex bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1.5 shadow-lg items-center justify-between gap-1 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1 w-full">
           {[
             { id: 'summary', icon: Zap, label: '⚡ หน้าหลัก & สรุป' },
@@ -3121,6 +3151,7 @@ export const HomeInverterView = () => {
                 type="button"
                 onClick={() => {
                   setDashboardSection(tab.id);
+                  if (onSectionChange) onSectionChange(tab.id);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className={`flex-1 min-w-[105px] py-2 px-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
@@ -3137,11 +3168,39 @@ export const HomeInverterView = () => {
         </div>
       </div>
 
-      {/* TRIPLE-DIAL SUPERCAR INSTRUMENT CLUSTER WITH INTERACTIVE CENTER HUD */}
+      {/* TRIPLE-DIAL SUPERCAR INSTRUMENT CLUSTER (MOBILE SWIPEABLE CAROUSEL + DESKTOP PANORAMA) */}
       {(dashboardSection === 'summary' || dashboardSection === 'all') && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-        {/* LEFT DIAL (4 cols): SOLAR PV ARRAY TACHOMETER */}
-        <div className="lg:col-span-4">
+        <div className="space-y-1">
+          {/* MOBILE QUICK-JUMP DIAL SELECTOR PILLS */}
+          <div className="sm:hidden bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1 shadow-lg grid grid-cols-3 gap-1 mb-2">
+            {[
+              { index: 0, label: '☀️ โซลาร์ PV', val: `${totalPvPowerW.toLocaleString()} W` },
+              { index: 1, label: '⚡ ระบบรวม', val: `${todayGenKWh.toFixed(1)} kWh` },
+              { index: 2, label: '🔋 แบตเตอรี่', val: `${battSoc}%` }
+            ].map((tab) => (
+              <button
+                key={tab.index}
+                type="button"
+                onClick={() => scrollToDial(tab.index)}
+                className={`py-1.5 px-1 rounded-xl text-center transition-all cursor-pointer ${
+                  mobileDialIndex === tab.index
+                    ? 'bg-sky-500/20 text-sky-200 border border-sky-400/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <div className="text-[11px] font-bold truncate">{tab.label}</div>
+                <div className="text-[10px] font-mono text-slate-300 font-semibold mt-0.5 truncate">{tab.val}</div>
+              </button>
+            ))}
+          </div>
+
+          <div
+            ref={carouselRef}
+            onScroll={handleCarouselScroll}
+            className="flex sm:grid sm:grid-cols-12 overflow-x-auto sm:overflow-x-visible snap-x sm:snap-none snap-mandatory scroll-smooth no-scrollbar w-full gap-4 items-stretch"
+          >
+            {/* LEFT DIAL (4 cols): SOLAR PV ARRAY TACHOMETER */}
+            <div className="w-full min-w-full sm:min-w-0 sm:w-auto snap-center shrink-0 sm:shrink sm:col-span-12 lg:col-span-4">
           <SupercarRadialGauge
             value={totalPvPowerW}
             max={maxPvW}
@@ -3162,7 +3221,7 @@ export const HomeInverterView = () => {
         </div>
 
         {/* CENTER MASTER MULTI-FUNCTION DISPLAY (4 cols): 4 INTERACTIVE MODES! */}
-        <div className="lg:col-span-4 bg-[#080d19]/95 border border-slate-800/90 rounded-[26px] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col justify-between">
+        <div className="w-full min-w-full sm:min-w-0 sm:w-auto snap-center shrink-0 sm:shrink sm:col-span-12 lg:col-span-4 bg-[#080d19]/95 border border-slate-800/90 rounded-[26px] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col justify-between">
           {/* Interactive Mode Selector Tabs */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -3391,7 +3450,7 @@ export const HomeInverterView = () => {
         </div>
 
         {/* RIGHT DIAL (4 cols): HV BATTERY ERS & SOC GAUGE */}
-        <div className="lg:col-span-4">
+        <div className="w-full min-w-full sm:min-w-0 sm:w-auto snap-center shrink-0 sm:shrink sm:col-span-12 lg:col-span-4">
           <SupercarRadialGauge
             value={battSoc}
             max={100}
@@ -3411,7 +3470,23 @@ export const HomeInverterView = () => {
           />
         </div>
       </div>
-      )}
+
+      {/* MOBILE PAGINATION DOTS (แสดงจุดตำแหน่งเรือนไมล์ที่เลือก) */}
+      <div className="flex sm:hidden items-center justify-center gap-1.5 py-1">
+        {[0, 1, 2].map((idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => scrollToDial(idx)}
+            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+              mobileDialIndex === idx ? 'w-6 bg-sky-400' : 'w-2 bg-slate-700 hover:bg-slate-500'
+            }`}
+            aria-label={`เรือนไมล์ที่ ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+    )}
 
       {/* DAILY PEAK ELECTRICITY & CURRENT ANALYSIS (วิเคราะห์พีคและกระแสแอมป์) */}
       {(dashboardSection === 'summary' || dashboardSection === 'all') && (

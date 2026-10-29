@@ -14,11 +14,13 @@ import {
   Gauge,
   BarChart3,
   ShieldCheck,
-  ArrowLeft,
   LogOut,
-  Sun,
   Sliders,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  TrendingUp,
+  FileText,
+  X
 } from 'lucide-react';
 
 export function App() {
@@ -36,6 +38,36 @@ export function App() {
 
   const [selectedMeterId, setSelectedMeterId] = useState(null);
   const [isMobileSyncing, setIsMobileSyncing] = useState(false);
+  const [solarSection, setSolarSection] = useState('summary'); // 'summary' | 'curve' | 'billing'
+  const [isManageSheetOpen, setIsManageSheetOpen] = useState(false);
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          if (currentScrollY < 40) {
+            setIsNavVisible(true);
+          } else if (currentScrollY > lastScrollY + 8) {
+            // Scrolling down (reading content downwards) -> hide bar
+            setIsNavVisible(false);
+          } else if (currentScrollY < lastScrollY - 8) {
+            // Scrolling up (returning upward) -> show bar
+            setIsNavVisible(true);
+          }
+          setLastScrollY(currentScrollY);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   useEffect(() => {
     const handleSyncStatus = (e) => {
@@ -102,7 +134,10 @@ export function App() {
         {/* CUSTOMER DASHBOARD: AUTOMATICALLY RENDERS BY USER TYPE (HOME_SOLAR vs INDUSTRIAL) */}
         {activeTab !== 'super-admin' && isHomeSolarSite && (
           <ErrorBoundary>
-            <HomeInverterView />
+            <HomeInverterView
+              activeSection={solarSection}
+              onSectionChange={setSolarSection}
+            />
           </ErrorBoundary>
         )}
 
@@ -125,129 +160,318 @@ export function App() {
         )}
       </main>
 
+      {/* Mobile Action Bottom Sheet for Managing Solar & Inverter */}
+      {isManageSheetOpen && (
+        <div className="fixed inset-0 z-50 sm:hidden flex flex-col justify-end">
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsManageSheetOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+          />
+
+          {/* Sheet Panel */}
+          <div className="relative bg-[#0c1424] border-t border-slate-700/80 rounded-t-[32px] p-5 pb-8 shadow-[0_-20px_50px_rgba(0,0,0,0.9)] space-y-4 max-w-lg mx-auto w-full animate-in slide-in-from-bottom duration-200">
+            {/* Drag indicator handle */}
+            <div className="w-12 h-1.5 bg-slate-700/80 rounded-full mx-auto -mt-1 mb-2" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-sky-400" /> ศูนย์ควบคุม & การจัดการ
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  ระบบโซลาร์โฮม & แบตเตอรี่ BANNAT
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageSheetOpen(false)}
+                className="p-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Action Items List */}
+            <div className="space-y-2">
+              {/* Sync Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleTriggerMobileSync();
+                  setIsManageSheetOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-sky-950/40 hover:bg-sky-900/50 border border-sky-800/40 text-left transition-all cursor-pointer active:scale-98"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                    <RefreshCw className={`w-5 h-5 ${isMobileSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">
+                      {isMobileSyncing ? 'กำลังซิงก์ข้อมูล SAJ Cloud...' : 'ซิงก์ข้อมูล SAJ Cloud ทันที'}
+                    </div>
+                    <div className="text-[11px] text-sky-300/80">ดึงข้อมูลพลังงานและโซลาร์ล่าสุด</div>
+                  </div>
+                </div>
+                <span className="text-xs font-mono text-sky-400 font-bold">ซิงก์</span>
+              </button>
+
+              {/* Settings Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenMobileSettings();
+                  setIsManageSheetOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-left transition-all cursor-pointer active:scale-98"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">ตั้งค่าระบบ & สเปกแผงโซลาร์</div>
+                    <div className="text-[11px] text-slate-400">กำหนดจำนวนแผง PV1, PV2, Voc, Vmp</div>
+                  </div>
+                </div>
+                <span className="text-xs font-mono text-slate-400 font-bold">เปิด</span>
+              </button>
+
+              {/* PEA Replica Modal Trigger */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('OPEN_PEA_MODAL'));
+                  setIsManageSheetOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-purple-950/30 hover:bg-purple-900/40 border border-purple-800/40 text-left transition-all cursor-pointer active:scale-98"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">ใบแจ้งหนี้ กฟภ. ฉบับจริง</div>
+                    <div className="text-[11px] text-purple-300/80">ดูใบเสร็จ PEA เสมือนจริง + ค่า Ft + VAT</div>
+                  </div>
+                </div>
+                <span className="text-xs font-mono text-purple-300 font-bold">เปิดบิล</span>
+              </button>
+
+              {/* Super Admin Console Jump (if Super Admin) */}
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(activeTab === 'super-admin' ? 'overview' : 'super-admin');
+                    setIsManageSheetOpen(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-amber-950/30 hover:bg-amber-900/40 border border-amber-800/40 text-left transition-all cursor-pointer active:scale-98"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">
+                        {activeTab === 'super-admin' ? 'กลับสู่หน้าแดชบอร์ดโซลาร์' : 'แดชบอร์ดแอดมิน (Super Admin)'}
+                      </div>
+                      <div className="text-[11px] text-amber-300/80">จัดการลูกค้า เกตเวย์ และรหัสผ่าน</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono text-amber-300 font-bold">
+                    {activeTab === 'super-admin' ? 'หน้าหลัก' : 'แอดมิน'}
+                  </span>
+                </button>
+              )}
+
+              {/* Logout Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageSheetOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-rose-950/30 hover:bg-rose-900/40 border border-rose-800/40 text-left transition-all cursor-pointer active:scale-98 mt-2"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                    <LogOut className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-rose-200">ออกจากระบบ (Logout)</div>
+                    <div className="text-[11px] text-rose-300/70">ล้างเซสชันและออกจากบัญชีผู้ใช้</div>
+                  </div>
+                </div>
+                <span className="text-xs font-mono text-rose-400 font-bold">ออก</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile App Native Sticky Bottom Navigation Bar (Single Unified Command Hub) */}
       <nav
         role="navigation"
         aria-label="Mobile Navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070b14]/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1.5 shadow-[0_-10px_35px_rgba(0,0,0,0.85)] pb-[calc(env(safe-area-inset-bottom,0px)+8px)]"
+        className={`sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070b14]/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1.5 shadow-[0_-10px_35px_rgba(0,0,0,0.85)] pb-[calc(env(safe-area-inset-bottom,0px)+8px)] transition-transform duration-300 ease-in-out ${
+          isNavVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+        }`}
       >
-        <div
-          className={`grid ${
-            isSuperAdmin ? 'grid-cols-5' : 'grid-cols-4'
-          } items-center gap-1 max-w-md mx-auto`}
-        >
-          {isSuperAdmin && (
+        {isHomeSolarSite ? (
+          /* HOME SOLAR 4-BUTTON NATIVE MOBILE BOTTOM BAR */
+          <div className="grid grid-cols-4 items-center gap-1 max-w-md mx-auto">
             <button
+              type="button"
               onClick={() => {
-                setActiveTab('super-admin');
+                if (activeTab === 'super-admin') setActiveTab('overview');
+                setSolarSection('summary');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
-                activeTab === 'super-admin'
+                activeTab !== 'super-admin' && solarSection === 'summary'
+                  ? 'text-sky-300 bg-sky-500/20 font-bold border border-sky-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <Zap className="w-5 h-5 shrink-0" />
+              <span className="truncate">หน้าหลัก</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab === 'super-admin') setActiveTab('overview');
+                setSolarSection('curve');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab !== 'super-admin' && solarSection === 'curve'
+                  ? 'text-sky-300 bg-sky-500/20 font-bold border border-sky-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <TrendingUp className="w-5 h-5 shrink-0" />
+              <span className="truncate">กราฟ 24 ชม.</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab === 'super-admin') setActiveTab('overview');
+                setSolarSection('billing');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab !== 'super-admin' && solarSection === 'billing'
+                  ? 'text-purple-300 bg-purple-500/20 font-bold border border-purple-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <FileText className="w-5 h-5 shrink-0" />
+              <span className="truncate">บิลค่าไฟ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsManageSheetOpen(true)}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                isManageSheetOpen
                   ? 'text-amber-300 bg-amber-500/20 font-bold border border-amber-500/30 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 active:scale-95'
               }`}
             >
-              <ShieldCheck className="w-5 h-5 shrink-0" />
-              <span className="truncate">แอดมิน</span>
+              <Sliders className="w-5 h-5 shrink-0" />
+              <span className="truncate">จัดการ</span>
             </button>
-          )}
-
-          {isHomeSolarSite ? (
-            <>
-              <button
-                onClick={() => {
-                  if (activeTab === 'super-admin') setActiveTab('overview');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
-                  activeTab !== 'super-admin'
-                    ? 'text-emerald-300 bg-emerald-500/20 font-bold border border-emerald-500/30 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 active:scale-95'
-                }`}
-              >
-                <Sun className="w-5 h-5 shrink-0" />
-                <span className="truncate">โซลาร์</span>
-              </button>
-
-              <button
-                onClick={handleTriggerMobileSync}
-                className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold text-sky-400 hover:text-sky-300 active:scale-95 transition-all cursor-pointer"
-              >
-                <RefreshCw
-                  className={`w-5 h-5 shrink-0 ${
-                    isMobileSyncing ? 'animate-spin text-emerald-400' : ''
-                  }`}
-                />
-                <span className="truncate">{isMobileSyncing ? 'ซิงก์...' : 'ซิงก์ข้อมูล'}</span>
-              </button>
-
-              <button
-                onClick={handleOpenMobileSettings}
-                className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
-              >
-                <Sliders className="w-5 h-5 shrink-0 text-slate-300" />
-                <span className="truncate">ตั้งค่า</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  setActiveTab('overview');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
-                  activeTab === 'overview'
-                    ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
-                    : 'text-slate-400 hover:text-slate-200 active:scale-95'
-                }`}
-              >
-                <Activity className="w-5 h-5 shrink-0" />
-                <span className="truncate">ภาพรวม</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('meter-detail');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
-                  activeTab === 'meter-detail'
-                    ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
-                    : 'text-slate-400 hover:text-slate-200 active:scale-95'
-                }`}
-              >
-                <Gauge className="w-5 h-5 shrink-0" />
-                <span className="truncate">เจาะลึก</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('report');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
-                  activeTab === 'report'
-                    ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
-                    : 'text-slate-400 hover:text-slate-200 active:scale-95'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5 shrink-0" />
-                <span className="truncate">รายงาน</span>
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={logout}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold text-rose-400 hover:text-rose-300 active:bg-rose-500/15 active:scale-95 transition-all cursor-pointer"
-            title="ออกจากระบบ"
+          </div>
+        ) : (
+          /* INDUSTRIAL 3-MENU MULTI-METER MOBILE BOTTOM BAR */
+          <div
+            className={`grid ${
+              isSuperAdmin ? 'grid-cols-5' : 'grid-cols-4'
+            } items-center gap-1 max-w-md mx-auto`}
           >
-            <LogOut className="w-5 h-5 shrink-0" />
-            <span className="truncate">ออกจากระบบ</span>
-          </button>
-        </div>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('super-admin');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                  activeTab === 'super-admin'
+                    ? 'text-amber-300 bg-amber-500/20 font-bold border border-amber-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 active:scale-95'
+                }`}
+              >
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <span className="truncate">แอดมิน</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('overview');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab === 'overview'
+                  ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <Activity className="w-5 h-5 shrink-0" />
+              <span className="truncate">ภาพรวม</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('meter-detail');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab === 'meter-detail'
+                  ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <Gauge className="w-5 h-5 shrink-0" />
+              <span className="truncate">เจาะลึก</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('report');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold transition-all cursor-pointer ${
+                activeTab === 'report'
+                  ? 'text-blue-300 bg-blue-500/20 font-bold border border-blue-500/30'
+                  : 'text-slate-400 hover:text-slate-200 active:scale-95'
+              }`}
+            >
+              <BarChart3 className="w-5 h-5 shrink-0" />
+              <span className="truncate">รายงาน</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold text-rose-400 hover:text-rose-300 active:bg-rose-500/15 active:scale-95 transition-all cursor-pointer"
+              title="ออกจากระบบ"
+            >
+              <LogOut className="w-5 h-5 shrink-0" />
+              <span className="truncate">ออกจากระบบ</span>
+            </button>
+          </div>
+        )}
       </nav>
     </div>
   );
