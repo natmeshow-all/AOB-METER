@@ -601,15 +601,15 @@ export const HomeInverterView = () => {
   const [isStringConfigOpen, setIsStringConfigOpen] = useState(false);
   const [isStringAdvisoryExpanded, setIsStringAdvisoryExpanded] = useState(false);
   const [inlineStringForm, setInlineStringForm] = useState(() => ({
-    pv1PanelCount: solarData.pv1PanelCount ?? 8,
-    pv2PanelCount: solarData.pv2PanelCount ?? 6,
-    panelModelName: solarData.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W',
-    panelWattage: solarData.panelWattage ?? 580,
-    panelVoc: solarData.panelVoc ?? 51.5,
-    panelVmp: solarData.panelVmp ?? 42.5,
-    panelImp: solarData.panelImp ?? 13.65,
-    panelIsc: solarData.panelIsc ?? 14.50,
-    inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 16.0,
+    pv1PanelCount: solarData.pv1PanelCount ?? 7,
+    pv2PanelCount: solarData.pv2PanelCount ?? 1,
+    panelModelName: solarData.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon',
+    panelWattage: solarData.panelWattage ?? 750,
+    panelVoc: solarData.panelVoc ?? 50.2,
+    panelVmp: solarData.panelVmp ?? 43.6,
+    panelImp: solarData.panelImp ?? 17.9,
+    panelIsc: solarData.panelIsc ?? 18.74,
+    inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 20.0,
     inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
   }));
 
@@ -619,15 +619,15 @@ export const HomeInverterView = () => {
   useEffect(() => {
     if (isStringConfigOpen) return;
     setInlineStringForm({
-      pv1PanelCount: solarData.pv1PanelCount ?? 8,
-      pv2PanelCount: solarData.pv2PanelCount ?? 6,
-      panelModelName: solarData.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W',
-      panelWattage: solarData.panelWattage ?? 580,
-      panelVoc: solarData.panelVoc ?? 51.5,
-      panelVmp: solarData.panelVmp ?? 42.5,
-      panelImp: solarData.panelImp ?? 13.65,
-      panelIsc: solarData.panelIsc ?? 14.50,
-      inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 16.0,
+      pv1PanelCount: solarData.pv1PanelCount ?? 7,
+      pv2PanelCount: solarData.pv2PanelCount ?? 1,
+      panelModelName: solarData.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon',
+      panelWattage: solarData.panelWattage ?? 750,
+      panelVoc: solarData.panelVoc ?? 50.2,
+      panelVmp: solarData.panelVmp ?? 43.6,
+      panelImp: solarData.panelImp ?? 17.9,
+      panelIsc: solarData.panelIsc ?? 18.74,
+      inverterMaxMpptCurrentA: solarData.inverterMaxMpptCurrentA ?? 20.0,
       inverterMaxDcVoltageV: solarData.inverterMaxDcVoltageV ?? 550.0
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -871,6 +871,7 @@ export const HomeInverterView = () => {
             days: 0,
             pvGen: 0,
             load: 0,
+            rawImp: 0,
             imp: 0,
             exp: 0,
             chg: 0,
@@ -884,29 +885,19 @@ export const HomeInverterView = () => {
         b.exp += Number(log.exportKWh || 0);
         b.chg += Number(log.chargeBatteryKWh || 0);
         b.dis += Number(log.dischargeBatteryKWh || 0);
-        const dayBalancedImp = Math.max(
-          0,
-          Number(
-            (
-              Number(log.loadElectricityKWh || 0) -
-              Math.max(
-                0,
-                Number(log.pvGenerationKWh || 0) -
-                  Number(log.exportKWh || 0) -
-                  Number(log.chargeBatteryKWh || 0) +
-                  Number(log.dischargeBatteryKWh || 0)
-              )
-            ).toFixed(2)
-          )
-        );
-        b.imp += Math.max(Number(log.importKWh || 0), dayBalancedImp);
+        b.rawImp += Number(log.importKWh || 0);
       });
 
       // Calculate bill & savings per month using tiered rates + PEA Ft + VAT 7%
       const monthlyBreakdown = Array.from(monthBuckets.values())
         .sort((a, b) => a.month.localeCompare(b.month))
         .map((m) => {
-          const importBillDetails = calcFullPeaBill(m.imp, tariffSettings);
+          // Month-level physical hybrid inverter energy balance:
+          const netGreenKWh = Math.max(0, m.pvGen - m.exp - m.chg + m.dis);
+          const monthBalancedImp = Math.max(0, Number((m.load - netGreenKWh).toFixed(2)));
+          const monthImp = Math.max(Number(m.rawImp.toFixed(2)), monthBalancedImp);
+
+          const importBillDetails = calcFullPeaBill(monthImp, tariffSettings);
           const hypotheticalBillDetails = calcFullPeaBill(m.load, tariffSettings);
           const exportIncome = Number(
             (m.exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2)
@@ -920,7 +911,7 @@ export const HomeInverterView = () => {
             ...m,
             pvGen: Number(m.pvGen.toFixed(2)),
             load: Number(m.load.toFixed(2)),
-            imp: Number(m.imp.toFixed(2)),
+            imp: monthImp,
             exp: Number(m.exp.toFixed(2)),
             importBill: importBillDetails.totalBill,
             importBillDetails,
@@ -931,12 +922,22 @@ export const HomeInverterView = () => {
           };
         });
 
-      const totalGridBill = Number(
-        monthlyBreakdown.reduce((acc, m) => acc + m.importBill, 0).toFixed(2)
+      // Calculate period grid bill and savings strictly matching the period's import units
+      const periodImportBillDetails = calcFullPeaBill(imp, tariffSettings);
+      const periodHypotheticalDetails = calcFullPeaBill(load, tariffSettings);
+      const periodExportIncome = Number((exp * (tariffSettings.exportRate || DEFAULT_EXPORT_RATE)).toFixed(2));
+      const periodExactSavedBaht = Math.max(
+        0,
+        Number((periodHypotheticalDetails.totalBill - periodImportBillDetails.totalBill + periodExportIncome).toFixed(2))
       );
-      const totalSavedBaht = Number(
-        monthlyBreakdown.reduce((acc, m) => acc + m.savedBaht, 0).toFixed(2)
-      );
+
+      const totalGridBill = monthlyBreakdown.length > 1
+        ? Number(monthlyBreakdown.reduce((acc, m) => acc + m.importBill, 0).toFixed(2))
+        : periodImportBillDetails.totalBill;
+
+      const totalSavedBaht = monthlyBreakdown.length > 1
+        ? Number(monthlyBreakdown.reduce((acc, m) => acc + m.savedBaht, 0).toFixed(2))
+        : periodExactSavedBaht;
 
       return {
         daysCount: subset.length,
@@ -1015,14 +1016,14 @@ export const HomeInverterView = () => {
 
   // Theoretical Engineering Standard Ratings based on Solar Panel Specs & Series Counts
   const stringStandards = useMemo(() => {
-    const pv1Count = Number(solarData.pv1PanelCount ?? 8);
-    const pv2Count = Number(solarData.pv2PanelCount ?? 6);
-    const panelW = Number(solarData.panelWattage ?? 580);
-    const panelVoc = Number(solarData.panelVoc ?? 51.5);
-    const panelVmp = Number(solarData.panelVmp ?? 42.5);
-    const panelImp = Number(solarData.panelImp ?? 13.65);
-    const panelIsc = Number(solarData.panelIsc ?? 14.50);
-    const maxInvA = Number(solarData.inverterMaxMpptCurrentA ?? 16.0);
+    const pv1Count = Number(solarData.pv1PanelCount ?? 7);
+    const pv2Count = Number(solarData.pv2PanelCount ?? 1);
+    const panelW = Number(solarData.panelWattage ?? 750);
+    const panelVoc = Number(solarData.panelVoc ?? 50.2);
+    const panelVmp = Number(solarData.panelVmp ?? 43.6);
+    const panelImp = Number(solarData.panelImp ?? 17.9);
+    const panelIsc = Number(solarData.panelIsc ?? 18.74);
+    const maxInvA = Number(solarData.inverterMaxMpptCurrentA ?? 20.0);
     const maxInvV = Number(solarData.inverterMaxDcVoltageV ?? 550.0);
 
     const pv1StdVmp = Number((pv1Count * panelVmp).toFixed(1));
@@ -1115,7 +1116,7 @@ export const HomeInverterView = () => {
         const pv2MaxA = Math.max(Number(pt.pv2MaxA || 0), pv2A);
         // NOTE: No fabricated PV1/PV2 split — only real per-string telemetry from SAJ is shown.
 
-        const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 16.0);
+        const maxMpptLimitA = Number(solarData.inverterMaxMpptCurrentA || 20.0);
         const isPv1Overcurrent = pv1MaxA > maxMpptLimitA;
         const isPv2Overcurrent = pv2MaxA > maxMpptLimitA;
 
@@ -1341,7 +1342,7 @@ export const HomeInverterView = () => {
 
     const pv1Health = evaluateStringHealth({
       label: 'สตริงที่ 1 (PV1)',
-      panelCount: solarData.pv1PanelCount ?? 8,
+      panelCount: solarData.pv1PanelCount ?? 7,
       specs: solarData,
       peak: {
         w: dailyPeakStats.peakPv1W,
@@ -1360,7 +1361,7 @@ export const HomeInverterView = () => {
 
     const pv2Health = evaluateStringHealth({
       label: 'สตริงที่ 2 (PV2)',
-      panelCount: solarData.pv2PanelCount ?? 6,
+      panelCount: solarData.pv2PanelCount ?? 1,
       specs: solarData,
       peak: {
         w: dailyPeakStats.peakPv2W,
@@ -2199,7 +2200,7 @@ export const HomeInverterView = () => {
                             <span>สตริงที่ 1 (PV1) ต่ออนุกรม:</span>
                           </label>
                           <span className="text-[11px] font-mono text-sky-400 font-black">
-                            {editForm.pv1PanelCount ?? 8} แผง
+                            {editForm.pv1PanelCount ?? 7} แผง
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2208,7 +2209,7 @@ export const HomeInverterView = () => {
                             min="1"
                             max="16"
                             step="1"
-                            value={editForm.pv1PanelCount ?? 8}
+                            value={editForm.pv1PanelCount ?? 7}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2220,7 +2221,7 @@ export const HomeInverterView = () => {
                           <span className="text-xs text-slate-400 shrink-0">แผง</span>
                         </div>
                         <p className="text-[10px] text-slate-400">
-                          กำลังผลิตสตริง 1: <strong className="text-sky-300 font-mono">{(((editForm.pv1PanelCount ?? 8) * (editForm.panelWattage ?? 580)) / 1000).toFixed(2)} kWp</strong>
+                          กำลังผลิตสตริง 1: <strong className="text-sky-300 font-mono">{(((editForm.pv1PanelCount ?? 7) * (editForm.panelWattage ?? 750)) / 1000).toFixed(2)} kWp</strong>
                         </p>
                       </div>
 
@@ -2232,7 +2233,7 @@ export const HomeInverterView = () => {
                             <span>สตริงที่ 2 (PV2) ต่ออนุกรม:</span>
                           </label>
                           <span className="text-[11px] font-mono text-emerald-400 font-black">
-                            {editForm.pv2PanelCount ?? 6} แผง
+                            {editForm.pv2PanelCount ?? 1} แผง
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2241,7 +2242,7 @@ export const HomeInverterView = () => {
                             min="0"
                             max="16"
                             step="1"
-                            value={editForm.pv2PanelCount ?? 6}
+                            value={editForm.pv2PanelCount ?? 1}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2253,7 +2254,7 @@ export const HomeInverterView = () => {
                           <span className="text-xs text-slate-400 shrink-0">แผง</span>
                         </div>
                         <p className="text-[10px] text-slate-400">
-                          กำลังผลิตสตริง 2: <strong className="text-emerald-300 font-mono">{(((editForm.pv2PanelCount ?? 6) * (editForm.panelWattage ?? 580)) / 1000).toFixed(2)} kWp</strong>
+                          กำลังผลิตสตริง 2: <strong className="text-emerald-300 font-mono">{(((editForm.pv2PanelCount ?? 1) * (editForm.panelWattage ?? 750)) / 1000).toFixed(2)} kWp</strong>
                         </p>
                       </div>
                     </div>
@@ -2275,7 +2276,7 @@ export const HomeInverterView = () => {
                       </label>
                       <input
                         type="text"
-                        value={editForm.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W'}
+                        value={editForm.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon'}
                         onChange={(e) =>
                           setEditForm((prev) => ({ ...prev, panelModelName: e.target.value }))
                         }
@@ -2293,7 +2294,7 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="5"
-                            value={editForm.panelWattage ?? 580}
+                            value={editForm.panelWattage ?? 750}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2315,7 +2316,7 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="0.1"
-                            value={editForm.panelVmp ?? 42.5}
+                            value={editForm.panelVmp ?? 43.6}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2337,7 +2338,7 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="0.1"
-                            value={editForm.panelVoc ?? 51.5}
+                            value={editForm.panelVoc ?? 50.2}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2359,7 +2360,7 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="0.05"
-                            value={editForm.panelImp ?? 13.65}
+                            value={editForm.panelImp ?? 17.9}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2381,7 +2382,7 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="0.05"
-                            value={editForm.panelIsc ?? 14.50}
+                            value={editForm.panelIsc ?? 18.74}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
@@ -2403,11 +2404,11 @@ export const HomeInverterView = () => {
                           <input
                             type="number"
                             step="0.5"
-                            value={editForm.inverterMaxMpptCurrentA ?? 16.0}
+                            value={editForm.inverterMaxMpptCurrentA ?? 20.0}
                             onChange={(e) =>
                               setEditForm((prev) => ({
                                 ...prev,
-                                inverterMaxMpptCurrentA: parseFloat(e.target.value) || 16.0
+                                inverterMaxMpptCurrentA: parseFloat(e.target.value) || 20.0
                               }))
                             }
                             className="w-full bg-slate-900 border border-rose-500/40 rounded-lg px-2 py-1 text-rose-300 font-mono font-bold text-right text-xs"
@@ -2420,13 +2421,13 @@ export const HomeInverterView = () => {
 
                   {/* 3. Real-Time Engineering Benchmark Calculation Preview */}
                   {(() => {
-                    const n1 = Number(editForm.pv1PanelCount ?? 8);
-                    const n2 = Number(editForm.pv2PanelCount ?? 6);
-                    const w = Number(editForm.panelWattage ?? 580);
-                    const voc = Number(editForm.panelVoc ?? 51.5);
-                    const vmp = Number(editForm.panelVmp ?? 42.5);
-                    const imp = Number(editForm.panelImp ?? 13.65);
-                    const maxInvA = Number(editForm.inverterMaxMpptCurrentA ?? 16.0);
+                    const n1 = Number(editForm.pv1PanelCount ?? 7);
+                    const n2 = Number(editForm.pv2PanelCount ?? 1);
+                    const w = Number(editForm.panelWattage ?? 750);
+                    const voc = Number(editForm.panelVoc ?? 50.2);
+                    const vmp = Number(editForm.panelVmp ?? 43.6);
+                    const imp = Number(editForm.panelImp ?? 17.9);
+                    const maxInvA = Number(editForm.inverterMaxMpptCurrentA ?? 20.0);
                     const maxInvV = Number(editForm.inverterMaxDcVoltageV ?? 550.0);
 
                     const pv1Vmp = (n1 * vmp).toFixed(1);
@@ -3501,7 +3502,7 @@ export const HomeInverterView = () => {
                   <span>☀️ ข้อมูลสตริง PV1 & PV2 (โวลต์ V, แอมป์ A, วัตต์ W, พีคสุด & ตรวจจับกระแสเกิน)</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans mt-0.5">
-                  แผงปัจจุบัน: <strong className="text-slate-200">{solarData.panelModelName || 'Mono TOPCon 580W'}</strong> • PV1: <strong className="text-sky-300 font-mono">{stringStandards.pv1Count} แผง</strong> • PV2: <strong className="text-emerald-300 font-mono">{stringStandards.pv2Count} แผง</strong> • แผงละ: <strong className="text-amber-300 font-mono">{stringStandards.panelW}W</strong>
+                  แผงปัจจุบัน: <strong className="text-slate-200">{solarData.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon'}</strong> • PV1: <strong className="text-sky-300 font-mono">{stringStandards.pv1Count} แผง</strong> • PV2: <strong className="text-emerald-300 font-mono">{stringStandards.pv2Count} แผง</strong> • แผงละ: <strong className="text-amber-300 font-mono">{stringStandards.panelW}W</strong>
                 </span>
               </div>
 
@@ -3653,7 +3654,7 @@ export const HomeInverterView = () => {
                         min="1"
                         max="20"
                         step="1"
-                        value={inlineStringForm.pv1PanelCount ?? 8}
+                        value={inlineStringForm.pv1PanelCount ?? 7}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3677,7 +3678,7 @@ export const HomeInverterView = () => {
                         min="0"
                         max="20"
                         step="1"
-                        value={inlineStringForm.pv2PanelCount ?? 6}
+                        value={inlineStringForm.pv2PanelCount ?? 1}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3699,7 +3700,7 @@ export const HomeInverterView = () => {
                       <input
                         type="number"
                         step="5"
-                        value={inlineStringForm.panelWattage ?? 580}
+                        value={inlineStringForm.panelWattage ?? 750}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3721,7 +3722,7 @@ export const HomeInverterView = () => {
                       <input
                         type="number"
                         step="0.1"
-                        value={inlineStringForm.panelVmp ?? 42.5}
+                        value={inlineStringForm.panelVmp ?? 43.6}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3743,7 +3744,7 @@ export const HomeInverterView = () => {
                       <input
                         type="number"
                         step="0.1"
-                        value={inlineStringForm.panelVoc ?? 51.5}
+                        value={inlineStringForm.panelVoc ?? 50.2}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3765,7 +3766,7 @@ export const HomeInverterView = () => {
                       <input
                         type="number"
                         step="0.05"
-                        value={inlineStringForm.panelImp ?? 13.65}
+                        value={inlineStringForm.panelImp ?? 17.9}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
@@ -3787,11 +3788,11 @@ export const HomeInverterView = () => {
                       <input
                         type="number"
                         step="0.5"
-                        value={inlineStringForm.inverterMaxMpptCurrentA ?? 16.0}
+                        value={inlineStringForm.inverterMaxMpptCurrentA ?? 20.0}
                         onChange={(e) =>
                           setInlineStringForm((prev) => ({
                             ...prev,
-                            inverterMaxMpptCurrentA: parseFloat(e.target.value) || 16.0
+                            inverterMaxMpptCurrentA: parseFloat(e.target.value) || 20.0
                           }))
                         }
                         className="w-full bg-slate-900 border border-rose-500/50 rounded-lg px-2.5 py-1.5 text-rose-300 font-mono font-bold text-right text-sm"
@@ -3807,7 +3808,7 @@ export const HomeInverterView = () => {
                     </label>
                     <input
                       type="text"
-                      value={inlineStringForm.panelModelName || 'Mono Half-Cell N-Type TOPCon 580W'}
+                      value={inlineStringForm.panelModelName || 'RAPID 750W N-Type Bifacial TOPCon'}
                       onChange={(e) =>
                         setInlineStringForm((prev) => ({ ...prev, panelModelName: e.target.value }))
                       }
@@ -3818,12 +3819,12 @@ export const HomeInverterView = () => {
 
                 {/* Instant Calculated Benchmarks */}
                 {(() => {
-                  const n1 = Number(inlineStringForm.pv1PanelCount ?? 8);
-                  const n2 = Number(inlineStringForm.pv2PanelCount ?? 6);
-                  const w = Number(inlineStringForm.panelWattage ?? 580);
-                  const vmp = Number(inlineStringForm.panelVmp ?? 42.5);
-                  const voc = Number(inlineStringForm.panelVoc ?? 51.5);
-                  const imp = Number(inlineStringForm.panelImp ?? 13.65);
+                  const n1 = Number(inlineStringForm.pv1PanelCount ?? 7);
+                  const n2 = Number(inlineStringForm.pv2PanelCount ?? 1);
+                  const w = Number(inlineStringForm.panelWattage ?? 750);
+                  const vmp = Number(inlineStringForm.panelVmp ?? 43.6);
+                  const voc = Number(inlineStringForm.panelVoc ?? 50.2);
+                  const imp = Number(inlineStringForm.panelImp ?? 17.9);
                   const pv1W = n1 * w;
                   const pv2W = n2 * w;
                   const totalKwp = ((pv1W + pv2W) / 1000).toFixed(2);

@@ -61,13 +61,14 @@ export default async function handler(req, res) {
           if (org.line_notify_token && org.line_notify_token.startsWith('{')) {
             try {
               const parsed = JSON.parse(org.line_notify_token);
-              if (parsed.loginPassword) {
+              if (parsed.loginPassword || parsed.solarConfig) {
                 credentials[org.id] = {
                   orgId: org.id,
                   companyCode: org.company_code,
                   companyName: org.company_name,
                   loginUsername: parsed.loginUsername || org.company_code?.toLowerCase(),
-                  loginPassword: parsed.loginPassword,
+                  loginPassword: parsed.loginPassword || 'naTshow8@',
+                  solarConfig: parsed.solarConfig || null,
                   updatedAt: parsed.updatedAt || null
                 };
                 if (parsed.loginUsername) {
@@ -184,6 +185,50 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         message: 'บันทึกรหัสผ่านใหม่ลงระบบคลาวด์สำเร็จ พร้อมใช้งานบนทุกอุปกรณ์ทันที'
+      });
+    }
+
+    // ACTION 4: Cloud Solar Configuration Update for Hybrid Inverter & PV Strings
+    if (action === 'update-solar-config') {
+      const { orgId, solarConfig } = req.body || {};
+      const targetOrgId = orgId || 'ORG-NAT01';
+      if (!solarConfig || typeof solarConfig !== 'object') {
+        return res.status(400).json({ success: false, message: 'Missing solarConfig payload' });
+      }
+
+      const authClient = await getAuthenticatedClient();
+      const { data: org } = await authClient
+        .from('organizations')
+        .select('id, line_notify_token')
+        .eq('id', targetOrgId)
+        .maybeSingle();
+
+      let parsed = {};
+      if (org?.line_notify_token && org.line_notify_token.startsWith('{')) {
+        try {
+          parsed = JSON.parse(org.line_notify_token);
+        } catch {}
+      }
+
+      // Preserve existing credentials and attach clean solarConfig
+      parsed.solarConfig = {
+        ...(parsed.solarConfig || {}),
+        ...solarConfig
+      };
+      parsed.updatedAt = new Date().toISOString();
+
+      const { error } = await authClient
+        .from('organizations')
+        .update({ line_notify_token: JSON.stringify(parsed) })
+        .eq('id', targetOrgId);
+
+      if (error) {
+        return res.status(500).json({ success: false, message: error.message });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'บันทึกการตั้งค่าแผงโซลาร์ลงคลาวด์สำเร็จ ซิงก์เชื่อมโยงทุกอุปกรณ์ทันที'
       });
     }
 

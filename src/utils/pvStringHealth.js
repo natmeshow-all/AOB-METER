@@ -50,7 +50,7 @@ export const sanitizePvStringSpecs = (cfg = {}) => {
     panelVmp: num(cfg.panelVmp, 0),
     panelImp: num(cfg.panelImp, 0),
     panelIsc: num(cfg.panelIsc, 0),
-    inverterMaxMpptCurrentA: num(cfg.inverterMaxMpptCurrentA, 16, 1),
+    inverterMaxMpptCurrentA: num(cfg.inverterMaxMpptCurrentA, 20.0, 1),
     inverterMaxDcVoltageV: num(cfg.inverterMaxDcVoltageV, 550, 1)
   };
 };

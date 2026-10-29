@@ -115,16 +115,16 @@ export const createEmptySolarConfig = () => ({
   pv2Voltage: 0,
   pv2Current: 0,
   pv2PowerW: 0,
-  // Solar Panel Specs & Series String Configuration
-  pv1PanelCount: 8,
-  pv2PanelCount: 6,
-  panelModelName: 'Mono Half-Cell N-Type TOPCon 580W',
-  panelWattage: 580,
-  panelVoc: 51.5,
-  panelVmp: 42.5,
-  panelImp: 13.65,
-  panelIsc: 14.50,
-  inverterMaxMpptCurrentA: 16.0,
+  // Solar Panel Specs & Series String Configuration (RAPID 750W N-Type Bifacial TOPCon)
+  pv1PanelCount: 7,
+  pv2PanelCount: 1,
+  panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+  panelWattage: 750,
+  panelVoc: 50.2,
+  panelVmp: 43.6,
+  panelImp: 17.9,
+  panelIsc: 18.74,
+  inverterMaxMpptCurrentA: 20.0,
   inverterMaxDcVoltageV: 550.0,
   batteryStatus: 'Standby',
   batterySOC: 77,
@@ -234,6 +234,35 @@ const loadInitialCompanies = () => {
     const existing = merged[existingBannatKey];
     const prevLogs = existing.solarConfig?.historicalDailyLogs || [];
     const validLogs = prevLogs.filter((l) => l && l.isRealSajV2);
+    // Auto-migrate legacy 580W defaults to real hardware RAPID 750W
+    const isLegacy580W =
+      !existing.solarConfig?.panelWattage ||
+      existing.solarConfig?.panelWattage === 580 ||
+      existing.solarConfig?.panelModelName === 'Mono Half-Cell N-Type TOPCon 580W';
+
+    const cleanSolarConfig = {
+      ...createEmptySolarConfig(),
+      sajCloudGuestEmail: 'natshownolimit@gmail.com',
+      sajDeviceSn: 'H2A2602J2539E14713',
+      ...(existing.solarConfig || {}),
+      ...(isLegacy580W
+        ? {
+            pv1PanelCount: 7,
+            pv2PanelCount: 1,
+            panelModelName: 'RAPID 750W N-Type Bifacial TOPCon',
+            panelWattage: 750,
+            panelVoc: 50.2,
+            panelVmp: 43.6,
+            panelImp: 17.9,
+            panelIsc: 18.74,
+            inverterMaxMpptCurrentA: 20.0,
+            inverterMaxDcVoltageV: 550.0
+          }
+        : {}),
+      historicalDailyLogs: validLogs,
+      daily24HourCurve: existing.solarConfig?.daily24HourCurve || []
+    };
+
     merged[existingBannatKey] = {
       ...existing,
       id: 'ORG-NAT01',
@@ -241,14 +270,7 @@ const loadInitialCompanies = () => {
       name: 'BANNAT',
       shortName: 'BANNAT (NAT01)',
       siteType: 'HOME_SOLAR',
-      solarConfig: {
-        ...createEmptySolarConfig(),
-        sajCloudGuestEmail: 'natshownolimit@gmail.com',
-        sajDeviceSn: 'H2A2602J2539E14713',
-        ...(existing.solarConfig || {}),
-        historicalDailyLogs: validLogs,
-        daily24HourCurve: existing.solarConfig?.daily24HourCurve || []
-      }
+      solarConfig: cleanSolarConfig
     };
   } else {
     merged['ORG-NAT01'] = {

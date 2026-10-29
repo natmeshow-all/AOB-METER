@@ -267,28 +267,44 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    // 1. Fetch cloud-synchronized credentials from /api/auth-vault
+    // 1. Fetch cloud-synchronized credentials & solar configurations from /api/auth-vault
     fetch('/api/auth-vault?action=get-credentials')
       .then((r) => r.json())
       .then((data) => {
         if (data?.success && data?.credentials) {
           Object.values(data.credentials).forEach((cred) => {
-            if (cred.orgId && cred.loginPassword) {
+            if (cred.orgId) {
               const comp = TENANT_COMPANIES[cred.orgId];
               if (comp) {
-                saveTenantCompany({
-                  ...comp,
-                  loginPassword: cred.loginPassword,
-                  loginUsername: cred.loginUsername || comp.loginUsername
-                });
+                const updates = {};
+                if (cred.loginPassword && comp.loginPassword !== cred.loginPassword) {
+                  updates.loginPassword = cred.loginPassword;
+                }
+                if (cred.loginUsername && comp.loginUsername !== cred.loginUsername) {
+                  updates.loginUsername = cred.loginUsername;
+                }
+                if (cred.solarConfig && typeof cred.solarConfig === 'object') {
+                  updates.solarConfig = {
+                    ...(comp.solarConfig || {}),
+                    ...cred.solarConfig
+                  };
+                }
+                if (Object.keys(updates).length > 0) {
+                  saveTenantCompany({
+                    ...comp,
+                    ...updates
+                  });
+                }
               }
-              setAllAccounts((prev) =>
-                prev.map((a) =>
-                  a.orgId === cred.orgId || a.username?.toLowerCase() === cred.loginUsername?.toLowerCase()
-                    ? { ...a, password: cred.loginPassword }
-                    : a
-                )
-              );
+              if (cred.loginPassword) {
+                setAllAccounts((prev) =>
+                  prev.map((a) =>
+                    a.orgId === cred.orgId || a.username?.toLowerCase() === cred.loginUsername?.toLowerCase()
+                      ? { ...a, password: cred.loginPassword }
+                      : a
+                  )
+                );
+              }
             }
           });
           refreshOrgsState();
@@ -305,22 +321,34 @@ export const AuthProvider = ({ children }) => {
           orgRows.forEach((row) => {
             let cloudPassword = null;
             let cloudUsername = null;
+            let cloudSolarConfig = null;
             if (row.line_notify_token && row.line_notify_token.startsWith('{')) {
               try {
                 const parsed = JSON.parse(row.line_notify_token);
                 if (parsed.loginPassword) cloudPassword = parsed.loginPassword;
                 if (parsed.loginUsername) cloudUsername = parsed.loginUsername;
+                if (parsed.solarConfig) cloudSolarConfig = parsed.solarConfig;
               } catch {}
             }
 
             if (row.id) {
               const existing = TENANT_COMPANIES[row.id];
               if (existing) {
+                const updates = {};
                 if (cloudPassword && existing.loginPassword !== cloudPassword) {
+                  updates.loginPassword = cloudPassword;
+                  updates.loginUsername = cloudUsername || existing.loginUsername;
+                }
+                if (cloudSolarConfig && typeof cloudSolarConfig === 'object') {
+                  updates.solarConfig = {
+                    ...(existing.solarConfig || {}),
+                    ...cloudSolarConfig
+                  };
+                }
+                if (Object.keys(updates).length > 0) {
                   saveTenantCompany({
                     ...existing,
-                    loginPassword: cloudPassword,
-                    loginUsername: cloudUsername || existing.loginUsername
+                    ...updates
                   });
                 }
               } else {
@@ -733,6 +761,20 @@ export const AuthProvider = ({ children }) => {
         prev.map((acc) => (acc.orgId === orgId ? { ...acc, companyName: updates.name } : acc))
       );
     }
+
+    // Cloud Sync: Broadcast solarConfig to Supabase Cloud & all devices worldwide
+    if (updates.solarConfig) {
+      fetch('/api/auth-vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update-solar-config',
+          orgId,
+          solarConfig: updates.solarConfig
+        })
+      }).catch((err) => console.warn('Cloud solar config sync warning:', err));
+    }
+
     return true;
   };
 
