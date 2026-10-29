@@ -50,6 +50,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { TENANT_COMPANIES, createEmptySolarConfig } from '../data/tenantData';
 import {
   syncSajCloudAndBackfillHistory,
@@ -560,6 +561,7 @@ const SupercarRadialGauge = ({
 
 export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const { activeOrgId, updateOrganization, testRealGatewayConnection } = useAuth();
+  const { t, lang } = useLanguage();
   const currentCompany = TENANT_COMPANIES[activeOrgId] || Object.values(TENANT_COMPANIES)[0];
 
   const solarData = useMemo(() => {
@@ -3154,10 +3156,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       <div className="hidden sm:flex bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1.5 shadow-lg items-center justify-between gap-1 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1 w-full">
           {[
-            { id: 'summary', icon: Zap, label: '⚡ หน้าหลัก & สรุป' },
-            { id: 'curve', icon: TrendingUp, label: '📈 กราฟ 24 ชม.' },
-            { id: 'billing', icon: FileText, label: '🧾 บิลค่าไฟ & สถิติ' },
-            { id: 'all', icon: Sparkles, label: '📑 แสดงทั้งหมด' }
+            { id: 'summary', icon: Zap, label: t('tabSummary') },
+            { id: 'curve', icon: TrendingUp, label: t('tabCurve') },
+            { id: 'billing', icon: FileText, label: t('tabBilling') },
+            { id: 'all', icon: Sparkles, label: t('tabAll') }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = dashboardSection === tab.id;
@@ -3190,9 +3192,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           {/* MOBILE QUICK-JUMP DIAL SELECTOR PILLS */}
           <div className="sm:hidden bg-[#0b1220]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-1 shadow-lg grid grid-cols-3 gap-1 mb-2">
             {[
-              { index: 0, label: '☀️ โซลาร์ PV', val: `${totalPvPowerW.toLocaleString()} W` },
-              { index: 1, label: '⚡ ระบบรวม', val: `${todayGenKWh.toFixed(1)} kWh` },
-              { index: 2, label: '🔋 แบตเตอรี่', val: `${battSoc}%` }
+              { index: 0, label: t('dialSolarPv'), val: `${totalPvPowerW.toLocaleString()} W` },
+              { index: 1, label: t('dialMasterHud'), val: `${todayGenKWh.toFixed(1)} kWh` },
+              { index: 2, label: t('dialBattery'), val: `${battSoc}%` }
             ].map((tab) => (
               <button
                 key={tab.index}
@@ -3221,7 +3223,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             value={totalPvPowerW}
             max={maxPvW}
             unit="WATTS PV"
-            title="☀️ แผงโซลาร์ (PV ARRAY)"
+            title={t('pvArrayTitle')}
             subtitle={Number(solarData.pv2Voltage || 0) > 0 ? "LEFT INSTRUMENT // MPPT1 + MPPT2" : "LEFT INSTRUMENT // MPPT"}
             accentColor={theme.pvPrimary}
             secondaryColor={theme.pvSecondary}
@@ -3266,10 +3268,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
             <div className="grid grid-cols-4 gap-1 bg-[#070a10] p-1 rounded-xl border border-slate-800/80">
               {[
-                { id: 'ODO', label: '1. ไมล์สะสม' },
-                { id: 'VECTOR', label: '2. เรดาร์ไฟ' },
-                { id: 'BMS', label: '3. แบตสำรอง' },
-                { id: 'ROI', label: '4. คุ้มทุน/CO₂' }
+                { id: 'ODO', label: t('modeOdo') },
+                { id: 'VECTOR', label: t('modeRadar') },
+                { id: 'BMS', label: t('modeBms') },
+                { id: 'ROI', label: t('modeRoi') }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -3293,16 +3295,16 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="relative w-44 h-44 rounded-full border border-slate-800/80 bg-[#070a10] shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] flex flex-col items-center justify-center p-4">
                 <div className="absolute inset-2 rounded-full border border-dashed border-cyan-500/20" />
                 <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-cyan-400">
-                  TODAY PRODUCTION
+                  {t('todayProduction')}
                 </span>
                 <div className="text-3xl sm:text-4xl font-mono font-black text-white tracking-tight mt-0.5">
                   {todayGenKWh.toFixed(2)}
                 </div>
                 <span className="text-[11px] font-mono font-normal text-slate-400">
-                  kWh วันนี้
+                  {t('kwhToday')}
                 </span>
                 <div className="mt-2 px-3 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 font-mono text-[11px] font-bold">
-                  ประหยัด +฿{todaySavedBaht.toLocaleString()}
+                  {t('savedToday')}{todaySavedBaht.toLocaleString()}
                 </div>
               </div>
             </div>
@@ -3430,7 +3432,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2">
                   <div className="text-[9px] text-slate-400">ลดก๊าซ CO₂ สะสม</div>
                   <div className="text-sm font-mono font-black text-sky-300 mt-0.5">
-                    {co2ReducedKg} kg ({treesEquivalent} ต้นไม้)
+                    {co2ReducedKg} kg ({treesEquivalent} {t('treesUnit')})
                   </div>
                 </div>
               </div>
@@ -3441,7 +3443,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           <div className="space-y-2 pt-2 border-t border-slate-800/80">
             <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-2 flex items-center justify-between">
               <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">
-                TOTAL ODOMETER
+                {t('totalOdometer')}
               </span>
               <div className="flex items-center gap-1 font-mono">
                 {formattedOdometer.split('').map((digit, i) => (
@@ -3458,13 +3460,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">🏠 โหลดบ้าน</span>
+                <span className="text-[10px] text-slate-400">{t('homeLoad')}</span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {houseLoadW.toLocaleString()} W
                 </span>
               </div>
               <div className="bg-[#04070e] border border-slate-800/90 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">🗼 แรงดันไฟ</span>
+                <span className="text-[10px] text-slate-400">{t('gridVoltage')}</span>
                 <span className="text-xs font-mono font-bold text-slate-100">
                   {solarData.gridAc1Voltage || 231.5} V
                 </span>
@@ -3479,7 +3481,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             value={battSoc}
             max={100}
             unit="% SOC"
-            title="🔋 แบตเตอรี่ (HV LiFePO4)"
+            title={`${t('dialBattery')} (HV LiFePO4)`}
             subtitle="RIGHT INSTRUMENT // ERS PACK"
             accentColor={theme.battPrimary}
             secondaryColor={theme.battSecondary}
@@ -3487,9 +3489,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             badgeText={solarData.batteryStatus || 'STANDBY'}
             onClickGauge={() => setCenterHudMode('BMS')}
             subMetrics={[
-              { label: 'AUTONOMY', value: `~${estAutonomyHours} ชม.`, color: theme.battSecondary },
-              { label: 'USABLE', value: `${usableBatKWh} kWh`, color: '#f8fafc' },
-              { label: 'TEMP', value: `${solarData.inverterTempC || 36.5}°C`, color: '#38bdf8' }
+              { label: t('autonomy'), value: `~${estAutonomyHours} ${t('hoursShort')}`, color: theme.battSecondary },
+              { label: t('usable'), value: `${usableBatKWh} kWh`, color: '#f8fafc' },
+              { label: t('temp'), value: `${solarData.inverterTempC || 36.5}°C`, color: '#38bdf8' }
             ]}
           />
         </div>

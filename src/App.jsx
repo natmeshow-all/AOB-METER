@@ -8,6 +8,7 @@ import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { LoginPortal } from './components/LoginPortal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
+import { useLanguage } from './context/LanguageContext';
 import { TENANT_COMPANIES } from './data/tenantData';
 import {
   Activity,
@@ -31,6 +32,7 @@ export function App() {
     activeOrgId,
     logout
   } = useAuth();
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState(() =>
     currentUser?.role === 'SUPER_ADMIN' ? 'super-admin' : 'overview'
@@ -178,10 +180,10 @@ export function App() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-sky-400" /> ศูนย์ควบคุม & การจัดการ
+                  <Sliders className="w-4 h-4 text-sky-400" /> {t('manageTitle')}
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  ระบบโซลาร์โฮม & แบตเตอรี่ BANNAT
+                  {t('manageSubtitle')}
                 </p>
               </div>
               <button
@@ -210,12 +212,12 @@ export function App() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-white">
-                      {isMobileSyncing ? 'กำลังซิงก์ข้อมูล SAJ Cloud...' : 'ซิงก์ข้อมูล SAJ Cloud ทันที'}
+                      {isMobileSyncing ? t('syncingCloud') : t('syncCloudNow')}
                     </div>
-                    <div className="text-[11px] text-sky-300/80">ดึงข้อมูลพลังงานและโซลาร์ล่าสุด</div>
+                    <div className="text-[11px] text-sky-300/80">{t('syncDesc')}</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono text-sky-400 font-bold">ซิงก์</span>
+                <span className="text-xs font-mono text-sky-400 font-bold">{t('syncAction')}</span>
               </button>
 
               {/* Settings Button */}
@@ -232,11 +234,11 @@ export function App() {
                     <Sliders className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-white">ตั้งค่าระบบ & สเปกแผงโซลาร์</div>
-                    <div className="text-[11px] text-slate-400">กำหนดจำนวนแผง PV1, PV2, Voc, Vmp</div>
+                    <div className="text-sm font-bold text-white">{t('systemPanelSpecs')}</div>
+                    <div className="text-[11px] text-slate-400">{t('systemPanelDesc')}</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono text-slate-400 font-bold">เปิด</span>
+                <span className="text-xs font-mono text-slate-400 font-bold">{t('openAction')}</span>
               </button>
 
               {/* PEA Replica Modal Trigger */}
@@ -253,11 +255,11 @@ export function App() {
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-white">ใบแจ้งหนี้ กฟภ. ฉบับจริง</div>
-                    <div className="text-[11px] text-purple-300/80">ดูใบเสร็จ PEA เสมือนจริง + ค่า Ft + VAT</div>
+                    <div className="text-sm font-bold text-white">{t('peaBillOfficial')}</div>
+                    <div className="text-[11px] text-purple-300/80">{t('peaBillDesc')}</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono text-purple-300 font-bold">เปิดบิล</span>
+                <span className="text-xs font-mono text-purple-300 font-bold">{t('openBillAction')}</span>
               </button>
 
               {/* Super Admin Console Jump (if Super Admin) */}
@@ -277,13 +279,13 @@ export function App() {
                     </div>
                     <div>
                       <div className="text-sm font-bold text-white">
-                        {activeTab === 'super-admin' ? 'กลับสู่หน้าแดชบอร์ดโซลาร์' : 'แดชบอร์ดแอดมิน (Super Admin)'}
+                        {activeTab === 'super-admin' ? t('adminReturnSolar') : t('adminConsole')}
                       </div>
-                      <div className="text-[11px] text-amber-300/80">จัดการลูกค้า เกตเวย์ และรหัสผ่าน</div>
+                      <div className="text-[11px] text-amber-300/80">{t('adminConsoleDesc')}</div>
                     </div>
                   </div>
                   <span className="text-xs font-mono text-amber-300 font-bold">
-                    {activeTab === 'super-admin' ? 'หน้าหลัก' : 'แอดมิน'}
+                    {activeTab === 'super-admin' ? t('navOverview') : t('navAdmin')}
                   </span>
                 </button>
               )}
@@ -302,11 +304,11 @@ export function App() {
                     <LogOut className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-rose-200">ออกจากระบบ (Logout)</div>
-                    <div className="text-[11px] text-rose-300/70">ล้างเซสชันและออกจากบัญชีผู้ใช้</div>
+                    <div className="text-sm font-bold text-rose-200">{t('logoutAction')}</div>
+                    <div className="text-[11px] text-rose-300/70">{t('logoutDesc')}</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono text-rose-400 font-bold">ออก</span>
+                <span className="text-xs font-mono text-rose-400 font-bold">{t('exitAction')}</span>
               </button>
             </div>
           </div>
@@ -338,7 +340,7 @@ export function App() {
               }`}
             >
               <Zap className="w-5 h-5 shrink-0" />
-              <span className="truncate">หน้าหลัก</span>
+              <span className="truncate">{t('navOverview')}</span>
             </button>
 
             <button
@@ -355,7 +357,7 @@ export function App() {
               }`}
             >
               <TrendingUp className="w-5 h-5 shrink-0" />
-              <span className="truncate">กราฟ 24 ชม.</span>
+              <span className="truncate">{t('navCurve')}</span>
             </button>
 
             <button
@@ -372,7 +374,7 @@ export function App() {
               }`}
             >
               <FileText className="w-5 h-5 shrink-0" />
-              <span className="truncate">บิลค่าไฟ</span>
+              <span className="truncate">{t('navBilling')}</span>
             </button>
 
             <button
@@ -385,7 +387,7 @@ export function App() {
               }`}
             >
               <Sliders className="w-5 h-5 shrink-0" />
-              <span className="truncate">จัดการ</span>
+              <span className="truncate">{t('navManage')}</span>
             </button>
           </div>
         ) : (
@@ -409,7 +411,7 @@ export function App() {
                 }`}
               >
                 <ShieldCheck className="w-5 h-5 shrink-0" />
-                <span className="truncate">แอดมิน</span>
+                <span className="truncate">{t('navAdmin')}</span>
               </button>
             )}
 
@@ -426,7 +428,7 @@ export function App() {
               }`}
             >
               <Activity className="w-5 h-5 shrink-0" />
-              <span className="truncate">ภาพรวม</span>
+              <span className="truncate">{t('navIndustrialOverview')}</span>
             </button>
 
             <button
@@ -442,7 +444,7 @@ export function App() {
               }`}
             >
               <Gauge className="w-5 h-5 shrink-0" />
-              <span className="truncate">เจาะลึก</span>
+              <span className="truncate">{t('navIndustrialDetail')}</span>
             </button>
 
             <button
@@ -458,17 +460,17 @@ export function App() {
               }`}
             >
               <BarChart3 className="w-5 h-5 shrink-0" />
-              <span className="truncate">รายงาน</span>
+              <span className="truncate">{t('navIndustrialReport')}</span>
             </button>
 
             <button
               type="button"
               onClick={logout}
               className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-2xl text-[10px] font-semibold text-rose-400 hover:text-rose-300 active:bg-rose-500/15 active:scale-95 transition-all cursor-pointer"
-              title="ออกจากระบบ"
+              title={t('logout')}
             >
               <LogOut className="w-5 h-5 shrink-0" />
-              <span className="truncate">ออกจากระบบ</span>
+              <span className="truncate">{t('logout')}</span>
             </button>
           </div>
         )}
