@@ -4952,29 +4952,38 @@ export const HomeInverterView = () => {
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-sky-300 font-bold truncate">☀️ ผลิตไฟโซลาร์ (PV)</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-sky-500">
+              <div className="text-[11px] sm:text-xs text-sky-300 font-bold">☀️ ผลิตไฟโซลาร์ (PV)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.pvGen.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                เฉลี่ย {(periodStats.pvGen / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+              </div>
             </div>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-indigo-300 font-bold truncate">🏠 ใช้ไฟในบ้านรวม (Load)</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-indigo-500">
+              <div className="text-[11px] sm:text-xs text-indigo-300 font-bold">🏠 ใช้ไฟในบ้าน (Load)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {periodStats.load.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                เฉลี่ย {(periodStats.load / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+              </div>
             </div>
 
-            <div className="bg-[#04070e] border border-emerald-500/30 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-emerald-300 font-bold flex items-center justify-between">
+            <div className="bg-[#090e1a]/90 border border-emerald-500/30 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-emerald-400 shadow-sm shadow-emerald-500/5">
+              <div className="text-[11px] sm:text-xs text-emerald-300 font-bold flex items-center justify-between">
                 <span>💰 ประหยัดได้</span>
-                <span className="text-[10px] text-emerald-400/80 font-normal">สุทธิ</span>
+                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/15 px-1 py-0.2 rounded border border-emerald-500/25">สุทธิ</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
                 {formatBaht(periodStats.savedBaht)}
+              </div>
+              <div className="text-[9px] text-emerald-500/80 font-sans mt-0.5">
+                ลดค่าไฟจากแดด & ขายไฟ
               </div>
             </div>
 
@@ -4984,49 +4993,65 @@ export const HomeInverterView = () => {
                 setSelectedPeaCycleKey(billingCycles[0]?.cycleKey || '2026-10');
                 setIsPeaModalOpen(true);
               }}
-              className="bg-[#04070e] hover:bg-slate-900 border border-rose-500/40 hover:border-purple-400 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px] text-left transition-all cursor-pointer group active:scale-95"
+              className="bg-[#090e1a]/90 hover:bg-slate-900/90 border border-slate-800/80 hover:border-purple-400/80 border-l-2 border-l-rose-500 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] text-left transition-all cursor-pointer group active:scale-95 shadow-sm"
               title="คลิกเพื่อเปิดดูใบแจ้งหนี้ กฟภ. ฉบับทางการ"
             >
-              <div className="text-xs text-rose-300 font-bold flex items-center justify-between w-full">
+              <div className="text-[11px] sm:text-xs text-rose-300 font-bold flex items-center justify-between w-full">
                 <span>⚡ จ่ายการไฟฟ้า</span>
-                <span className="text-[10px] text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono group-hover:scale-105 transition-transform flex items-center gap-1">
+                <span className="text-[9px] sm:text-[10px] text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono group-hover:scale-105 transition-transform flex items-center gap-1">
                   <FileText className="w-3 h-3" /> บิล กฟภ.
                 </span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 mt-1">
-                {formatBaht(billingCycles[0]?.importBill || periodStats.gridBill || 0)}
+                {formatBaht(periodStats.gridBill || 0)}
+              </div>
+              <div className="text-[9px] text-slate-400 font-sans mt-0.5 flex justify-between items-center">
+                <span>{statPeriod === 'Month' ? 'รอบบิลนี้' : `รวม ${periodStats.daysCount} วัน`}</span>
+                <span className="text-purple-400 group-hover:underline">ดูบิลฉบับเต็ม ↗</span>
               </div>
             </button>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-amber-300 font-bold truncate">🗼 ดึงไฟการไฟฟ้า (Import)</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-amber-500">
+              <div className="text-[11px] sm:text-xs text-amber-300 font-bold">🗼 ดึงไฟการไฟฟ้า (Import)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-amber-300 mt-1">
                 {periodStats.imp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                เฉลี่ย {(periodStats.imp / Math.max(1, periodStats.daysCount)).toFixed(1)} kWh/วัน
+              </div>
             </div>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-emerald-300 font-bold truncate">🔋 ชาร์จลงแบต</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-emerald-500">
+              <div className="text-[11px] sm:text-xs text-emerald-300 font-bold">🔋 ชาร์จลงแบต</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 mt-1">
                 {periodStats.chg.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                เก็บไฟสำรองจากโซลาร์
+              </div>
             </div>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-teal-300 font-bold truncate">🔋 จ่ายไฟจากแบต</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-teal-500">
+              <div className="text-[11px] sm:text-xs text-teal-300 font-bold">🔋 จ่ายไฟจากแบต</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-teal-300 mt-1">
                 {periodStats.dis.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
               </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                เลี้ยงโหลดช่วงค่ำ/กลางคืน
+              </div>
             </div>
 
-            <div className="bg-[#04070e] border border-slate-800/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[92px]">
-              <div className="text-xs text-sky-300 font-bold truncate">📤 ส่งออกขายไฟ (Export)</div>
+            <div className="bg-[#090e1a]/90 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between min-h-[96px] border-l-2 border-l-sky-400">
+              <div className="text-[11px] sm:text-xs text-sky-300 font-bold">📤 ส่งออกขายไฟ (Export)</div>
               <div className="text-xl sm:text-2xl font-black font-mono text-sky-300 mt-1">
                 {periodStats.exp.toLocaleString()}{' '}
                 <span className="text-xs font-normal text-slate-400">kWh</span>
+              </div>
+              <div className="text-[9px] text-slate-500 font-sans mt-0.5">
+                ขายคืน กฟภ. @2.20฿/หน่วย
               </div>
             </div>
           </div>
