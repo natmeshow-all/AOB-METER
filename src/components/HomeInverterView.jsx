@@ -585,7 +585,23 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
   // Mobile Single-Gauge Carousel Swipe State & Handlers
   const carouselRef = useRef(null);
-  const [mobileDialIndex, setMobileDialIndex] = useState(0);
+  // Default to Center Dial (Index 1: TODAY PRODUCTION / ระบบรวม) on opening
+  const [mobileDialIndex, setMobileDialIndex] = useState(1);
+
+  // Auto-scroll to Center Dial (Index 1: TODAY PRODUCTION) on mobile when opening
+  useEffect(() => {
+    if (carouselRef.current && window.innerWidth < 640) {
+      const timer = setTimeout(() => {
+        if (carouselRef.current) {
+          carouselRef.current.scrollTo({
+            left: carouselRef.current.clientWidth,
+            behavior: 'instant'
+          });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const handleCarouselScroll = () => {
     if (!carouselRef.current) return;
@@ -3206,17 +3222,25 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             max={maxPvW}
             unit="WATTS PV"
             title="☀️ แผงโซลาร์ (PV ARRAY)"
-            subtitle="LEFT INSTRUMENT // MPPT"
+            subtitle={Number(solarData.pv2Voltage || 0) > 0 ? "LEFT INSTRUMENT // MPPT1 + MPPT2" : "LEFT INSTRUMENT // MPPT"}
             accentColor={theme.pvPrimary}
             secondaryColor={theme.pvSecondary}
             glowId="cockpitPvGlow"
             badgeText={`${solarData.pvCapacityKWp || 6} kWp`}
             onClickGauge={() => setCenterHudMode('VECTOR')}
-            subMetrics={[
-              { label: 'PV1 VOLT', value: `${solarData.pv1Voltage || 0} V`, color: theme.pvSecondary },
-              { label: 'PV1 AMP', value: `${solarData.pv1Current || 0} A`, color: '#f8fafc' },
-              { label: 'TODAY GEN', value: `${todayGenKWh} kWh`, color: '#34d399' }
-            ]}
+            subMetrics={
+              Number(solarData.pv2Voltage || 0) > 0 || Number(solarData.pv2PowerW || 0) > 0
+                ? [
+                    { label: 'PV1 W', value: `${solarData.pv1PowerW || 0} W`, color: theme.pvPrimary },
+                    { label: 'PV2 W', value: `${solarData.pv2PowerW || 0} W`, color: theme.pvSecondary },
+                    { label: 'TODAY GEN', value: `${todayGenKWh} kWh`, color: '#34d399' }
+                  ]
+                : [
+                    { label: 'PV1 VOLT', value: `${solarData.pv1Voltage || 0} V`, color: theme.pvSecondary },
+                    { label: 'PV1 AMP', value: `${solarData.pv1Current || 0} A`, color: '#f8fafc' },
+                    { label: 'TODAY GEN', value: `${todayGenKWh} kWh`, color: '#34d399' }
+                  ]
+            }
           />
         </div>
 
