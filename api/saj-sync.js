@@ -536,6 +536,12 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
     }
   }
 
+  // Determine current Thailand date and hour (UTC+7)
+  const thaiNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const todayThaiStr = thaiNow.toISOString().slice(0, 10);
+  const currentThaiHour = thaiNow.getUTCHours();
+  const isToday = dateStr === todayThaiStr;
+
   const hourlyCurve = Array.from(hourlyMap.values()).map(
     (
       {
@@ -558,6 +564,33 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
       },
       hIdx
     ) => {
+      // Never fabricate synthetic future hours for today
+      if (isToday && hIdx > currentThaiHour) {
+        return {
+          hour,
+          pvW: null,
+          pvCurrentA: null,
+          loadW: null,
+          loadCurrentA: null,
+          batterySOC: null,
+          tempC: null,
+          batteryTempC: null,
+          pv1W: null,
+          pv1V: null,
+          pv1A: null,
+          pv1MaxA: null,
+          pv1MaxV: null,
+          isPv1Overcurrent: false,
+          pv2W: null,
+          pv2V: null,
+          pv2A: null,
+          pv2MaxA: null,
+          pv2MaxV: null,
+          isPv2Overcurrent: false,
+          isFuture: true
+        };
+      }
+
       let finalTemp = tempC;
       if (!finalTemp || finalTemp <= 0) {
         const heatFactor = (pvW / Math.max(1, peakPvPowerW || 5000)) * 14;
@@ -647,7 +680,8 @@ function parseDayFromRawRecords(dateStr, rawRecords = [], optionalPlantStats = n
         pv2A: finalPv2A,
         pv2MaxA: finalPv2MaxA,
         pv2MaxV: finalPv2MaxV,
-        isPv2Overcurrent
+        isPv2Overcurrent,
+        isFuture: false
       };
     }
   );

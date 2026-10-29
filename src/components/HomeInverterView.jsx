@@ -575,7 +575,7 @@ export const HomeInverterView = () => {
   // Interactive Cockpit States
   const [cockpitThemeKey, setCockpitThemeKey] = useState('WEISSACH'); // 'WEISSACH' | 'ARAMCO' | 'REVUELTO'
   const [centerHudMode, setCenterHudMode] = useState('ODO'); // 'ODO' | 'VECTOR' | 'BMS' | 'ROI'
-  const [scrubHour, setScrubHour] = useState(() => new Date().getHours());
+  const [scrubHour, setScrubHour] = useState(() => new Date(Date.now() + 7 * 3600 * 1000).getUTCHours());
   const [curveMetricTab, setCurveMetricTab] = useState('all'); // 'all' | 'power' | 'battery' | 'temp'
   const [isHourlyTableOpen, setIsHourlyTableOpen] = useState(false);
   const [simTariffBaht, setSimTariffBaht] = useState(4.72);
@@ -1059,6 +1059,12 @@ export const HomeInverterView = () => {
   }, [solarData]);
 
   // 24-hour curve for selected historical day (with Solar PV, House Load, Battery SOC %, Inverter Temp °C, and Battery Temp °C)
+  const todayThaiDateStr = getThailandDateStr(0);
+  const currentThaiHour = new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
+  const activeHistoricalDate = activeHistoryDay?.date || todayThaiDateStr;
+  const isViewingToday = !selectedHistoryDate || activeHistoricalDate === todayThaiDateStr;
+  const maxScrubHour = isViewingToday ? currentThaiHour : 23;
+
   const dailyCurveData = useMemo(() => {
     const currentInvTemp = Number(solarData.inverterTempC || 36.5);
     const currentBatSoc = Number(solarData.batterySOC || 77);
@@ -1071,6 +1077,32 @@ export const HomeInverterView = () => {
       activeHistoryDay.hourlyCurve.length > 0
     ) {
       return activeHistoryDay.hourlyCurve.map((pt, h) => {
+        // Clamp future hours for today: strictly null so Recharts never fabricates unverified future projections
+        if (isViewingToday && h > currentThaiHour) {
+          return {
+            ...pt,
+            hour: pt.hour || `${String(h).padStart(2, '0')}:00`,
+            pvW: null,
+            pvCurrentA: null,
+            loadW: null,
+            loadCurrentA: null,
+            batterySOC: null,
+            tempC: null,
+            batteryTempC: null,
+            pv1W: null,
+            pv1V: null,
+            pv1A: null,
+            pv1MaxA: null,
+            isPv1Overcurrent: false,
+            pv2W: null,
+            pv2V: null,
+            pv2A: null,
+            pv2MaxA: null,
+            isPv2Overcurrent: false,
+            isFuture: true
+          };
+        }
+
         let ptTemp = Number(pt.tempC ?? pt.inverterTempC ?? 0);
         if (!ptTemp || ptTemp <= 0) {
           const solarHeatFactor = (Number(pt.pvW || 0) / Math.max(1, estPeakW || 5000)) * 14;
@@ -1138,13 +1170,37 @@ export const HomeInverterView = () => {
           pv2V,
           pv2A,
           pv2MaxA,
-          isPv2Overcurrent
+          isPv2Overcurrent,
+          isFuture: false
         };
       });
     }
 
     // Proportional curve from today's verified kWh if hourly array isn't synced yet
     return Array.from({ length: 24 }, (_, h) => {
+      const hourStr = `${String(h).padStart(2, '0')}:00`;
+      if (isViewingToday && h > currentThaiHour) {
+        return {
+          hour: hourStr,
+          pvW: null,
+          pvCurrentA: null,
+          loadW: null,
+          loadCurrentA: null,
+          batterySOC: null,
+          tempC: null,
+          batteryTempC: null,
+          pv1W: null,
+          pv1V: null,
+          pv1A: null,
+          isPv1Overcurrent: false,
+          pv2W: null,
+          pv2V: null,
+          pv2A: null,
+          isPv2Overcurrent: false,
+          isFuture: true
+        };
+      }
+
       let pvW = 0;
       if (h >= 6 && h <= 18 && estPeakW > 0) {
         pvW = Math.round(estPeakW * Math.sin(((h - 6) / 12) * Math.PI));
@@ -1172,18 +1228,8 @@ export const HomeInverterView = () => {
       const loadCurrentA = Number((loadW / 230).toFixed(2));
       const pvCurrentA = Number((pvW > 0 ? pvW / 380 : 0).toFixed(2));
 
-      // No per-string telemetry available for this estimated curve → keep PV1/PV2 at 0 (never fabricate)
-      const pv1W = 0;
-      const pv1V = 0;
-      const pv1A = 0;
-      const pv2W = 0;
-      const pv2V = 0;
-      const pv2A = 0;
-      const isPv1Overcurrent = false;
-      const isPv2Overcurrent = false;
-
       return {
-        hour: `${String(h).padStart(2, '0')}:00`,
+        hour: hourStr,
         pvW,
         pvCurrentA,
         loadW,
@@ -1191,18 +1237,21 @@ export const HomeInverterView = () => {
         batterySOC: Math.round(batterySOC),
         tempC,
         batteryTempC,
-        pv1W,
-        pv1V,
-        pv1A,
-        isPv1Overcurrent,
-        pv2W,
-        pv2V,
-        pv2A,
-        isPv2Overcurrent
+        pv1W: 0,
+        pv1V: 0,
+        pv1A: 0,
+        isPv1Overcurrent: false,
+        pv2W: 0,
+        pv2V: 0,
+        pv2A: 0,
+        isPv2Overcurrent: false,
+        isFuture: false
       };
     });
   }, [
     activeHistoryDay,
+    isViewingToday,
+    currentThaiHour,
     todayGenKWh,
     totalPvPowerW,
     solarData.totalLoadPowerW,
@@ -1212,12 +1261,20 @@ export const HomeInverterView = () => {
     solarData.inverterMaxMpptCurrentA
   ]);
 
-  const scrubbedPoint = dailyCurveData[scrubHour] || dailyCurveData[12] || {
-    hour: '12:00',
+  // Keep scrubber bounded within actual recorded hours
+  useEffect(() => {
+    if (scrubHour > maxScrubHour) {
+      setScrubHour(maxScrubHour);
+    }
+  }, [maxScrubHour, scrubHour]);
+
+  const effectiveScrubHour = Math.min(scrubHour, maxScrubHour);
+  const scrubbedPoint = dailyCurveData[effectiveScrubHour] || dailyCurveData[0] || {
+    hour: `${String(effectiveScrubHour).padStart(2, '0')}:00`,
     pvW: 0,
     pvCurrentA: 0,
-    loadW: 450,
-    loadCurrentA: 1.96,
+    loadW: 0,
+    loadCurrentA: 0,
     batterySOC: Number(solarData.batterySOC || 77),
     tempC: Number(solarData.inverterTempC || 36.5),
     batteryTempC: Number(solarData.batteryTempC || 28.5),
@@ -1228,10 +1285,12 @@ export const HomeInverterView = () => {
     pv2W: 0,
     pv2V: 0,
     pv2A: 0,
-    isPv2Overcurrent: false
+    isPv2Overcurrent: false,
+    isFuture: false
   };
 
   // Daily peak power, timing, current, and maximum operating temperatures + PV1/PV2 String Peaks & Overcurrent
+  // Calculated exclusively from valid elapsed points (excluding unoccurred future hours)
   const dailyPeakStats = useMemo(() => {
     if (!dailyCurveData || dailyCurveData.length === 0) {
       return {
@@ -1262,63 +1321,66 @@ export const HomeInverterView = () => {
       };
     }
 
-    const peakLoadPoint = dailyCurveData.reduce((max, pt) => (pt.loadW > max.loadW ? pt : max), dailyCurveData[0]);
-    const peakPvPoint = dailyCurveData.reduce((max, pt) => (pt.pvW > max.pvW ? pt : max), dailyCurveData[0]);
-    const peakPv1Point = dailyCurveData.reduce((max, pt) => ((pt.pv1W || 0) > (max.pv1W || 0) ? pt : max), dailyCurveData[0]);
-    const peakPv2Point = dailyCurveData.reduce((max, pt) => ((pt.pv2W || 0) > (max.pv2W || 0) ? pt : max), dailyCurveData[0]);
-    const maxPv1APoint = dailyCurveData.reduce((max, pt) => ((pt.pv1A || 0) > (max.pv1A || 0) ? pt : max), dailyCurveData[0]);
-    const maxPv2APoint = dailyCurveData.reduce((max, pt) => ((pt.pv2A || 0) > (max.pv2A || 0) ? pt : max), dailyCurveData[0]);
-    const maxInvTempPoint = dailyCurveData.reduce((max, pt) => (pt.tempC > max.tempC ? pt : max), dailyCurveData[0]);
-    const maxBatTempPoint = dailyCurveData.reduce((max, pt) => (pt.batteryTempC > max.batteryTempC ? pt : max), dailyCurveData[0]);
+    const validPoints = dailyCurveData.filter((pt) => !pt.isFuture);
+    const activePool = validPoints.length > 0 ? validPoints : dailyCurveData;
 
-    const pv1Overcurrent = dailyCurveData.some((pt) => pt.isPv1Overcurrent);
-    const pv2Overcurrent = dailyCurveData.some((pt) => pt.isPv2Overcurrent);
+    const peakLoadPoint = activePool.reduce((max, pt) => ((pt.loadW || 0) > (max?.loadW || 0) ? pt : max), activePool[0]);
+    const peakPvPoint = activePool.reduce((max, pt) => ((pt.pvW || 0) > (max?.pvW || 0) ? pt : max), activePool[0]);
+    const peakPv1Point = activePool.reduce((max, pt) => ((pt.pv1W || 0) > (max?.pv1W || 0) ? pt : max), activePool[0]);
+    const peakPv2Point = activePool.reduce((max, pt) => ((pt.pv2W || 0) > (max?.pv2W || 0) ? pt : max), activePool[0]);
+    const maxPv1APoint = activePool.reduce((max, pt) => ((pt.pv1A || 0) > (max?.pv1A || 0) ? pt : max), activePool[0]);
+    const maxPv2APoint = activePool.reduce((max, pt) => ((pt.pv2A || 0) > (max?.pv2A || 0) ? pt : max), activePool[0]);
+    const maxInvTempPoint = activePool.reduce((max, pt) => ((pt.tempC || 0) > (max?.tempC || 0) ? pt : max), activePool[0]);
+    const maxBatTempPoint = activePool.reduce((max, pt) => ((pt.batteryTempC || 0) > (max?.batteryTempC || 0) ? pt : max), activePool[0]);
+
+    const pv1Overcurrent = activePool.some((pt) => pt.isPv1Overcurrent);
+    const pv2Overcurrent = activePool.some((pt) => pt.isPv2Overcurrent);
 
     // Prefer the day-level peaks computed from raw 5-minute samples (W, V, A taken from the SAME
     // sample → physically consistent). Fall back to the hourly curve only if they are missing.
     const day = activeHistoryDay || {};
     const dayHasPv1 = Number(day.peakPv1W || 0) > 0;
     const dayHasPv2 = Number(day.peakPv2W || 0) > 0;
-    const curveMaxPv1A = Math.max(0, ...dailyCurveData.map((pt) => Number(pt.pv1MaxA ?? pt.pv1A ?? 0)));
-    const curveMaxPv2A = Math.max(0, ...dailyCurveData.map((pt) => Number(pt.pv2MaxA ?? pt.pv2A ?? 0)));
+    const curveMaxPv1A = Math.max(0, ...activePool.map((pt) => Number(pt.pv1MaxA ?? pt.pv1A ?? 0)));
+    const curveMaxPv2A = Math.max(0, ...activePool.map((pt) => Number(pt.pv2MaxA ?? pt.pv2A ?? 0)));
     const dayMaxPv1A = Number(day.maxPv1A || 0);
     const dayMaxPv2A = Number(day.maxPv2A || 0);
 
     return {
-      peakLoadW: peakLoadPoint.loadW,
-      peakLoadHour: peakLoadPoint.hour,
-      peakLoadCurrentA: peakLoadPoint.loadCurrentA,
-      peakPvW: peakPvPoint.pvW,
-      peakPvHour: peakPvPoint.hour,
-      peakPvCurrentA: peakPvPoint.pvCurrentA,
+      peakLoadW: peakLoadPoint?.loadW || 0,
+      peakLoadHour: peakLoadPoint?.hour || '12:00',
+      peakLoadCurrentA: peakLoadPoint?.loadCurrentA || 0,
+      peakPvW: peakPvPoint?.pvW || 0,
+      peakPvHour: peakPvPoint?.hour || '12:00',
+      peakPvCurrentA: peakPvPoint?.pvCurrentA || 0,
       hasStringTelemetry:
         Boolean(day.hasStringTelemetry) ||
         dayHasPv1 ||
         dayHasPv2 ||
-        dailyCurveData.some((pt) => (pt.pv1W || 0) > 0 || (pt.pv2W || 0) > 0),
+        activePool.some((pt) => (pt.pv1W || 0) > 0 || (pt.pv2W || 0) > 0),
       // PV1 String
-      peakPv1W: dayHasPv1 ? Number(day.peakPv1W) : peakPv1Point.pv1W || 0,
-      peakPv1Hour: dayHasPv1 ? day.peakPv1Hour || peakPv1Point.hour : peakPv1Point.hour || '12:00',
-      peakPv1V: dayHasPv1 ? Number(day.peakPv1V || 0) : peakPv1Point.pv1V || 0,
-      peakPv1A: dayHasPv1 ? Number(day.peakPv1A || 0) : peakPv1Point.pv1A || 0,
+      peakPv1W: dayHasPv1 ? Number(day.peakPv1W) : peakPv1Point?.pv1W || 0,
+      peakPv1Hour: dayHasPv1 ? day.peakPv1Hour || peakPv1Point?.hour : peakPv1Point?.hour || '12:00',
+      peakPv1V: dayHasPv1 ? Number(day.peakPv1V || 0) : peakPv1Point?.pv1V || 0,
+      peakPv1A: dayHasPv1 ? Number(day.peakPv1A || 0) : peakPv1Point?.pv1A || 0,
       maxPv1A: Number(Math.max(dayMaxPv1A, curveMaxPv1A).toFixed(2)),
       maxPv1AHour:
-        dayMaxPv1A >= curveMaxPv1A && day.maxPv1AHour ? day.maxPv1AHour : maxPv1APoint.hour || '12:00',
+        dayMaxPv1A >= curveMaxPv1A && day.maxPv1AHour ? day.maxPv1AHour : maxPv1APoint?.hour || '12:00',
       pv1Overcurrent,
       // PV2 String
-      peakPv2W: dayHasPv2 ? Number(day.peakPv2W) : peakPv2Point.pv2W || 0,
-      peakPv2Hour: dayHasPv2 ? day.peakPv2Hour || peakPv2Point.hour : peakPv2Point.hour || '12:00',
-      peakPv2V: dayHasPv2 ? Number(day.peakPv2V || 0) : peakPv2Point.pv2V || 0,
-      peakPv2A: dayHasPv2 ? Number(day.peakPv2A || 0) : peakPv2Point.pv2A || 0,
+      peakPv2W: dayHasPv2 ? Number(day.peakPv2W) : peakPv2Point?.pv2W || 0,
+      peakPv2Hour: dayHasPv2 ? day.peakPv2Hour || peakPv2Point?.hour : peakPv2Point?.hour || '12:00',
+      peakPv2V: dayHasPv2 ? Number(day.peakPv2V || 0) : peakPv2Point?.pv2V || 0,
+      peakPv2A: dayHasPv2 ? Number(day.peakPv2A || 0) : peakPv2Point?.pv2A || 0,
       maxPv2A: Number(Math.max(dayMaxPv2A, curveMaxPv2A).toFixed(2)),
       maxPv2AHour:
-        dayMaxPv2A >= curveMaxPv2A && day.maxPv2AHour ? day.maxPv2AHour : maxPv2APoint.hour || '12:00',
+        dayMaxPv2A >= curveMaxPv2A && day.maxPv2AHour ? day.maxPv2AHour : maxPv2APoint?.hour || '12:00',
       pv2Overcurrent,
       // Temperatures
-      maxInverterTempC: maxInvTempPoint.tempC,
-      maxInverterTempHour: maxInvTempPoint.hour,
-      maxBatteryTempC: maxBatTempPoint.batteryTempC,
-      maxBatteryTempHour: maxBatTempPoint.hour
+      maxInverterTempC: maxInvTempPoint?.tempC || 36.5,
+      maxInverterTempHour: maxInvTempPoint?.hour || '12:00',
+      maxBatteryTempC: maxBatTempPoint?.batteryTempC || 28.5,
+      maxBatteryTempHour: maxBatTempPoint?.hour || '12:00'
     };
   }, [dailyCurveData, activeHistoryDay]);
 
@@ -4224,32 +4286,53 @@ export const HomeInverterView = () => {
               <span className="font-mono text-amber-300 text-sm sm:text-base font-black px-2 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/30">
                 {scrubbedPoint.hour} น.
               </span>
+              {isViewingToday && effectiveScrubHour === currentThaiHour && (
+                <span className="text-[10px] font-sans font-bold text-sky-400 bg-sky-500/10 border border-sky-500/30 px-1.5 py-0.5 rounded-md">
+                  ⏱️ ปัจจุบัน
+                </span>
+              )}
             </span>
 
-            {/* Quick-Jump Hour Presets */}
+            {/* Quick-Jump Hour Presets (Bounded strictly to elapsed hours) */}
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] font-mono">
               <span className="text-[10px] text-slate-500 font-sans pr-1">ลัดไป:</span>
               {[
+                { h: 0, label: '00:00' },
                 { h: 6, label: '06:00' },
                 { h: 9, label: '09:00' },
                 { h: 12, label: '12:00' },
                 { h: 15, label: '15:00' },
                 { h: 18, label: '18:00' },
                 { h: 21, label: '21:00' }
-              ].map(({ h, label }) => (
+              ]
+                .filter(({ h }) => h <= maxScrubHour)
+                .map(({ h, label }) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setScrubHour(h)}
+                    className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-all ${
+                      effectiveScrubHour === h
+                        ? 'bg-sky-500 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              {isViewingToday && maxScrubHour > 0 && ![0, 6, 9, 12, 15, 18, 21].includes(maxScrubHour) && (
                 <button
-                  key={h}
                   type="button"
-                  onClick={() => setScrubHour(h)}
+                  onClick={() => setScrubHour(maxScrubHour)}
                   className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-all ${
-                    scrubHour === h
+                    effectiveScrubHour === maxScrubHour
                       ? 'bg-sky-500 text-slate-950 shadow-md font-black'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      : 'bg-slate-900 text-sky-400 hover:text-white border border-sky-500/40'
                   }`}
                 >
-                  {label}
+                  {String(maxScrubHour).padStart(2, '0')}:00 (ปัจจุบัน)
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
@@ -4274,10 +4357,10 @@ export const HomeInverterView = () => {
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-amber-300">
-                  {scrubbedPoint.pvW.toLocaleString()}
+                  {scrubbedPoint.pvW != null ? scrubbedPoint.pvW.toLocaleString() : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  W {scrubbedPoint.pvW >= 1000 ? `(${(scrubbedPoint.pvW / 1000).toFixed(2)} kW)` : ''}
+                  {scrubbedPoint.pvW != null ? `W ${scrubbedPoint.pvW >= 1000 ? `(${(scrubbedPoint.pvW / 1000).toFixed(2)} kW)` : ''}` : ''}
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1 space-y-0.5">
@@ -4300,14 +4383,14 @@ export const HomeInverterView = () => {
               </span>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-purple-300">
-                  {scrubbedPoint.loadW.toLocaleString()}
+                  {scrubbedPoint.loadW != null ? scrubbedPoint.loadW.toLocaleString() : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  W {scrubbedPoint.loadW >= 1000 ? `(${(scrubbedPoint.loadW / 1000).toFixed(2)} kW)` : ''}
+                  {scrubbedPoint.loadW != null ? `W ${scrubbedPoint.loadW >= 1000 ? `(${(scrubbedPoint.loadW / 1000).toFixed(2)} kW)` : ''}` : ''}
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                กระแสไฟ: <span className="text-purple-300 font-bold">{scrubbedPoint.loadCurrentA} A</span> (@230V)
+                กระแสไฟ: <span className="text-purple-300 font-bold">{scrubbedPoint.loadCurrentA != null ? `${scrubbedPoint.loadCurrentA} A` : '—'}</span> (@230V)
               </div>
             </div>
 
@@ -4319,28 +4402,30 @@ export const HomeInverterView = () => {
                   <span>แบตเตอรี่ (SOC)</span>
                 </span>
                 <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
-                  scrubbedPoint.batterySOC >= 80
+                  scrubbedPoint.batterySOC == null
+                    ? 'bg-slate-800 text-slate-400'
+                    : scrubbedPoint.batterySOC >= 80
                     ? 'bg-emerald-500/20 text-emerald-300'
                     : scrubbedPoint.batterySOC >= 40
                     ? 'bg-sky-500/20 text-sky-300'
                     : 'bg-amber-500/20 text-amber-300'
                 }`}>
-                  {scrubbedPoint.batterySOC >= 80 ? 'ประจุเต็ม' : scrubbedPoint.batterySOC >= 40 ? 'พร้อมใช้' : 'คายประจุ'}
+                  {scrubbedPoint.batterySOC == null ? '—' : scrubbedPoint.batterySOC >= 80 ? 'ประจุเต็ม' : scrubbedPoint.batterySOC >= 40 ? 'พร้อมใช้' : 'คายประจุ'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-emerald-300">
-                  {scrubbedPoint.batterySOC}%
+                  {scrubbedPoint.batterySOC != null ? `${scrubbedPoint.batterySOC}%` : '—'}
                 </span>
                 <div className="w-16 bg-slate-800 rounded-full h-2 overflow-hidden self-center ml-2">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, Math.max(5, scrubbedPoint.batterySOC))}%` }}
+                    style={{ width: `${Math.min(100, Math.max(5, scrubbedPoint.batterySOC ?? 0))}%` }}
                   />
                 </div>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                ความจุ: <span className="text-emerald-300 font-bold">{((scrubbedPoint.batterySOC / 100) * 10.24).toFixed(2)} kWh</span>
+                ความจุ: <span className="text-emerald-300 font-bold">{scrubbedPoint.batterySOC != null ? `${((scrubbedPoint.batterySOC / 100) * 10.24).toFixed(2)} kWh` : '—'}</span>
               </div>
             </div>
 
@@ -4352,25 +4437,27 @@ export const HomeInverterView = () => {
                   <span>ความร้อน Inverter</span>
                 </span>
                 <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold ${
-                  scrubbedPoint.tempC < 42
+                  scrubbedPoint.tempC == null
+                    ? 'bg-slate-800 text-slate-400'
+                    : scrubbedPoint.tempC < 42
                     ? 'bg-emerald-500/20 text-emerald-300'
                     : scrubbedPoint.tempC <= 55
                     ? 'bg-amber-500/20 text-amber-300'
                     : 'bg-rose-500/20 text-rose-300'
                 }`}>
-                  {scrubbedPoint.tempC < 42 ? '🟢 เย็นปกติ' : scrubbedPoint.tempC <= 55 ? '🟡 ทำงานปกติ' : '🔴 ร้อนสูง'}
+                  {scrubbedPoint.tempC == null ? '—' : scrubbedPoint.tempC < 42 ? '🟢 เย็นปกติ' : scrubbedPoint.tempC <= 55 ? '🟡 ทำงานปกติ' : '🔴 ร้อนสูง'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-rose-300">
-                  {scrubbedPoint.tempC}°C
+                  {scrubbedPoint.tempC != null ? `${scrubbedPoint.tempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
                   ปลอดภัย &lt; 55°C
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                ฮีตซิงก์: <span className="text-rose-300 font-bold">ทำงานปกติ</span>
+                ฮีตซิงก์: <span className="text-rose-300 font-bold">{scrubbedPoint.tempC != null ? 'ทำงานปกติ' : '—'}</span>
               </div>
             </div>
 
@@ -4382,40 +4469,40 @@ export const HomeInverterView = () => {
                   <span>ความร้อน แบตเตอรี่</span>
                 </span>
                 <span className="text-[9px] px-1.5 py-0.2 rounded font-sans font-semibold bg-emerald-500/20 text-emerald-300">
-                  🟢 ปลอดภัย
+                  {scrubbedPoint.batteryTempC != null ? '🟢 ปลอดภัย' : '—'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1 font-mono">
                 <span className="text-base sm:text-lg font-black text-amber-300">
-                  {scrubbedPoint.batteryTempC}°C
+                  {scrubbedPoint.batteryTempC != null ? `${scrubbedPoint.batteryTempC}°C` : '—'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
                   ปลอดภัย &lt; 45°C
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                BMS เซลล์: <span className="text-emerald-300 font-bold">สมบูรณ์</span>
+                BMS เซลล์: <span className="text-emerald-300 font-bold">{scrubbedPoint.batteryTempC != null ? 'สมบูรณ์' : '—'}</span>
               </div>
             </div>
           </div>
 
-          {/* Time Scrubber Slider */}
+          {/* Time Scrubber Slider (capped at current hour for today) */}
           <div className="space-y-1 pt-1">
             <input
               type="range"
               min={0}
-              max={23}
+              max={maxScrubHour}
               step={1}
-              value={scrubHour}
+              value={effectiveScrubHour}
               onChange={(e) => setScrubHour(Number(e.target.value))}
               className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
             />
             <div className="flex justify-between text-[9px] font-mono text-slate-500 px-0.5">
               <span>00:00 (เที่ยงคืน)</span>
-              <span>06:00 (เช้า)</span>
-              <span>12:00 (เที่ยงวันแดดจัด)</span>
-              <span>18:00 (ค่ำ)</span>
-              <span>23:00 (ดึก)</span>
+              {maxScrubHour >= 6 && <span>06:00</span>}
+              {maxScrubHour >= 12 && <span>12:00</span>}
+              {maxScrubHour >= 18 && <span>18:00</span>}
+              <span>{isViewingToday ? `${String(maxScrubHour).padStart(2, '0')}:00 (ปัจจุบัน)` : '23:00 (ดึก)'}</span>
             </div>
           </div>
         </div>
@@ -4485,19 +4572,65 @@ export const HomeInverterView = () => {
                   width={38}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#334155',
-                    borderRadius: '14px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(val, name) => {
-                    if (name.includes('SOC')) return [`${val}%`, name];
-                    if (name.includes('ความร้อน') || name.includes('Inverter') || name.includes('แบตเตอรี่')) return [`${val}°C`, name];
-                    return [`${Number(val).toLocaleString()} W`, name];
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const pt = payload[0]?.payload;
+                    const isFuture = pt?.isFuture;
+                    return (
+                      <div className="bg-[#070b14] border border-slate-700/90 rounded-xl p-2.5 shadow-2xl text-xs space-y-1.5 font-mono z-50">
+                        <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-sky-400" />
+                            <span>เวลา {label} น.</span>
+                          </span>
+                          {isFuture ? (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              ⏳ ยังไม่ถึงเวลา
+                            </span>
+                          ) : isViewingToday && label === `${String(currentThaiHour).padStart(2, '0')}:00` ? (
+                            <span className="text-[10px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/30">
+                              ⏱️ ปัจจุบัน
+                            </span>
+                          ) : null}
+                        </div>
+                        {isFuture ? (
+                          <div className="text-[11px] text-slate-400 font-sans py-0.5">
+                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {payload
+                              .filter((item) => item.value != null)
+                              .map((item, idx) => {
+                                let formattedVal = `${Number(item.value).toLocaleString()} W`;
+                                if (item.name.includes('SOC')) formattedVal = `${item.value}%`;
+                                else if (item.name.includes('°C') || item.name.includes('ความร้อน')) formattedVal = `${item.value}°C`;
+                                return (
+                                  <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
+                                    <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                      <span>{item.name}</span>
+                                    </span>
+                                    <span className="font-bold text-slate-100">{formattedVal}</span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
                 />
                 <Legend />
+                {isViewingToday && (
+                  <ReferenceLine
+                    yAxisId="power"
+                    x={`${String(currentThaiHour).padStart(2, '0')}:00`}
+                    stroke="#38bdf8"
+                    strokeDasharray="3 3"
+                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                  />
+                )}
                 <Area
                   yAxisId="power"
                   type="monotone"
@@ -4506,6 +4639,7 @@ export const HomeInverterView = () => {
                   stroke={theme.pvSecondary}
                   fill={theme.pvPrimary}
                   fillOpacity={0.25}
+                  connectNulls={false}
                 />
                 <Area
                   yAxisId="power"
@@ -4516,6 +4650,7 @@ export const HomeInverterView = () => {
                   fill="#a855f7"
                   fillOpacity={0.25}
                   strokeWidth={2.5}
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="ratio"
@@ -4525,6 +4660,7 @@ export const HomeInverterView = () => {
                   stroke="#10b981"
                   strokeWidth={2.5}
                   dot={{ r: 2, fill: '#10b981' }}
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="ratio"
@@ -4534,6 +4670,7 @@ export const HomeInverterView = () => {
                   stroke="#f43f5e"
                   strokeWidth={2.5}
                   dot={{ r: 2, fill: '#f43f5e' }}
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="ratio"
@@ -4544,6 +4681,7 @@ export const HomeInverterView = () => {
                   strokeWidth={2.5}
                   strokeDasharray="4 4"
                   dot={{ r: 2, fill: '#f59e0b' }}
+                  connectNulls={false}
                 />
               </AreaChart>
             ) : curveMetricTab === 'mppt' ? (
@@ -4564,19 +4702,62 @@ export const HomeInverterView = () => {
                 <YAxis yAxisId="volt" stroke="#38bdf8" fontSize={10} domain={[0, 480]} unit=" V" width={48} />
                 <YAxis yAxisId="curr" orientation="right" stroke="#f59e0b" fontSize={10} domain={[0, 20]} unit=" A" width={38} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#38bdf8',
-                    borderRadius: '14px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(val, name) => {
-                    if (name.includes('โวลต์') || name.includes('แรงดัน')) return [`${val} V`, name];
-                    if (name.includes('กระแส') || name.includes('แอมป์')) return [`${val} A`, name];
-                    return [`${Number(val).toLocaleString()} W`, name];
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const pt = payload[0]?.payload;
+                    const isFuture = pt?.isFuture;
+                    return (
+                      <div className="bg-[#070b14] border border-slate-700/90 rounded-xl p-2.5 shadow-2xl text-xs space-y-1.5 font-mono z-50">
+                        <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-sky-400" />
+                            <span>เวลา {label} น.</span>
+                          </span>
+                          {isFuture && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              ⏳ ยังไม่ถึงเวลา
+                            </span>
+                          )}
+                        </div>
+                        {isFuture ? (
+                          <div className="text-[11px] text-slate-400 font-sans py-0.5">
+                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {payload
+                              .filter((item) => item.value != null)
+                              .map((item, idx) => {
+                                let formattedVal = `${item.value}`;
+                                if (item.name.includes('โวลต์') || item.name.includes('แรงดัน')) formattedVal = `${item.value} V`;
+                                else if (item.name.includes('กระแส') || item.name.includes('แอมป์')) formattedVal = `${item.value} A`;
+                                else formattedVal = `${Number(item.value).toLocaleString()} W`;
+                                return (
+                                  <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
+                                    <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                      <span>{item.name}</span>
+                                    </span>
+                                    <span className="font-bold text-slate-100">{formattedVal}</span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
                 />
                 <Legend />
+                {isViewingToday && (
+                  <ReferenceLine
+                    yAxisId="volt"
+                    x={`${String(currentThaiHour).padStart(2, '0')}:00`}
+                    stroke="#38bdf8"
+                    strokeDasharray="3 3"
+                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                  />
+                )}
                 <ReferenceLine
                   yAxisId="curr"
                   y={stringStandards.maxInvA || 16.0}
@@ -4610,6 +4791,7 @@ export const HomeInverterView = () => {
                   stroke="#38bdf8"
                   strokeWidth={2.5}
                   fill="url(#pv1Grad)"
+                  connectNulls={false}
                 />
                 <Area
                   yAxisId="volt"
@@ -4619,6 +4801,7 @@ export const HomeInverterView = () => {
                   stroke="#34d399"
                   strokeWidth={2.5}
                   fill="url(#pv2Grad)"
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="curr"
@@ -4628,6 +4811,7 @@ export const HomeInverterView = () => {
                   stroke="#f59e0b"
                   strokeWidth={2.5}
                   dot={{ r: 2, fill: '#f59e0b' }}
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="curr"
@@ -4637,10 +4821,11 @@ export const HomeInverterView = () => {
                   stroke="#c084fc"
                   strokeWidth={2.5}
                   dot={{ r: 2, fill: '#c084fc' }}
+                  connectNulls={false}
                 />
               </AreaChart>
             ) : curveMetricTab === 'battery' ? (
-              // 2. DEDICATED BATTERY SOC & BATTERY TEMP CHART
+              // 3. DEDICATED BATTERY SOC & BATTERY TEMP CHART
               <AreaChart data={dailyCurveData}>
                 <defs>
                   <linearGradient id="batterySocGrad" x1="0" y1="0" x2="0" y2="1">
@@ -4653,18 +4838,59 @@ export const HomeInverterView = () => {
                 <YAxis yAxisId="soc" stroke="#10b981" fontSize={11} domain={[0, 100]} unit="%" />
                 <YAxis yAxisId="temp" orientation="right" stroke="#f59e0b" fontSize={11} domain={[20, 50]} unit="°C" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#10b981',
-                    borderRadius: '14px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(val, name) => {
-                    if (name.includes('SOC')) return [`${val}%`, name];
-                    return [`${val}°C`, name];
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const pt = payload[0]?.payload;
+                    const isFuture = pt?.isFuture;
+                    return (
+                      <div className="bg-[#070b14] border border-slate-700/90 rounded-xl p-2.5 shadow-2xl text-xs space-y-1.5 font-mono z-50">
+                        <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-sky-400" />
+                            <span>เวลา {label} น.</span>
+                          </span>
+                          {isFuture && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              ⏳ ยังไม่ถึงเวลา
+                            </span>
+                          )}
+                        </div>
+                        {isFuture ? (
+                          <div className="text-[11px] text-slate-400 font-sans py-0.5">
+                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {payload
+                              .filter((item) => item.value != null)
+                              .map((item, idx) => {
+                                const formattedVal = item.name.includes('SOC') ? `${item.value}%` : `${item.value}°C`;
+                                return (
+                                  <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
+                                    <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                      <span>{item.name}</span>
+                                    </span>
+                                    <span className="font-bold text-slate-100">{formattedVal}</span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
                 />
                 <Legend />
+                {isViewingToday && (
+                  <ReferenceLine
+                    yAxisId="soc"
+                    x={`${String(currentThaiHour).padStart(2, '0')}:00`}
+                    stroke="#38bdf8"
+                    strokeDasharray="3 3"
+                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                  />
+                )}
                 <ReferenceLine yAxisId="soc" y={20} stroke="#f43f5e" strokeDasharray="4 4" label={{ value: 'Min SOC (20%)', fill: '#f43f5e', fontSize: 10, position: 'right' }} />
                 <ReferenceLine yAxisId="soc" y={90} stroke="#10b981" strokeDasharray="4 4" label={{ value: 'Full SOC (90%)', fill: '#10b981', fontSize: 10, position: 'right' }} />
                 <Area
@@ -4675,6 +4901,7 @@ export const HomeInverterView = () => {
                   stroke="#10b981"
                   strokeWidth={3}
                   fill="url(#batterySocGrad)"
+                  connectNulls={false}
                 />
                 <Line
                   yAxisId="temp"
@@ -4684,10 +4911,11 @@ export const HomeInverterView = () => {
                   stroke="#f59e0b"
                   strokeWidth={2.5}
                   dot={{ r: 3, fill: '#f59e0b' }}
+                  connectNulls={false}
                 />
               </AreaChart>
             ) : curveMetricTab === 'temp' ? (
-              // 3. DEDICATED TEMPERATURE CHART (INVERTER & BATTERY COMPARED)
+              // 4. DEDICATED TEMPERATURE CHART (INVERTER & BATTERY COMPARED)
               <AreaChart data={dailyCurveData}>
                 <defs>
                   <linearGradient id="inverterTempGrad" x1="0" y1="0" x2="0" y2="1">
@@ -4699,15 +4927,55 @@ export const HomeInverterView = () => {
                 <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
                 <YAxis stroke="#f43f5e" fontSize={11} domain={[20, 65]} unit="°C" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#f43f5e',
-                    borderRadius: '14px',
-                    fontSize: '12px'
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const pt = payload[0]?.payload;
+                    const isFuture = pt?.isFuture;
+                    return (
+                      <div className="bg-[#070b14] border border-slate-700/90 rounded-xl p-2.5 shadow-2xl text-xs space-y-1.5 font-mono z-50">
+                        <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-sky-400" />
+                            <span>เวลา {label} น.</span>
+                          </span>
+                          {isFuture && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              ⏳ ยังไม่ถึงเวลา
+                            </span>
+                          )}
+                        </div>
+                        {isFuture ? (
+                          <div className="text-[11px] text-slate-400 font-sans py-0.5">
+                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {payload
+                              .filter((item) => item.value != null)
+                              .map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
+                                  <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                    <span>{item.name}</span>
+                                  </span>
+                                  <span className="font-bold text-slate-100">{item.value}°C</span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
-                  formatter={(val, name) => [`${val}°C`, name]}
                 />
                 <Legend />
+                {isViewingToday && (
+                  <ReferenceLine
+                    x={`${String(currentThaiHour).padStart(2, '0')}:00`}
+                    stroke="#38bdf8"
+                    strokeDasharray="3 3"
+                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                  />
+                )}
                 <ReferenceLine y={55} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'เกณฑ์ปลอดภัย Inverter (55°C)', fill: '#f59e0b', fontSize: 10, position: 'right' }} />
                 <ReferenceLine y={45} stroke="#10b981" strokeDasharray="4 4" label={{ value: 'เกณฑ์ปลอดภัย แบตเตอรี่ (45°C)', fill: '#10b981', fontSize: 10, position: 'right' }} />
                 <Area
@@ -4717,6 +4985,7 @@ export const HomeInverterView = () => {
                   stroke="#f43f5e"
                   strokeWidth={3}
                   fill="url(#inverterTempGrad)"
+                  connectNulls={false}
                 />
                 <Line
                   type="monotone"
@@ -4726,24 +4995,65 @@ export const HomeInverterView = () => {
                   strokeWidth={3}
                   strokeDasharray="4 4"
                   dot={{ r: 3, fill: '#f59e0b' }}
+                  connectNulls={false}
                 />
               </AreaChart>
             ) : (
-              // 4. POWER ONLY (PV & HOUSE LOAD W)
+              // 5. POWER ONLY (PV & HOUSE LOAD W)
               <AreaChart data={dailyCurveData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="hour" stroke="#94a3b8" fontSize={11} />
                 <YAxis stroke="#94a3b8" fontSize={11} unit=" W" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#1e293b',
-                    borderRadius: '14px',
-                    fontSize: '12px'
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const pt = payload[0]?.payload;
+                    const isFuture = pt?.isFuture;
+                    return (
+                      <div className="bg-[#070b14] border border-slate-700/90 rounded-xl p-2.5 shadow-2xl text-xs space-y-1.5 font-mono z-50">
+                        <div className="flex items-center justify-between gap-3 text-slate-300 border-b border-slate-800 pb-1 font-sans">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-sky-400" />
+                            <span>เวลา {label} น.</span>
+                          </span>
+                          {isFuture && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              ⏳ ยังไม่ถึงเวลา
+                            </span>
+                          )}
+                        </div>
+                        {isFuture ? (
+                          <div className="text-[11px] text-slate-400 font-sans py-0.5">
+                            ยังไม่มีข้อมูล (ข้อมูลจริงยังไม่เกิดขึ้น)
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {payload
+                              .filter((item) => item.value != null)
+                              .map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-4 text-[11px]">
+                                  <span className="flex items-center gap-1.5 font-sans" style={{ color: item.color }}>
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                    <span>{item.name}</span>
+                                  </span>
+                                  <span className="font-bold text-slate-100">{Number(item.value).toLocaleString()} W</span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
-                  formatter={(val, name) => [`${Number(val).toLocaleString()} W`, name]}
                 />
                 <Legend />
+                {isViewingToday && (
+                  <ReferenceLine
+                    x={`${String(currentThaiHour).padStart(2, '0')}:00`}
+                    stroke="#38bdf8"
+                    strokeDasharray="3 3"
+                    label={{ value: 'เวลาปัจจุบัน', fill: '#38bdf8', fontSize: 10, position: 'top' }}
+                  />
+                )}
                 <Area
                   type="monotone"
                   dataKey="pvW"
@@ -4751,6 +5061,7 @@ export const HomeInverterView = () => {
                   stroke={theme.pvSecondary}
                   fill={theme.pvPrimary}
                   fillOpacity={0.25}
+                  connectNulls={false}
                 />
                 <Area
                   type="monotone"
@@ -4760,6 +5071,7 @@ export const HomeInverterView = () => {
                   fill="#a855f7"
                   fillOpacity={0.28}
                   strokeWidth={2.5}
+                  connectNulls={false}
                 />
               </AreaChart>
             )}
@@ -4795,8 +5107,26 @@ export const HomeInverterView = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {dailyCurveData.map((pt, idx) => {
-                    const isSelected = scrubHour === idx;
+                    const isSelected = effectiveScrubHour === idx;
                     const hasOvercurrent = pt.isPv1Overcurrent || pt.isPv2Overcurrent;
+                    const isFuture = pt.isFuture;
+
+                    if (isFuture) {
+                      return (
+                        <tr
+                          key={pt.hour}
+                          className="opacity-40 text-slate-500 bg-slate-950/20"
+                        >
+                          <td className="text-left py-1.5 px-2 font-mono text-slate-500">
+                            {pt.hour}
+                          </td>
+                          <td colSpan={7} className="py-1.5 px-2 text-center text-[10px] text-slate-500 font-sans">
+                            ⏳ ยังไม่ถึงเวลา (ไม่มีข้อมูลจริง)
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     return (
                       <tr
                         key={pt.hour}
@@ -4828,21 +5158,21 @@ export const HomeInverterView = () => {
                           </div>
                         </td>
                         <td className="py-1.5 px-2 text-amber-300 font-bold">
-                          <div>{pt.pvW.toLocaleString()} W</div>
-                          <div className="text-[9px] text-slate-400 font-normal">{pt.pvCurrentA} A</div>
+                          <div>{pt.pvW != null ? pt.pvW.toLocaleString() : '—'} W</div>
+                          <div className="text-[9px] text-slate-400 font-normal">{pt.pvCurrentA != null ? `${pt.pvCurrentA} A` : '—'}</div>
                         </td>
                         <td className="py-1.5 px-2 text-purple-300 font-bold">
-                          <div>{pt.loadW.toLocaleString()} W</div>
-                          <div className="text-[9px] text-slate-400 font-normal">{pt.loadCurrentA} A</div>
+                          <div>{pt.loadW != null ? pt.loadW.toLocaleString() : '—'} W</div>
+                          <div className="text-[9px] text-slate-400 font-normal">{pt.loadCurrentA != null ? `${pt.loadCurrentA} A` : '—'}</div>
                         </td>
                         <td className="py-1.5 px-2 text-emerald-300 font-bold">
                           <div className="flex items-center justify-end gap-1.5">
-                            <span>{pt.batterySOC}%</span>
+                            <span>{pt.batterySOC != null ? `${pt.batterySOC}%` : '—'}</span>
                           </div>
                         </td>
                         <td className="py-1.5 px-2 text-rose-300 font-bold">
                           <span className="text-[10px]">
-                            Inv: {pt.tempC}°C | แบต: {pt.batteryTempC}°C
+                            Inv: {pt.tempC != null ? `${pt.tempC}°C` : '—'} | แบต: {pt.batteryTempC != null ? `${pt.batteryTempC}°C` : '—'}
                           </span>
                         </td>
                         <td className="text-left py-1.5 px-2 text-[10px] font-sans">
@@ -4850,7 +5180,7 @@ export const HomeInverterView = () => {
                             <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40 animate-pulse">
                               ⚠️ กระแสเกิน (&gt;{stringStandards.maxInvA}A)
                             </span>
-                          ) : pt.pvW > 100 ? (
+                          ) : (pt.pvW || 0) > 100 ? (
                             <span className="text-emerald-400 font-bold">🟢 ปกติ</span>
                           ) : (
                             <span className="text-slate-500">🌙 สแตนด์บาย</span>
