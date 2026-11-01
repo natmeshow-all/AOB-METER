@@ -132,6 +132,23 @@ export const TRANSLATIONS = {
     selfSuffLabel: 'พึ่งพาตนเอง',
     gridTransmission: 'สายส่งการไฟฟ้า (Grid)',
 
+    // Daily Energy Source & Timeline Windows
+    energyWindowSummaryTitle: 'ช่วงเวลาจ่ายไฟ & แหล่งพลังงานรายวัน',
+    energyWindowSummarySub: 'สรุปการสลับแหล่งจ่ายไฟ (โซลาร์, แบตเตอรี่, ไฟหลวง PEA) พร้อมหน่วย kWh และชั่วโมงทำงาน',
+    windowSolarTitle: '1. แผงโซลาร์เซลล์ (PV)',
+    windowBatteryTitle: '2. แบตเตอรี่สำรอง (Battery)',
+    windowPeaTitle: '3. ดึงไฟการไฟฟ้า (PEA Grid)',
+    operatingHoursLabel: 'ช่วงเวลาทำงาน:',
+    totalDurationLabel: 'รวมเวลา:',
+    totalEnergySupplied: 'พลังงานที่จ่ายได้:',
+    avgPowerKw: 'กำลังเฉลี่ย:',
+    socStartEnd: 'ระดับ SOC:',
+    windowStatusActive: 'ทำงาน',
+    windowStatusStandby: 'สแตนด์บาย',
+    solarDayCoverage: 'เลี้ยงโหลดบ้าน + ชาร์จแบต',
+    batteryNightCoverage: 'จ่ายโหลดค่ำ/ดึก ไร้แดด',
+    peaNightCoverage: 'รับช่วงต่อหลังแบตหมด / แดดเช้า',
+
     // Billing & Financial Stats
     netSavingsTitle: 'ประหยัดค่าไฟสุทธิ',
     netBadge: 'สุทธิ',
@@ -327,6 +344,23 @@ export const TRANSLATIONS = {
     fromCapacity: 'from total capacity',
     selfSuffLabel: 'Self-Sufficiency',
     gridTransmission: 'Utility Grid (PEA)',
+
+    // Daily Energy Source & Timeline Windows
+    energyWindowSummaryTitle: 'Daily Energy Source & Dispatch Timeline',
+    energyWindowSummarySub: 'Automatic 3-stage dispatch breakdown (Solar, Battery, PEA Grid) with total hours and kWh',
+    windowSolarTitle: '1. Solar PV Array',
+    windowBatteryTitle: '2. Backup Battery Storage',
+    windowPeaTitle: '3. Utility Grid (PEA)',
+    operatingHoursLabel: 'Active Window:',
+    totalDurationLabel: 'Total Duration:',
+    totalEnergySupplied: 'Energy Delivered:',
+    avgPowerKw: 'Avg Power:',
+    socStartEnd: 'SOC Range:',
+    windowStatusActive: 'Active',
+    windowStatusStandby: 'Standby',
+    solarDayCoverage: 'Supplies load + charges battery',
+    batteryNightCoverage: 'Supplies evening/night load',
+    peaNightCoverage: 'Powers house after battery reserve',
 
     // Billing & Financial Stats
     netSavingsTitle: 'Net Electricity Savings',

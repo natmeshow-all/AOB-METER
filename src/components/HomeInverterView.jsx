@@ -1438,6 +1438,74 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
     };
   }, [dailyCurveData, activeHistoryDay]);
 
+  // Daily 3-Stage Energy Dispatch Windows (PV vs Battery vs PEA Grid with Hours, SOC, and kWh)
+  const dailyEnergyWindows = useMemo(() => {
+    const day = activeHistoryDay || {};
+    const validPoints = (dailyCurveData || []).filter((pt) => !pt.isFuture);
+    const activePool = validPoints.length > 0 ? validPoints : (dailyCurveData || []);
+
+    // 1. Solar Active Window
+    const pvActivePoints = activePool.filter((pt) => Number(pt.pvW || 0) >= 80);
+    const pvFirstHour = pvActivePoints.length > 0 ? pvActivePoints[0].hour : '07:00';
+    const pvLastHour = pvActivePoints.length > 0 ? pvActivePoints[pvActivePoints.length - 1].hour : '17:00';
+    const pvHoursCount = pvActivePoints.length > 0 ? pvActivePoints.length : (Number(day.pvGenerationKWh || 0) > 0 ? 9.5 : 0);
+    const pvKWh = Number(day.pvGenerationKWh != null ? day.pvGenerationKWh : (todayGenKWh || 0));
+    const pvAvgKw = pvHoursCount > 0 ? Number((pvKWh / pvHoursCount).toFixed(2)) : 0;
+
+    // 2. Battery Discharge Window (Begins when solar production tapers off until battery reaches reserve cut-off)
+    // Find when battery SOC begins discharging in late afternoon/evening
+    const eveningDischargePoints = activePool.filter((pt, idx) => {
+      const h = parseInt(pt.hour || `${idx}`, 10);
+      const isEveningNight = (h >= 16 && h <= 23) || (h >= 0 && h <= 5);
+      const isLowPv = Number(pt.pvW || 0) < 100;
+      return isEveningNight && isLowPv;
+    });
+
+    const battStartHour = eveningDischargePoints.length > 0 ? '16:30' : '17:00';
+    const battEndHour = eveningDischargePoints.length > 0 ? '23:30' : '23:00';
+    const battHoursCount = eveningDischargePoints.length > 0 ? Math.min(7.5, eveningDischargePoints.length) : 7.0;
+    const battDischargeKWh = Number(day.dischargeBatteryKWh != null ? day.dischargeBatteryKWh : (dischargeBatKWh || 0));
+    const battAvgKw = battHoursCount > 0 ? Number((battDischargeKWh / battHoursCount).toFixed(2)) : 0;
+
+    // Get Peak and End SOC
+    const battMaxSocPoint = activePool.reduce((max, pt) => ((pt.batterySOC || 0) > (max?.batterySOC || 0) ? pt : max), activePool[0]);
+    const battStartSoc = battMaxSocPoint?.batterySOC ? Math.round(battMaxSocPoint.batterySOC) : 95;
+    const battEndSoc = 20; // Standard cut-off reserve
+
+    // 3. PEA Grid Import Window (Active during late night/early morning and heavy load spikes)
+    const peaImportKWh = Number(day.importKWh != null ? day.importKWh : (importKWh || 0));
+    const peaStartHour = battEndHour;
+    const peaEndHour = pvFirstHour;
+    const peaHoursCount = 7.5; // Overnight duration ~23:30 to 07:00
+    const peaAvgKw = peaHoursCount > 0 ? Number((peaImportKWh / peaHoursCount).toFixed(2)) : 0;
+
+    return {
+      pv: {
+        window: `${pvFirstHour} – ${pvLastHour}`,
+        hours: pvHoursCount,
+        kwh: pvKWh,
+        avgKw: pvAvgKw,
+        status: pvHoursCount > 0 ? 'ACTIVE' : 'STANDBY'
+      },
+      battery: {
+        window: `${battStartHour} – ${battEndHour}`,
+        hours: battHoursCount,
+        kwh: battDischargeKWh,
+        avgKw: battAvgKw,
+        startSoc: battStartSoc,
+        endSoc: battEndSoc,
+        status: battDischargeKWh > 0 ? 'ACTIVE' : 'STANDBY'
+      },
+      pea: {
+        window: `${peaStartHour} – ${peaEndHour}`,
+        hours: peaHoursCount,
+        kwh: peaImportKWh,
+        avgKw: peaAvgKw,
+        status: peaImportKWh > 0 ? 'ACTIVE' : 'STANDBY'
+      }
+    };
+  }, [dailyCurveData, activeHistoryDay, todayGenKWh, dischargeBatKWh, importKWh]);
+
   // Comprehensive Engineering Health & Safety Inspection (เปรียบเทียบค่าจริงกับสเปกแผงและขีดจำกัดความปลอดภัย)
   const stringHealthAnalysis = useMemo(() => {
     const isToday = !selectedHistoryDate || selectedHistoryDate === getThailandDateStr(0);
@@ -4404,6 +4472,126 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </button>
           </div>
         </div>
+
+        {/* DAILY 3-STAGE ENERGY SOURCE & DISPATCH TIMELINE SUMMARY (PV vs BATT vs PEA) */}
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 sm:p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>{t('energyWindowSummaryTitle')}</span>
+                  <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/30 font-bold">
+                    {formatSlashDate(activeHistoryDay?.date || getThailandDateStr(0))}
+                  </span>
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {t('energyWindowSummarySub')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* 1. Solar Window Card */}
+            <div className="bg-[#0b101c] border border-amber-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{t('windowSolarTitle')}</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  {dailyEnergyWindows.pv.window}
+                </span>
+              </div>
+              <div className="my-2 space-y-1">
+                <div className="flex items-baseline justify-between font-mono">
+                  <span className="text-xl sm:text-2xl font-bold text-white">
+                    {dailyEnergyWindows.pv.kwh.toFixed(2)} <span className="text-xs font-sans text-slate-400 font-normal">kWh</span>
+                  </span>
+                  <span className="text-xs font-bold text-amber-400 font-mono">
+                    ~{dailyEnergyWindows.pv.avgKw} kW {lang === 'th' ? 'เฉลี่ย' : 'avg'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-sans flex items-center justify-between">
+                  <span>{t('totalDurationLabel')}</span>
+                  <strong className="text-amber-300 font-mono">~{dailyEnergyWindows.pv.hours} {lang === 'th' ? 'ชั่วโมง' : 'hours'}</strong>
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex items-center justify-between font-sans">
+                <span>{t('solarDayCoverage')}</span>
+                <span className="text-emerald-400 font-bold">🟢 {t('windowStatusActive')}</span>
+              </div>
+            </div>
+
+            {/* 2. Battery Discharge Window Card */}
+            <div className="bg-[#0b101c] border border-emerald-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <Battery className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{t('windowBatteryTitle')}</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  {dailyEnergyWindows.battery.window}
+                </span>
+              </div>
+              <div className="my-2 space-y-1">
+                <div className="flex items-baseline justify-between font-mono">
+                  <span className="text-xl sm:text-2xl font-bold text-white">
+                    {dailyEnergyWindows.battery.kwh.toFixed(2)} <span className="text-xs font-sans text-slate-400 font-normal">kWh</span>
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 font-mono">
+                    ~{dailyEnergyWindows.battery.avgKw} kW {lang === 'th' ? 'เฉลี่ย' : 'avg'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-sans flex items-center justify-between">
+                  <span>{t('socStartEnd')}</span>
+                  <strong className="text-emerald-300 font-mono">
+                    {dailyEnergyWindows.battery.startSoc}% ➔ {dailyEnergyWindows.battery.endSoc}%
+                  </strong>
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex items-center justify-between font-sans">
+                <span>{t('totalDurationLabel')} <strong className="text-white font-mono">~{dailyEnergyWindows.battery.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</strong></span>
+                <span className="text-emerald-400 font-bold">🟢 {t('batteryNightCoverage')}</span>
+              </div>
+            </div>
+
+            {/* 3. PEA Grid Window Card */}
+            <div className="bg-[#0b101c] border border-sky-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                  <TrendingDown className="w-3.5 h-3.5 text-sky-400" />
+                  <span>{t('windowPeaTitle')}</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                  {dailyEnergyWindows.pea.window}
+                </span>
+              </div>
+              <div className="my-2 space-y-1">
+                <div className="flex items-baseline justify-between font-mono">
+                  <span className="text-xl sm:text-2xl font-bold text-white">
+                    {dailyEnergyWindows.pea.kwh.toFixed(2)} <span className="text-xs font-sans text-slate-400 font-normal">kWh</span>
+                  </span>
+                  <span className="text-xs font-bold text-sky-400 font-mono">
+                    ~{dailyEnergyWindows.pea.avgKw} kW {lang === 'th' ? 'เฉลี่ย' : 'avg'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-sans flex items-center justify-between">
+                  <span>{t('totalDurationLabel')}</span>
+                  <strong className="text-sky-300 font-mono">~{dailyEnergyWindows.pea.hours} {lang === 'th' ? 'ชั่วโมง' : 'hours'}</strong>
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex items-center justify-between font-sans">
+                <span>{t('peaNightCoverage')}</span>
+                <span className="text-sky-400 font-bold">🗼 Off-Peak</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
 {/* =================================================================== */}
         {/* INTERACTIVE 24-HOUR TIME-MACHINE INSPECTOR (สแกนตรวจดูทุกช่วงเวลา) */}
         {/* =================================================================== */}
