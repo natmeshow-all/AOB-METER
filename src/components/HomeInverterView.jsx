@@ -1444,52 +1444,129 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
     const validPoints = (dailyCurveData || []).filter((pt) => !pt.isFuture);
     const activePool = validPoints.length > 0 ? validPoints : (dailyCurveData || []);
 
-    // 1. Solar Active Window
-    const pvActivePoints = activePool.filter((pt) => Number(pt.pvW || 0) >= 80);
-    const pvFirstHour = pvActivePoints.length > 0 ? pvActivePoints[0].hour : '07:00';
-    const pvLastHour = pvActivePoints.length > 0 ? pvActivePoints[pvActivePoints.length - 1].hour : '17:00';
-    const pvHoursCount = pvActivePoints.length > 0 ? pvActivePoints.length : (Number(day.pvGenerationKWh || 0) > 0 ? 9.5 : 0);
+    // 1. Solar Active Window (คำนวณจากชั่วโมงแรกและชั่วโมงสุดท้ายที่มีแดด pvW > 50W)
+    const pvPointsWithSolar = activePool.filter((pt) => Number(pt.pvW || 0) >= 50);
+    const pvFirstHour = pvPointsWithSolar.length > 0 ? pvPointsWithSolar[0].hour : '06:00';
+    const pvLastHour = pvPointsWithSolar.length > 0 ? pvPointsWithSolar[pvPointsWithSolar.length - 1].hour : '18:00';
+    
+    // คำนวณระยะเวลาจริงของโซลาร์จากจุดเริ่มถึงจุดสิ้นสุด
+    const pvStartH = parseInt(pvFirstHour, 10);
+    const pvEndH = parseInt(pvLastHour, 10);
+    const pvSpanHours = pvPointsWithSolar.length > 0 ? Math.max(1, (pvEndH - pvStartH) + 1) : 0;
     const pvKWh = Number(day.pvGenerationKWh != null ? day.pvGenerationKWh : (todayGenKWh || 0));
-    const pvAvgKw = pvHoursCount > 0 ? Number((pvKWh / pvHoursCount).toFixed(2)) : 0;
+    const pvAvgKw = pvSpanHours > 0 ? Number((pvKWh / pvSpanHours).toFixed(2)) : 0;
 
-    // 2. Battery Discharge Window (Begins when solar production tapers off until battery reaches reserve cut-off)
-    // Find when battery SOC begins discharging in late afternoon/evening
-    const eveningDischargePoints = activePool.filter((pt, idx) => {
-      const h = parseInt(pt.hour || `${idx}`, 10);
-      const isEveningNight = (h >= 16 && h <= 23) || (h >= 0 && h <= 5);
-      const isLowPv = Number(pt.pvW || 0) < 100;
-      return isEveningNight && isLowPv;
+    // 2. Battery & PEA Windows (คำนวณจากระดับ Battery SOC จริงในรอบ 24 ชม.)
+    // ค้นหาจุดสูงสุดของ SOC (มักอยู่ช่วงบ่าย 14:00-17:00 หลังจากโซลาร์ชาร์จเต็ม)
+    let maxSocIdx = -1;
+    let maxSocVal = 0;
+    activePool.forEach((pt, idx) => {
+      const soc = Number(pt.batterySOC || 0);
+      if (soc > maxSocVal) {
+        maxSocVal = soc;
+        maxSocIdx = idx;
+      }
     });
 
-    const battStartHour = eveningDischargePoints.length > 0 ? '16:30' : '17:00';
-    const battEndHour = eveningDischargePoints.length > 0 ? '23:30' : '23:00';
-    const battHoursCount = eveningDischargePoints.length > 0 ? Math.min(7.5, eveningDischargePoints.length) : 7.0;
+    // จุดเริ่มต้นคายประจุ: ชั่วโมงที่แดดหมดลง (pvW < 80W) ในช่วงบ่าย/เย็น โดยที่ SOC ยังสูง
+    let battDischargeStartIdx = -1;
+    for (let i = Math.max(12, maxSocIdx); i < activePool.length; i++) {
+      const pt = activePool[i];
+      const pv = Number(pt.pvW || 0);
+      if (pv < 80) {
+        battDischargeStartIdx = i;
+        break;
+      }
+    }
+    if (battDischargeStartIdx === -1) {
+      battDischargeStartIdx = pvPointsWithSolar.length > 0 ? Math.min(23, pvEndH + 1) : 18;
+    }
+
+    // จุดสิ้นสุดการคายประจุ (แบตหมดเกลี้ยง หรือลดลงถึงขีดจำกัดสำรองต่ำสุด SOC <= 25% หรือจุดต่ำสุดก่อนแดดออก)
+    let battDischargeEndIdx = -1;
+    let minSocAfterDischarge = maxSocVal;
+    
+    // สแกนจากช่วงเริ่มคายประจุเป็นต้นไป
+    for (let i = battDischargeStartIdx; i < activePool.length; i++) {
+      const soc = Number(activePool[i]?.batterySOC || 0);
+      if (soc <= 25) {
+        battDischargeEndIdx = i;
+        minSocAfterDischarge = soc;
+        break;
+      }
+      if (soc < minSocAfterDischarge) {
+        minSocAfterDischarge = soc;
+        battDischargeEndIdx = i;
+      }
+    }
+
+    // หากแบตเตอรี่จุพอเลี้ยงได้ตลอดคืนจนถึงเช้า
+    if (battDischargeEndIdx === -1 || battDischargeEndIdx === activePool.length - 1) {
+      // ตรวจสอบเช้ามืดของวัน (00:00 - 06:00) ว่าแบตลงต่ำสุดที่กี่โมง
+      let morningMinIdx = 0;
+      let morningMinSoc = 100;
+      for (let i = 0; i < Math.min(6, activePool.length); i++) {
+        const soc = Number(activePool[i]?.batterySOC || 0);
+        if (soc > 0 && soc < morningMinSoc) {
+          morningMinSoc = soc;
+          morningMinIdx = i;
+        }
+      }
+      if (morningMinSoc <= 25) {
+        battDischargeEndIdx = morningMinIdx;
+        minSocAfterDischarge = morningMinSoc;
+      } else {
+        battDischargeEndIdx = activePool.length > 23 ? 23 : activePool.length - 1;
+      }
+    }
+
+    const battStartHourStr = activePool[battDischargeStartIdx]?.hour || `${String(battDischargeStartIdx).padStart(2, '0')}:00`;
+    const battEndHourStr = activePool[battDischargeEndIdx]?.hour || `${String(battDischargeEndIdx).padStart(2, '0')}:00`;
+    
+    // คำนวณจำนวนชั่วโมงจริงที่แบตจ่ายไฟ
+    let battHours = 0;
+    if (battDischargeEndIdx >= battDischargeStartIdx) {
+      battHours = (battDischargeEndIdx - battDischargeStartIdx) + 1;
+    } else {
+      // ข้ามเที่ยงคืน
+      battHours = (24 - battDischargeStartIdx) + battDischargeEndIdx + 1;
+    }
+    battHours = Math.max(1, battHours);
+
     const battDischargeKWh = Number(day.dischargeBatteryKWh != null ? day.dischargeBatteryKWh : (dischargeBatKWh || 0));
-    const battAvgKw = battHoursCount > 0 ? Number((battDischargeKWh / battHoursCount).toFixed(2)) : 0;
+    const battAvgKw = battHours > 0 ? Number((battDischargeKWh / battHours).toFixed(2)) : 0;
+    const battStartSoc = maxSocVal > 0 ? Math.round(maxSocVal) : Number(solarData.batterySOC || 95);
+    const battEndSoc = minSocAfterDischarge > 0 && minSocAfterDischarge < battStartSoc ? Math.round(minSocAfterDischarge) : 20;
 
-    // Get Peak and End SOC
-    const battMaxSocPoint = activePool.reduce((max, pt) => ((pt.batterySOC || 0) > (max?.batterySOC || 0) ? pt : max), activePool[0]);
-    const battStartSoc = battMaxSocPoint?.batterySOC ? Math.round(battMaxSocPoint.batterySOC) : 95;
-    const battEndSoc = 20; // Standard cut-off reserve
+    // 3. PEA Grid Import Window (คำนวณช่วงเวลาที่ดึงไฟหลวงตามจริง)
+    // ไฟฟ้าหลวงจะดึงช่วงที่แบตเตอรี่จ่ายไม่ไหว/หมด (ตั้งแต่ battEndHourStr จนถึง pvFirstHour)
+    const peaStartHourStr = battEndHourStr;
+    const peaEndHourStr = pvFirstHour;
+    
+    const peaStartH = parseInt(peaStartHourStr, 10);
+    const peaEndH = parseInt(peaEndHourStr, 10);
+    let peaHours = 0;
+    if (peaEndH >= peaStartH) {
+      peaHours = (peaEndH - peaStartH);
+    } else {
+      peaHours = (24 - peaStartH) + peaEndH;
+    }
+    peaHours = Math.max(1, peaHours);
 
-    // 3. PEA Grid Import Window (Active during late night/early morning and heavy load spikes)
     const peaImportKWh = Number(day.importKWh != null ? day.importKWh : (importKWh || 0));
-    const peaStartHour = battEndHour;
-    const peaEndHour = pvFirstHour;
-    const peaHoursCount = 7.5; // Overnight duration ~23:30 to 07:00
-    const peaAvgKw = peaHoursCount > 0 ? Number((peaImportKWh / peaHoursCount).toFixed(2)) : 0;
+    const peaAvgKw = peaHours > 0 ? Number((peaImportKWh / peaHours).toFixed(2)) : 0;
 
     return {
       pv: {
         window: `${pvFirstHour} – ${pvLastHour}`,
-        hours: pvHoursCount,
+        hours: pvSpanHours,
         kwh: pvKWh,
         avgKw: pvAvgKw,
-        status: pvHoursCount > 0 ? 'ACTIVE' : 'STANDBY'
+        status: pvSpanHours > 0 ? 'ACTIVE' : 'STANDBY'
       },
       battery: {
-        window: `${battStartHour} – ${battEndHour}`,
-        hours: battHoursCount,
+        window: `${battStartHourStr} – ${battEndHourStr}`,
+        hours: battHours,
         kwh: battDischargeKWh,
         avgKw: battAvgKw,
         startSoc: battStartSoc,
@@ -1497,14 +1574,14 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         status: battDischargeKWh > 0 ? 'ACTIVE' : 'STANDBY'
       },
       pea: {
-        window: `${peaStartHour} – ${peaEndHour}`,
-        hours: peaHoursCount,
+        window: `${peaStartHourStr} – ${peaEndHourStr}`,
+        hours: peaHours,
         kwh: peaImportKWh,
         avgKw: peaAvgKw,
         status: peaImportKWh > 0 ? 'ACTIVE' : 'STANDBY'
       }
     };
-  }, [dailyCurveData, activeHistoryDay, todayGenKWh, dischargeBatKWh, importKWh]);
+  }, [dailyCurveData, activeHistoryDay, todayGenKWh, dischargeBatKWh, importKWh, solarData.batterySOC]);
 
   // Comprehensive Engineering Health & Safety Inspection (เปรียบเทียบค่าจริงกับสเปกแผงและขีดจำกัดความปลอดภัย)
   const stringHealthAnalysis = useMemo(() => {
