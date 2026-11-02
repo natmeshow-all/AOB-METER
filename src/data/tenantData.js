@@ -105,7 +105,7 @@ export const createEmptySolarConfig = () => ({
   slaveId: 1,
   baudRate: '9600',
   pvCapacityKWp: 6.0,
-  batteryCapacityKWh: 10.24,
+  batteryCapacityKWh: 16.0,
   batteryType: 'Lithium Battery',
   inverterTempC: 36.5,
   batteryTempC: 28.5,
@@ -255,10 +255,13 @@ const loadInitialCompanies = () => {
             panelVmp: 43.6,
             panelImp: 17.9,
             panelIsc: 18.74,
+            batteryCapacityKWh: 16.0,
             inverterMaxMpptCurrentA: 20.0,
             inverterMaxDcVoltageV: 550.0
           }
-        : {}),
+        : {
+            batteryCapacityKWh: 16.0
+          }),
       historicalDailyLogs: validLogs,
       daily24HourCurve: existing.solarConfig?.daily24HourCurve || []
     };
@@ -298,7 +301,7 @@ const loadInitialCompanies = () => {
         sajCloudGuestEmail: 'natshownolimit@gmail.com',
         sajDeviceSn: 'H2A2602J2539E14713',
         pvCapacityKWp: 6,
-        batteryCapacityKWh: 10.24,
+        batteryCapacityKWh: 16.0,
         batterySOC: 0,
         todayEnergyKWh: 0,
         totalEnergyKWh: 0,

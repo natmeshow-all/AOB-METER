@@ -250,7 +250,7 @@ export const syncSajCloudAndBackfillHistory = async ({
         inverterPort: 'HTTPS-443',
         pvCapacityKWp: Number(t.pvCapacityKWp || currentSolarConfig.pvCapacityKWp || 6.0),
         batteryCapacityKWh: Number(
-          t.batteryCapacityKWh || currentSolarConfig.batteryCapacityKWh || 10.24
+          t.batteryCapacityKWh || currentSolarConfig.batteryCapacityKWh || 16.0
         ),
         inverterTempC: Number(t.inverterTempC || 36.5),
         batteryTempC: Number(t.batteryTempC || 28.5),

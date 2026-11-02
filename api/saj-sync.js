@@ -1265,7 +1265,7 @@ export async function executeRealSajCloudSync({
       sajPlantUid: plantUid,
       sajPlantName: plantName,
       pvCapacityKWp: Number(plantDetailRes?.data?.peakPower ?? primaryPlant.peakPower ?? 6.0),
-      batteryCapacityKWh: Number(batInfo.batCapcity ?? 10.24),
+      batteryCapacityKWh: Number(batInfo.batCapcity ?? 16.0),
       inverterTempC,
       batteryTempC,
       pv1Voltage,

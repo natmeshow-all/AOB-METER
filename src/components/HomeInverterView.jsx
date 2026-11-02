@@ -1915,7 +1915,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const maxPvW = Math.round((Number(solarData.pvCapacityKWp) || 6) * 1000);
   const houseLoadW = Number(solarData.totalLoadPowerW || 0);
   const battSoc = Number(solarData.batterySOC || 0);
-  const battCapKWh = Number(solarData.batteryCapacityKWh || 10.24);
+  const battCapKWh = Number(solarData.batteryCapacityKWh || 16.0);
   const usableBatKWh = Number(((battCapKWh * Math.max(0, battSoc - 10)) / 100).toFixed(2));
   const estAutonomyHours =
     houseLoadW > 50
@@ -4820,7 +4820,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </div>
               </div>
               <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/60 mt-1">
-                {t('capacityLabel')} <span className="text-emerald-300 font-bold">{scrubbedPoint.batterySOC != null ? `${((scrubbedPoint.batterySOC / 100) * 10.24).toFixed(2)} kWh` : '—'}</span>
+                {t('capacityLabel')} <span className="text-emerald-300 font-bold">{scrubbedPoint.batterySOC != null ? `${((scrubbedPoint.batterySOC / 100) * battCapKWh).toFixed(2)} kWh` : '—'}</span>
               </div>
             </div>
 
