@@ -1,22 +1,29 @@
 ---
 name: icon-craft
-description: "Mastery of modern iconography, SVG vector geometry, optical alignment, and aesthetic icon styling. Automatically triggers when adding, styling, or auditing icons, glyphs, badges, and telemetry indicators in UI components."
+description: "Mastery of modern iconography, Lucide React system, Simple Icons brand directory, SVG vector geometry, and aesthetic icon styling. Automatically triggers when adding, styling, or auditing icons, glyphs, badges, and telemetry indicators in UI components."
 ---
 
-# Icon Craft: Elite Iconography & Visual Geometry
+# Icon Craft: Lucide React & Simple Icons Mastery
 
 ## Purpose
-Elevate UI components with world-class, award-winning iconography. Eliminate disjointed icon sizes, mismatched stroke weights, unconsidered optical alignment, and amateur emoji clutter. Deliver crisp, harmonious, tactile visual symbols that feel crafted by an elite design director.
+Elevate UI components with world-class, award-winning iconography using **Lucide React** (for UI controls, telemetry symbols, actions) and **Simple Icons** (for official brand, hardware, and tech stack logos). Eliminate disjointed icon sizes, mismatched stroke weights, unconsidered optical alignment, and amateur emoji clutter. Deliver crisp, harmonious, tactile visual symbols that feel crafted by an elite design director.
 
 ---
 
-## Core Invariants & Rules
+## 1. Icon Library Selection Matrix
 
-### 1. Optical Size & Bounding Box Hierarchy
+| Library | Primary Use Case | Import Pattern | Typical Examples |
+|---|---|---|---|
+| **Lucide React** (`lucide-react`) | Core UI, Navigation, Energy metrics, Status badges, Telemetry | `import { Sun, Battery, Zap, Radio, Clock, Home, Activity } from 'lucide-react'` | `Sun`, `BatteryCharging`, `Home`, `TrendingDown`, `ShieldCheck` |
+| **Simple Icons** (`@icons-pack/react-simple-icons`) | Official brand identities, Hardware vendor logos, Cloud providers, Protocol symbols | `import { SiVercel, SiGithub, SiGoogle, SiSupabase } from '@icons-pack/react-simple-icons'` | `SiVercel`, `SiSupabase`, `SiPostgresql`, `SiReact` |
+
+---
+
+## 2. Optical Size & Bounding Box Hierarchy
 Never use arbitrary icon dimensions. Strictly adhere to standard visual scale:
 
 | Token Size | Icon Size | Container Size | Use Case |
-|------------|-----------|----------------|----------|
+|---|---|---|---|
 | `xs` | `w-3 h-3` (12px) | Inline badge / micro tag | Sub-metrics, timestamps, status indicators |
 | `sm` | `w-3.5 h-3.5` (14px) | `p-1.5` (24px) | Quick navigation, secondary button actions |
 | `md` | `w-4 h-4` (16px) | `p-2` (32px) | Standard UI buttons, menu items, card headers |
@@ -28,20 +35,25 @@ Never use arbitrary icon dimensions. Strictly adhere to standard visual scale:
 
 ---
 
-### 2. Stroke Weight Harmony
-- **Standard UI:** Default to `strokeWidth={1.5}` or `1.75` for technical, modern, high-precision dashboards.
-- **Avoid Heavy Clutter:** Never use thick `strokeWidth={2.5}` or `3` alongside delicate text.
-- **Consistency Rule:** All icons within the same container, navigation bar, or card row MUST share identical stroke weights.
+## 3. Stroke Weight & Visual Harmony
+- **Lucide Icons:** Default to `strokeWidth={1.5}` or `1.75` for technical, modern, high-precision dashboards. Never use thick `strokeWidth={2.5}` or `3` alongside delicate typography.
+- **Simple Icons:** Simple Icons are monochrome solid vector glyphs (`fill="currentColor"`). Harmonize their visual weight with Lucide stroke icons by matching container sizes and color opacity (`text-slate-300`, `text-sky-400`, or brand colors).
+- **Consistency Rule:** All icons within the same container, navigation bar, or card row MUST share identical optical sizes and visual prominence.
 
 ---
 
-### 3. Tactile Frosted Icon Containers (The "Badge Frame" Formula)
+## 4. Tactile Frosted Icon Containers (The "Badge Frame" Formula)
 Icons must never float bare and unsupported against dark backgrounds. Frame them with layered, comfortable matte badges:
 
 ```jsx
-// Elite Frosted Badge Formula
+// Elite Frosted Badge Formula (Lucide UI Icon)
 <div className="w-8 h-8 rounded-xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-center text-sky-400 shadow-sm shrink-0 group-hover:border-slate-700/80 transition-colors">
   <Sun className="w-4 h-4" strokeWidth={1.5} />
+</div>
+
+// Simple Icons Brand Badge Formula
+<div className="w-8 h-8 rounded-xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-center text-slate-200 shadow-sm shrink-0">
+  <SiGithub className="w-4 h-4" />
 </div>
 ```
 
@@ -54,14 +66,14 @@ Icons must never float bare and unsupported against dark backgrounds. Frame them
 
 ---
 
-### 4. Emoji vs Vector Discipline
+## 5. Emoji vs Vector Discipline
 - **Zero Raw OS Emoji in Primary Navigation:** Never use mismatched OS emojis (e.g. 🏠, 🗼, ⚡, 🔋) in production button rows or navigation bars where operating systems render drastically different cartoon styles (Apple 3D vs Android flat vs Windows flat).
-- **Vector Icons Win:** Use vectorized Lucide React SVGs (`<Home />`, `<Sun />`, `<Battery />`, `<Zap />`, `<Radio />`) for 100% vector sharpness, dark mode adaptability, and crisp rendering at any pixel density.
+- **Vector Icons Win:** Use vectorized Lucide React SVGs (`<Home />`, `<Sun />`, `<Battery />`, `<Zap />`, `<Radio />`) and Simple Icons for 100% vector sharpness, dark mode adaptability, and crisp rendering at any pixel density.
 - **National Flags Exception:** Country flags (🇹🇭 TH, 🇬🇧 EN) in language pickers are acceptable with explicit `leading-none` and `drop-shadow-sm`.
 
 ---
 
-### 5. Semantic Taxonomy for Energy & IoT
+## 6. Semantic Taxonomy for Energy, Cloud & IoT
 Always match the exact icon metaphor to the physical reality:
 
 - **Solar Array Generation:** `Sun` or `Zap`
@@ -73,10 +85,11 @@ Always match the exact icon metaphor to the physical reality:
 - **Efficiency & ROI:** `TrendingUp` or `Leaf`
 - **Time-Machine / History:** `Clock` or `Calendar`
 - **System Administration:** `ShieldCheck` or `Sliders`
+- **Cloud & Deployment Brands:** `SiVercel`, `SiSupabase`, `SiPostgresql`, `SiGithub` (via Simple Icons)
 
 ---
 
-### 6. Kinetic Micro-Interactions
+## 7. Kinetic Micro-Interactions
 Icons should communicate responsiveness without jarring motion:
 - **Active / Live Telemetry:** Subtle rhythmic pulse (`animate-pulse`) or slow continuous rotation on rotating equipment (`animate-spin-slow` at 12s+).
 - **Interactive Buttons:** Gentle scale-up on container hover: `group-hover:scale-105 transition-transform duration-200`.
@@ -90,6 +103,6 @@ Icons should communicate responsiveness without jarring motion:
 
 ---
 
-### 7. Accessibility
+## 8. Accessibility
 - All purely decorative icons must include `aria-hidden="true"`.
 - Standalone icon-only buttons MUST provide an accessible `title`, `aria-label`, or screen-reader text (`<span className="sr-only">Description</span>`).
