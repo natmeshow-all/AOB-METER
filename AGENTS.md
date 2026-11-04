@@ -10,9 +10,12 @@ Key Invariants:
 3. Mobile-first ergonomics with font `Prompt` must be preserved.
 4. Shell commands on Windows PowerShell must use `;` instead of `&&`.
 5. **Superpowers Skill-First Discipline:** Always invoke `using-superpowers` before any response or action for every user task.
-6. **Automatic Contextual Skill Orchestration Pipeline:**
-   - **Requirement Stress-Testing (`grill-me`):** When proposing new features, architectures, or non-trivial plans, automatically trigger `grill-me` to relentlessly interview decisions one-by-one with recommended answers before coding.
-   - **Production UI Craft (`frontend-design`):** When authoring or styling frontend pages, dashboards, or components, automatically trigger `frontend-design` for domain-grounded typography, token systems, and anti-cliché layouts.
-   - **Elite Iconography & Geometry (`icon-craft`):** When adding, styling, or auditing icons, glyphs, badges, or telemetry indicators, automatically trigger `icon-craft` for optical size balance, stroke-weight harmony (1.5px), frosted badge containers, and vector precision.
-   - **Deterministic Video & Motion (`hyperframes`):** When handling video generation, animations, kinetic typography, or motion graphics, automatically trigger `hyperframes` for seekable HTML/CSS/GSAP timeline compositions.
-   - **Aesthetic Craft & Novelty Polish (`impeccable`):** Upon completion of any UI/frontend task, automatically trigger `impeccable` to audit and polish visual craft, elegance, novelty, and premium feel.
+6. **Dynamic Workflow Orchestrator (Autonomous Skill Routing by Specialization):**
+   - Automatically classify every user request and trigger the dedicated specialist skills in order:
+     - **Architecture & New Features:** `brainstorming` ➔ `grill-me` (decision tree interview) ➔ `writing-plans` ➔ `executing-plans`
+     - **Bug Fixes & Inconsistencies:** `systematic-debugging` ➔ `test-driven-development` ➔ `verification-before-completion`
+     - **Frontend Dashboard & Polish:** `frontend-design` ➔ `mobile-ergonomics-audit` ➔ `impeccable`
+     - **Iconography & Badges:** `icon-craft` (Lucide React & Simple Icons)
+     - **IoT Energy, BMS & PEA Tariff:** `iot-security-and-tariff-audit`
+     - **Video, Animations & Timelines:** `hyperframes`
+     - **Post-Task Quality Gate:** Always run `verification-before-completion` and audit with `impeccable` on any UI task.
