@@ -212,7 +212,24 @@ export const TRANSLATIONS = {
     sajServerVerifiedDays: 'ข้อมูลจริงจากเซิร์ฟเวอร์ SAJ ทั้งหมด {total} วัน',
     barPvGen: 'ผลิตโซลาร์จริง (kWh/วัน)',
     barHouseLoad: 'ใช้ไฟในบ้าน (kWh/วัน)',
-    barGridImport: 'ดึงไฟการไฟฟ้า (kWh/วัน)'
+    barGridImport: 'ดึงไฟการไฟฟ้า (kWh/วัน)',
+
+    // Monthly Solar PV Bar Chart
+    monthlyPvChartTitle: 'กราฟแท่งพลังงานโซลาร์รายเดือน',
+    monthlyPvChartSub: 'วิเคราะห์พลังงานที่ผลิตได้จริงย้อนหลังรายเดือน พร้อมเลือกวันเริ่มต้นของเดือนได้อิสระ',
+    chartViewDaily: 'ไทม์ไลน์รายวัน',
+    chartViewMonthly: 'กราฟแท่งรายเดือน (PV)',
+    tab24hDynoCurve: 'กราฟ 24 ชม. รายวัน',
+    selectStartDayLabel: 'เลือกวันแรกของเดือน:',
+    calendarMonthOption: 'วันที่ 1 (ตามปฏิทิน)',
+    peaBillingOption: 'วันที่ 24 (รอบบิล กฟภ.)',
+    customDayOption: 'กำหนดวันเอง',
+    monthlyPvGenBar: 'พลังงานผลิตได้จากแผงโซลาร์ (kWh/เดือน)',
+    totalPvProducedAllMonths: 'ผลิตโซลาร์รวมทั้งหมด',
+    bestPvMonth: 'เดือนที่ผลิตได้สูงสุด',
+    avgPvPerMonth: 'เฉลี่ยต่อเดือน',
+    inspectMonthDetail: 'เลือกดูข้อมูลเจาะลึกรายเดือน',
+    dailyAvgGen: 'เฉลี่ยวันละ'
   },
   en: {
     // Brand & Status
@@ -425,7 +442,24 @@ export const TRANSLATIONS = {
     sajServerVerifiedDays: 'Verified telemetry from SAJ server for all {total} days',
     barPvGen: 'Solar Generation (kWh/day)',
     barHouseLoad: 'Home Load (kWh/day)',
-    barGridImport: 'Grid Import (kWh/day)'
+    barGridImport: 'Grid Import (kWh/day)',
+
+    // Monthly Solar PV Bar Chart
+    monthlyPvChartTitle: 'Monthly Solar PV Generation Bar Chart',
+    monthlyPvChartSub: 'Historical monthly solar energy production analysis with customizable month start/cut-off day',
+    chartViewDaily: 'Daily Timeline',
+    chartViewMonthly: 'Monthly PV Bar Chart',
+    tab24hDynoCurve: 'Daily 24h Dyno',
+    selectStartDayLabel: 'Select month start day:',
+    calendarMonthOption: 'Day 1 (Calendar Month)',
+    peaBillingOption: 'Day 24 (PEA Cycle)',
+    customDayOption: 'Custom Day',
+    monthlyPvGenBar: 'Solar PV Energy Generated (kWh/month)',
+    totalPvProducedAllMonths: 'Total Solar PV Produced',
+    bestPvMonth: 'Peak Production Month',
+    avgPvPerMonth: 'Monthly Average',
+    inspectMonthDetail: 'Select a month for deep breakdown',
+    dailyAvgGen: 'Daily Avg'
   }
 };
 

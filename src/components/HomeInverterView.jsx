@@ -4,6 +4,7 @@ import {
   Area,
   BarChart,
   Bar,
+  Cell,
   Line,
   ReferenceLine,
   XAxis,
@@ -48,6 +49,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Radio,
+  Award,
+  BarChart3,
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -228,6 +231,10 @@ const THAI_MONTHS = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
 ];
+const ENG_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
 const formatThaiMonth = (ym) => {
   const [y, m] = String(ym).split('-');
   return `${THAI_MONTHS[Number(m) - 1] || m} ${Number(y) + 543}`;
@@ -243,6 +250,24 @@ export const formatThaiDateShort = (dateStr) => {
 };
 
 export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
+  const pad = (n) => String(n).padStart(2, '0');
+
+  if (cutOffDay === 1) {
+    const daysInCurMonth = new Date(year, month, 0).getDate();
+    const startDate = `${year}-${pad(month)}-01`;
+    const endDate = `${year}-${pad(month)}-${pad(daysInCurMonth)}`;
+    return {
+      cycleKey: `${year}-${pad(month)}`,
+      year,
+      month,
+      startDate,
+      endDate,
+      periodLabel: `${formatThaiDateShort(startDate)} - ${formatThaiDateShort(endDate)}`,
+      readDateThai: formatThaiDateShort(endDate),
+      monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (01/${pad(month)} - ${pad(daysInCurMonth)}/${pad(month)})`
+    };
+  }
+
   const prevMonthDate = new Date(year, month - 2, 1);
   const prevYear = prevMonthDate.getFullYear();
   const prevMonth = prevMonthDate.getMonth() + 1;
@@ -252,7 +277,6 @@ export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
   const daysInCurMonth = new Date(year, month, 0).getDate();
   const actualCurDay = Math.min(cutOffDay, daysInCurMonth);
 
-  const pad = (n) => String(n).padStart(2, '0');
   const startDate = `${prevYear}-${pad(prevMonth)}-${pad(actualPrevDay)}`;
   const endDate = `${year}-${pad(month)}-${pad(actualCurDay)}`;
 
@@ -264,7 +288,7 @@ export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
     endDate,
     periodLabel: `${formatThaiDateShort(startDate)} - ${formatThaiDateShort(endDate)}`,
     readDateThai: formatThaiDateShort(endDate),
-    monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (รอบเดือน ${month})`
+    monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (รอบ ${pad(actualPrevDay)}/${pad(prevMonth)} - ${pad(actualCurDay)}/${pad(month)})`
   };
 };
 
@@ -562,6 +586,401 @@ const SupercarRadialGauge = ({
   );
 };
 
+const CustomMonthlyTooltip = ({ active, payload, lang, t }) => {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  if (!data) return null;
+
+  return (
+    <div className="bg-[#070b14]/95 border border-amber-500/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md space-y-2 text-xs font-sans max-w-xs">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 gap-2">
+        <span className="font-bold text-white flex items-center gap-1.5">
+          <Sun className="w-3.5 h-3.5 text-amber-400" />
+          <span>{data.monthLabel}</span>
+        </span>
+        <span className="text-[10px] font-mono text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+          {data.days} {lang === 'th' ? 'วันบันทึก' : 'days'}
+        </span>
+      </div>
+
+      <div className="text-[11px] text-slate-400 font-mono">
+        📅 {data.periodLabel}
+      </div>
+
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between font-mono">
+          <span className="text-amber-300 font-bold flex items-center gap-1">
+            <span>☀️ {t('monthlyPvGenBar')}:</span>
+          </span>
+          <span className="text-white font-bold text-sm">{data.pvGen.toFixed(2)} kWh</span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+          <span>⚡ {t('dailyAvgGen')}:</span>
+          <span className="text-amber-400 font-bold">~{data.dailyAvgPv} kWh/{lang === 'th' ? 'วัน' : 'day'}</span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+          <span>🏠 {t('barHouseLoad')}:</span>
+          <span className="text-indigo-300">{data.load.toFixed(2)} kWh</span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+          <span>🗼 {t('barGridImport')}:</span>
+          <span className="text-sky-300">{data.imp.toFixed(2)} kWh</span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px] border-t border-slate-800/80 pt-1">
+          <span className="text-emerald-400 font-bold">💰 {t('colSavings')}:</span>
+          <span className="text-emerald-300 font-bold">{formatBaht(data.savedBaht)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const MonthlySolarPvBarChart = ({
+  billingCycles = [],
+  billingCutoffDay = 24,
+  onBillingCutoffDayChange,
+  selectedCycleKey,
+  onSelectCycle,
+  lang = 'th',
+  t,
+  theme
+}) => {
+  // Chronological order from oldest to newest (e.g. Apr 69 -> Oct 69)
+  const chartData = useMemo(() => {
+    return Array.isArray(billingCycles) ? [...billingCycles].reverse() : [];
+  }, [billingCycles]);
+
+  const stats = useMemo(() => {
+    if (!billingCycles || billingCycles.length === 0) {
+      return { totalPv: 0, avgPv: 0, peakMonth: null, totalSavings: 0 };
+    }
+    const totalPv = billingCycles.reduce((acc, c) => acc + (c.pvGen || 0), 0);
+    const totalSavings = billingCycles.reduce((acc, c) => acc + (c.savedBaht || 0), 0);
+    const avgPv = billingCycles.length > 0 ? totalPv / billingCycles.length : 0;
+
+    let peakMonth = billingCycles[0];
+    billingCycles.forEach((c) => {
+      if ((c.pvGen || 0) > (peakMonth?.pvGen || 0)) {
+        peakMonth = c;
+      }
+    });
+
+    return {
+      totalPv: Number(totalPv.toFixed(2)),
+      avgPv: Number(avgPv.toFixed(2)),
+      peakMonth,
+      totalSavings: Number(totalSavings.toFixed(2))
+    };
+  }, [billingCycles]);
+
+  const activeCycle = useMemo(() => {
+    if (!billingCycles || billingCycles.length === 0) return null;
+    if (selectedCycleKey) {
+      const found = billingCycles.find((c) => c.cycleKey === selectedCycleKey);
+      if (found) return found;
+    }
+    return billingCycles[0];
+  }, [billingCycles, selectedCycleKey]);
+
+  return (
+    <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-4 sm:p-5 space-y-4 shadow-xl">
+      {/* 1. Header & Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <Sun className="w-5 h-5 text-amber-400" />
+            <span>{t('monthlyPvChartTitle')}</span>
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {t('monthlyPvChartSub')}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
+            {billingCycles.length} {lang === 'th' ? 'รอบเดือนในระบบ' : 'billing months'}
+          </span>
+        </div>
+      </div>
+
+      {/* 2. Interactive Start Day / Cut-off Selector */}
+      <div className="bg-[#050811] border border-amber-500/20 rounded-2xl p-3 sm:p-3.5 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>{t('selectStartDayLabel')}</span>
+                <span className="text-amber-300 font-mono bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full text-[11px] font-black">
+                  {billingCutoffDay === 1
+                    ? (lang === 'th' ? 'วันที่ 1 (ตามปฏิทิน 1-31)' : 'Day 1 (Calendar Month)')
+                    : (lang === 'th' ? `วันที่ ${billingCutoffDay} (รอบบิล กฟภ.)` : `Day ${billingCutoffDay} (PEA Cycle)`)}
+                </span>
+              </span>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {billingCutoffDay === 1
+                  ? (lang === 'th' ? 'คำนวณข้อมูลตั้งแต่วันที่ 1 ถึงวันสิ้นเดือนของทุกเดือน (01 - 31)' : 'Calculates from Day 1 to end of month for all months')
+                  : (lang === 'th' ? `คำนวณรอบบิลตั้งแต่วันที่ ${billingCutoffDay} เดือนก่อน ถึงวันที่ ${billingCutoffDay} เดือนปัจจุบัน` : `Calculates billing period from Day ${billingCutoffDay} to Day ${billingCutoffDay}`)}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Presets + Custom Input */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            <button
+              type="button"
+              onClick={() => onBillingCutoffDayChange(1)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                billingCutoffDay === 1
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/25'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{t('calendarMonthOption')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onBillingCutoffDayChange(24)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                billingCutoffDay === 24
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/25'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>{t('peaBillingOption')}</span>
+            </button>
+
+            {[20, 22, 25].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => onBillingCutoffDayChange(d)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  billingCutoffDay === d
+                    ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                }`}
+                title={`เริ่มวันที่ ${d}`}
+              >
+                {d}
+              </button>
+            ))}
+
+            <div className="flex items-center gap-1 pl-1">
+              <span className="text-[10px] text-slate-500 font-sans hidden sm:inline">{t('customDayOption')}:</span>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={billingCutoffDay}
+                onChange={(e) => onBillingCutoffDayChange(e.target.value)}
+                className="w-14 bg-slate-900 border border-slate-700/90 rounded-xl px-2 py-1 text-xs font-mono font-bold text-center text-amber-300 focus:outline-none focus:border-amber-400"
+                title="ระบุวันเริ่มรอบบิลเอง 1-31"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. KPI Summary Badges */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* Card 1: Total PV */}
+        <div className="bg-[#0b101d] border border-amber-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-amber-300 font-semibold">
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span>{t('totalPvProducedAllMonths')}</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">{billingCycles.length} {lang === 'th' ? 'รอบเดือน' : 'mo'}</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+            {stats.totalPv.toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            <span className="text-xs font-sans text-amber-400/90 font-normal ml-1">kWh</span>
+          </div>
+          <div className="text-[10px] text-slate-400">
+            {lang === 'th' ? 'พลังงานสะอาดทั้งหมดที่ผลิตได้จริง' : 'Total clean solar electricity produced'}
+          </div>
+        </div>
+
+        {/* Card 2: Peak Month */}
+        <div className="bg-[#0b101d] border border-emerald-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-emerald-300 font-semibold">
+              <Award className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t('bestPvMonth')}</span>
+            </span>
+            <span className="text-[10px] text-emerald-400 font-mono font-bold">🏆 MAX</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-300 tracking-tight">
+            {stats.peakMonth ? stats.peakMonth.pvGen.toFixed(1) : 0}
+            <span className="text-xs font-sans text-emerald-400/90 font-normal ml-1">kWh</span>
+          </div>
+          <div className="text-[10px] text-slate-400 truncate">
+            {stats.peakMonth ? `${stats.peakMonth.shortMonth} (${stats.peakMonth.periodLabel})` : '-'}
+          </div>
+        </div>
+
+        {/* Card 3: Monthly Average */}
+        <div className="bg-[#0b101d] border border-sky-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-sky-300 font-semibold">
+              <TrendingUp className="w-3.5 h-3.5 text-sky-400" />
+              <span>{t('avgPvPerMonth')}</span>
+            </span>
+            <span className="text-[10px] text-sky-400 font-mono">~30 {lang === 'th' ? 'วัน/เดือน' : 'days/mo'}</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-sky-300 tracking-tight">
+            {stats.avgPv.toFixed(1)}
+            <span className="text-xs font-sans text-sky-400/90 font-normal ml-1">kWh/mo</span>
+          </div>
+          <div className="text-[10px] text-slate-400">
+            ~{(stats.avgPv / 30).toFixed(1)} {lang === 'th' ? 'kWh/วัน' : 'kWh/day'}
+          </div>
+        </div>
+
+        {/* Card 4: Total Savings */}
+        <div className="bg-[#0b101d] border border-cyan-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-cyan-300 font-semibold">
+              <Coins className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{t('totalLifetimeSavings')}</span>
+            </span>
+            <span className="text-[10px] text-cyan-400 font-bold">฿ Baht</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-cyan-300 tracking-tight">
+            {formatBaht(stats.totalSavings)}
+          </div>
+          <div className="text-[10px] text-slate-400">
+            {lang === 'th' ? 'เทียบกับบิลการไฟฟ้าที่ลดลง' : 'Saved vs full PEA electric bill'}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. The Bar Chart */}
+      <div className="h-64 sm:h-72 w-full pt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="solarAmberGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                <stop offset="100%" stopColor="#d97706" stopOpacity={0.7} />
+              </linearGradient>
+              <linearGradient id="solarActiveGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <XAxis
+              dataKey="shortMonth"
+              stroke="#94a3b8"
+              fontSize={11}
+              tickLine={false}
+              axisLine={{ stroke: '#334155' }}
+            />
+            <YAxis
+              stroke="#94a3b8"
+              fontSize={11}
+              tickLine={false}
+              axisLine={{ stroke: '#334155' }}
+              tickFormatter={(v) => `${v}`}
+              unit=" kWh"
+            />
+            <Tooltip content={<CustomMonthlyTooltip lang={lang} t={t} />} />
+            <Bar
+              dataKey="pvGen"
+              name={t('monthlyPvGenBar')}
+              radius={[8, 8, 0, 0]}
+              cursor="pointer"
+              onClick={(data) => {
+                if (data?.cycleKey && onSelectCycle) onSelectCycle(data.cycleKey);
+              }}
+            >
+              {chartData.map((entry) => {
+                const isSelected = activeCycle?.cycleKey === entry.cycleKey;
+                return (
+                  <Cell
+                    key={entry.cycleKey}
+                    fill={isSelected ? 'url(#solarActiveGrad)' : 'url(#solarAmberGrad)'}
+                    stroke={isSelected ? '#34d399' : '#fbbf24'}
+                    strokeWidth={isSelected ? 2 : 1}
+                  />
+                );
+              })}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 5. Interactive Month Cards Carousel / Grid */}
+      <div className="space-y-2 pt-2 border-t border-slate-800/80">
+        <div className="flex items-center justify-between text-[11px] text-slate-400">
+          <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+            <History className="w-3.5 h-3.5 text-amber-400" />
+            <span>{t('inspectMonthDetail')} ({chartData.length} {lang === 'th' ? 'รอบเดือน' : 'months'})</span>
+          </span>
+          <span className="text-[10px] text-slate-500 font-mono">
+            {lang === 'th' ? 'แตะการ์ดเพื่อดูข้อมูลรอบเดือน' : 'Tap to focus'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {chartData.map((cycle) => {
+            const isSelected = activeCycle?.cycleKey === cycle.cycleKey;
+            return (
+              <button
+                key={cycle.cycleKey}
+                type="button"
+                onClick={() => onSelectCycle && onSelectCycle(cycle.cycleKey)}
+                className={`p-3 rounded-2xl text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-gradient-to-br from-amber-500/20 to-emerald-500/10 border-amber-400/60 shadow-lg shadow-amber-500/10 scale-[1.01]'
+                    : 'bg-[#090d18] hover:bg-[#0f1526] border-slate-800/80 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white flex items-center gap-1">
+                    <Sun className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
+                    <span>{cycle.shortMonth}</span>
+                  </span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                    isSelected ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {cycle.days}d
+                  </span>
+                </div>
+
+                <div className="my-2">
+                  <div className="text-lg sm:text-xl font-bold font-mono text-amber-300">
+                    {cycle.pvGen.toFixed(1)} <span className="text-[11px] font-sans text-slate-400 font-normal">kWh</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">
+                    {cycle.periodLabel}
+                  </div>
+                </div>
+
+                <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">~{cycle.dailyAvgPv} kWh/d</span>
+                  <span className="text-emerald-400 font-mono font-bold">+{formatBaht(cycle.savedBaht)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const { activeOrgId, updateOrganization, testRealGatewayConnection } = useAuth();
   const { t, lang } = useLanguage();
@@ -716,6 +1135,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const [isPeaModalOpen, setIsPeaModalOpen] = useState(false);
   const [selectedPeaMonth, setSelectedPeaMonth] = useState(null);
   const [selectedPeaCycleKey, setSelectedPeaCycleKey] = useState('2026-10');
+  const [graphViewMode, setGraphViewMode] = useState('dyno24h'); // 'dyno24h' | 'monthlyPv'
+  const [historyChartMode, setHistoryChartMode] = useState('monthly'); // 'monthly' | 'daily'
+  const [selectedMonthlyCycleKey, setSelectedMonthlyCycleKey] = useState('2026-10');
   const [billingCutoffDay, setBillingCutoffDay] = useState(() => {
     try {
       const saved = localStorage.getItem('POWERVIEW_BILLING_CUTOFF_DAY');
@@ -761,26 +1183,39 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
     return historicalLogs[historicalLogs.length - 1];
   }, [historicalLogs, selectedHistoryDate]);
 
-  // Dynamic monthly billing cycles with user-selected cut-off date (e.g. 24th of each month)
+  // Dynamic monthly billing cycles with user-selected cut-off date (e.g. 24th of each month or 1st)
   const billingCycles = useMemo(() => {
-    const baseCycles = [
-      { year: 2026, month: 10 },
-      { year: 2026, month: 9 },
-      { year: 2026, month: 8 },
-      { year: 2026, month: 7 },
-      { year: 2026, month: 6 },
-      { year: 2026, month: 5 },
-      { year: 2026, month: 4 }
-    ];
+    const yearMonthSet = new Set();
+    historicalLogs.forEach((log) => {
+      if (log?.date && typeof log.date === 'string') {
+        const ym = log.date.substring(0, 7);
+        if (/^\d{4}-\d{2}$/.test(ym)) {
+          yearMonthSet.add(ym);
+        }
+      }
+    });
+    ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04'].forEach((ym) =>
+      yearMonthSet.add(ym)
+    );
+
+    const sortedYm = Array.from(yearMonthSet).sort().reverse();
+    const baseCycles = sortedYm.map((ym) => {
+      const [y, m] = ym.split('-').map(Number);
+      return { year: y, month: m };
+    });
 
     return baseCycles.map(({ year, month }) => {
       const cycleRange = getBillingCycleRange(year, month, billingCutoffDay);
       const { startDate, endDate, cycleKey, periodLabel, readDateThai, monthLabel } = cycleRange;
 
-      // Filter historical logs strictly falling in this billing cut-off window: date > startDate && date <= endDate
-      const matchingLogs = historicalLogs.filter(
-        (log) => log && log.date && log.date > startDate && log.date <= endDate
-      );
+      // Filter historical logs strictly falling in this billing cut-off window
+      const matchingLogs = historicalLogs.filter((log) => {
+        if (!log || !log.date) return false;
+        if (billingCutoffDay === 1) {
+          return log.date >= startDate && log.date <= endDate;
+        }
+        return log.date > startDate && log.date <= endDate;
+      });
 
       const benchmark = BENCHMARK_PEA_HISTORY.find((b) => b.cycleKey === cycleKey);
 
@@ -819,6 +1254,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         Number((hypotheticalBillDetails.totalBill - importBillDetails.totalBill + exportIncome).toFixed(2))
       );
 
+      const thaiShort = `${THAI_MONTHS[month - 1]} ${(year + 543) % 100}`;
+      const engShort = `${ENG_MONTHS[month - 1]} '${year % 100}`;
+      const shortMonth = lang === 'th' ? thaiShort : engShort;
+      const dailyAvgPv = daysCount > 0 ? Number((pvGen / daysCount).toFixed(2)) : 0;
+
       return {
         cycleKey,
         month: cycleKey,
@@ -829,8 +1269,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         periodLabel,
         readDateThai,
         monthLabel,
+        shortMonth,
         days: daysCount,
         pvGen,
+        dailyAvgPv,
         load,
         imp,
         exp,
@@ -845,7 +1287,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         isBenchmark: matchingLogs.length === 0 && !!benchmark
       };
     });
-  }, [historicalLogs, billingCutoffDay, tariffSettings]);
+  }, [historicalLogs, billingCutoffDay, tariffSettings, lang]);
 
   useEffect(() => {
     const handleOpenPea = () => {
@@ -4486,7 +4928,48 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
 
       {/* INTERACTIVE TIME-MACHINE 24-HOUR DYNO CHART & HISTORICAL EXPLORER */}
       {(dashboardSection === 'curve' || dashboardSection === 'all') && (
-        <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-[24px] p-4 sm:p-5 space-y-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="space-y-4">
+          {/* Top Switcher: 24h Dyno vs Monthly PV Bar Chart */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-2xl w-full sm:w-auto self-start">
+            <button
+              type="button"
+              onClick={() => setGraphViewMode('dyno24h')}
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                graphViewMode === 'dyno24h'
+                  ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>{t('tab24hDynoCurve')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGraphViewMode('monthlyPv')}
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                graphViewMode === 'monthlyPv'
+                  ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" />
+              <span>{t('chartViewMonthly')}</span>
+            </button>
+          </div>
+
+          {graphViewMode === 'monthlyPv' ? (
+            <MonthlySolarPvBarChart
+              billingCycles={billingCycles}
+              billingCutoffDay={billingCutoffDay}
+              onBillingCutoffDayChange={handleBillingCutoffDayChange}
+              selectedCycleKey={selectedMonthlyCycleKey}
+              onSelectCycle={setSelectedMonthlyCycleKey}
+              lang={lang}
+              t={t}
+              theme={theme}
+            />
+          ) : (
+            <div className="bg-gradient-to-b from-[#111728]/85 via-[#0d1322]/90 to-[#080c16]/95 border border-slate-800/60 rounded-[24px] p-4 sm:p-5 space-y-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
@@ -5592,6 +6075,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           </div>
         )}
       </div>
+          )}
+        </div>
       )}
 
       {/* ELECTRICITY STATISTICS & HISTORICAL TIMELINE */}
@@ -6014,60 +6499,106 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       </div>
 
           {/* =================================================================== */}
-      {/* HISTORICAL TIMELINE BAR CHART (VERIFIED SAJ V2 DAYS ONLY)           */}
+      {/* HISTORICAL BAR CHART (DUAL-MODE: MONTHLY PV GENERATION vs DAILY)   */}
       {/* =================================================================== */}
       {historicalLogs.length > 0 && (
-        <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <History className="w-4 h-4 text-sky-400" />
-              <span>
-                {t('dailyTimelineTitle', {
-                  count: (statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length
-                })}
-              </span>
-            </h3>
+        <div className="space-y-3">
+          {/* Sub-toggle between Monthly PV Bar Chart and Daily Timeline */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center p-1 bg-slate-900/90 border border-slate-800 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setHistoryChartMode('monthly')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  historyChartMode === 'monthly'
+                    ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span>{t('chartViewMonthly')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryChartMode('daily')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  historyChartMode === 'daily'
+                    ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>{t('chartViewDaily')}</span>
+              </button>
+            </div>
+
             <span className="text-xs text-slate-400">
               {t('sajServerVerifiedDays', { total: historicalLogs.length })}
             </span>
           </div>
 
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="date" tickFormatter={formatSlashDate} stroke="#94a3b8" fontSize={10} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#070b14',
-                    borderColor: '#1e293b',
-                    borderRadius: '12px',
-                    fontSize: '12px'
-                  }}
-                />
-                <Legend />
-                <Bar
-                  dataKey="pvGenerationKWh"
-                  name={t('barPvGen')}
-                  fill={theme.pvSecondary}
-                  radius={[6, 6, 0, 0]}
-                />
-                <Bar
-                  dataKey="loadElectricityKWh"
-                  name={t('barHouseLoad')}
-                  fill="#6366f1"
-                  radius={[6, 6, 0, 0]}
-                />
-                <Bar
-                  dataKey="importKWh"
-                  name={t('barGridImport')}
-                  fill="#f59e0b"
-                  radius={[6, 6, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {historyChartMode === 'monthly' ? (
+            <MonthlySolarPvBarChart
+              billingCycles={billingCycles}
+              billingCutoffDay={billingCutoffDay}
+              onBillingCutoffDayChange={handleBillingCutoffDayChange}
+              selectedCycleKey={selectedMonthlyCycleKey}
+              onSelectCycle={setSelectedMonthlyCycleKey}
+              lang={lang}
+              t={t}
+              theme={theme}
+            />
+          ) : (
+            <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <History className="w-4 h-4 text-sky-400" />
+                  <span>
+                    {t('dailyTimelineTitle', {
+                      count: (statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length
+                    })}
+                  </span>
+                </h3>
+              </div>
+
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis dataKey="date" tickFormatter={formatSlashDate} stroke="#94a3b8" fontSize={10} />
+                    <YAxis stroke="#94a3b8" fontSize={11} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#070b14',
+                        borderColor: '#1e293b',
+                        borderRadius: '12px',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey="pvGenerationKWh"
+                      name={t('barPvGen')}
+                      fill={theme.pvSecondary}
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="loadElectricityKWh"
+                      name={t('barHouseLoad')}
+                      fill="#6366f1"
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="importKWh"
+                      name={t('barGridImport')}
+                      fill="#f59e0b"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
       )}
         </>
