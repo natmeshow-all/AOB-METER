@@ -645,6 +645,7 @@ export const MonthlySolarPvBarChart = ({
   onBillingCutoffDayChange,
   selectedCycleKey,
   onSelectCycle,
+  onViewDailyForMonth,
   lang = 'th',
   t,
   theme
@@ -976,6 +977,409 @@ export const MonthlySolarPvBarChart = ({
             );
           })}
         </div>
+
+        {onViewDailyForMonth && activeCycle && (
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onViewDailyForMonth(activeCycle.cycleKey)}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+            >
+              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{lang === 'th' ? `ดูกราฟแท่งรายวันของรอบ ${activeCycle.shortMonth}` : `View Daily Chart for ${activeCycle.shortMonth}`}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CustomDailyTooltip = ({ active, payload, lang, t }) => {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0]?.payload;
+  if (!data) return null;
+
+  return (
+    <div className="bg-[#070b14]/95 border border-amber-500/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md space-y-2 text-xs font-sans max-w-xs">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 gap-2">
+        <span className="font-bold text-white flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-amber-400" />
+          <span>{data.fullDateThai || data.date}</span>
+        </span>
+        <span className="text-[10px] font-mono text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+          {data.isRealSajV2 !== false ? (lang === 'th' ? 'SAJ จริง' : 'SAJ Cloud') : 'Verified'}
+        </span>
+      </div>
+
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between font-mono">
+          <span className="text-amber-300 font-bold flex items-center gap-1">
+            <span>☀️ {t('barPvGen')}:</span>
+          </span>
+          <span className="text-white font-bold text-sm">
+            {Number(data.pvGenerationKWh || 0).toFixed(2)} kWh
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+          <span>🏠 {t('barHouseLoad')}:</span>
+          <span className="text-indigo-300">
+            {Number(data.loadElectricityKWh || 0).toFixed(2)} kWh
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+          <span>🗼 {t('barGridImport')}:</span>
+          <span className="text-sky-300">
+            {Number(data.importKWh || 0).toFixed(2)} kWh
+          </span>
+        </div>
+
+        {Number(data.exportKWh || 0) > 0 && (
+          <div className="flex items-center justify-between text-slate-300 font-mono text-[11px]">
+            <span>⚡ {t('exportToGrid')}:</span>
+            <span className="text-emerald-400">
+              {Number(data.exportKWh || 0).toFixed(2)} kWh
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-slate-300 font-mono text-[11px] border-t border-slate-800/80 pt-1">
+          <span className="text-emerald-400 font-bold">💰 {t('colSavings')}:</span>
+          <span className="text-emerald-300 font-bold">฿{data.savedBaht}</span>
+        </div>
+      </div>
+
+      <div className="text-[10px] text-sky-400 font-sans pt-1 border-t border-slate-800/60 flex items-center gap-1">
+        <span>👉</span>
+        <span>{t('tapBarToView24h')}</span>
+      </div>
+    </div>
+  );
+};
+
+export const DailySolarPvBarChart = ({
+  historicalLogs = [],
+  billingCycles = [],
+  billingCutoffDay = 24,
+  selectedCycleKey = 'LAST_30',
+  onSelectCycleKey,
+  onSelectDay,
+  lang = 'th',
+  t,
+  theme
+}) => {
+  const [showComparison, setShowComparison] = useState(false);
+
+  // Filter logs according to selected cycle (or 'LAST_30')
+  const dailyLogs = useMemo(() => {
+    if (!historicalLogs || historicalLogs.length === 0) return [];
+
+    if (selectedCycleKey === 'LAST_30') {
+      return historicalLogs.slice(-30);
+    }
+
+    const cycle = billingCycles.find((c) => c.cycleKey === selectedCycleKey);
+    if (cycle && cycle.startDate && cycle.endDate) {
+      const { startDate, endDate } = cycle;
+      const matched = historicalLogs.filter((log) => {
+        if (!log || !log.date) return false;
+        if (billingCutoffDay === 1) {
+          return log.date >= startDate && log.date <= endDate;
+        }
+        return log.date > startDate && log.date <= endDate;
+      });
+      if (matched.length > 0) return matched;
+    }
+
+    return historicalLogs.slice(-30);
+  }, [historicalLogs, selectedCycleKey, billingCycles, billingCutoffDay]);
+
+  const chartData = useMemo(() => {
+    return dailyLogs.map((log) => {
+      const [y, m, d] = String(log.date || '').split('-');
+      const thaiYear = (parseInt(y, 10) + 543) % 100;
+      const shortDate = `${parseInt(d, 10)}/${m}`;
+      const fullDateThai = `${parseInt(d, 10)}/${m}/${thaiYear}`;
+
+      return {
+        ...log,
+        pvGenerationKWh: Number(log.pvGenerationKWh || 0),
+        loadElectricityKWh: Number(log.loadElectricityKWh || 0),
+        importKWh: Number(log.importKWh || 0),
+        exportKWh: Number(log.exportKWh || 0),
+        shortDate,
+        fullDateThai
+      };
+    });
+  }, [dailyLogs]);
+
+  const stats = useMemo(() => {
+    if (!chartData || chartData.length === 0) {
+      return { totalPv: 0, avgPv: 0, peakDay: null, totalSavings: 0 };
+    }
+    const totalPv = chartData.reduce((acc, d) => acc + (d.pvGenerationKWh || 0), 0);
+    const totalSavings = chartData.reduce((acc, d) => acc + (d.savedBaht || 0), 0);
+    const avgPv = chartData.length > 0 ? totalPv / chartData.length : 0;
+
+    let peakDay = chartData[0];
+    chartData.forEach((d) => {
+      if ((d.pvGenerationKWh || 0) > (peakDay?.pvGenerationKWh || 0)) {
+        peakDay = d;
+      }
+    });
+
+    return {
+      totalPv: Number(totalPv.toFixed(2)),
+      avgPv: Number(avgPv.toFixed(2)),
+      peakDay,
+      totalSavings: Number(totalSavings.toFixed(2))
+    };
+  }, [chartData]);
+
+  const activeCycleObj = useMemo(() => {
+    if (selectedCycleKey === 'LAST_30') return null;
+    return billingCycles.find((c) => c.cycleKey === selectedCycleKey) || null;
+  }, [selectedCycleKey, billingCycles]);
+
+  return (
+    <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-4 sm:p-5 space-y-4 shadow-xl">
+      {/* 1. Header & Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <Sun className="w-5 h-5 text-amber-400" />
+            <span>{t('dailyPvChartTitle')}</span>
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {t('dailyPvChartSub')}
+          </p>
+        </div>
+
+        {/* View Mode: Solar Only vs Compare */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl self-start sm:self-center">
+          <button
+            type="button"
+            onClick={() => setShowComparison(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              !showComparison
+                ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/20'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            ☀️ {t('solarOnlyView')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowComparison(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              showComparison
+                ? 'bg-indigo-500 text-white font-bold shadow-md shadow-indigo-500/20'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📊 {t('compareView')}
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Month Selector Filter Bar */}
+      <div className="bg-[#050811] border border-amber-500/20 rounded-2xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-xs font-bold text-white whitespace-nowrap">
+            {t('selectMonthForDaily')}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
+          <button
+            type="button"
+            onClick={() => onSelectCycleKey && onSelectCycleKey('LAST_30')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              selectedCycleKey === 'LAST_30'
+                ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/25'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80'
+            }`}
+          >
+            ⚡ {t('last30DaysOption')}
+          </button>
+
+          {billingCycles.map((c) => (
+            <button
+              key={c.cycleKey}
+              type="button"
+              onClick={() => onSelectCycleKey && onSelectCycleKey(c.cycleKey)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                selectedCycleKey === c.cycleKey
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/25'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              {c.shortMonth} ({c.days}d)
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. KPI Summary Badges for Selected Period */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* Card 1: Total PV */}
+        <div className="bg-[#0b101d] border border-amber-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-amber-300 font-semibold">
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span>{t('totalPvProducedAllMonths')}</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">{chartData.length} {lang === 'th' ? 'วัน' : 'days'}</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+            {stats.totalPv.toFixed(1)}
+            <span className="text-xs font-sans text-amber-400/90 font-normal ml-1">kWh</span>
+          </div>
+          <div className="text-[10px] text-slate-400 truncate">
+            {activeCycleObj ? activeCycleObj.periodLabel : (lang === 'th' ? '30 วันล่าสุด' : 'Past 30 days')}
+          </div>
+        </div>
+
+        {/* Card 2: Peak Day */}
+        <div className="bg-[#0b101d] border border-emerald-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-emerald-300 font-semibold">
+              <Award className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t('peakDayLabel')}</span>
+            </span>
+            <span className="text-[10px] text-emerald-400 font-mono font-bold">🏆 MAX</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-300 tracking-tight">
+            {stats.peakDay ? stats.peakDay.pvGenerationKWh.toFixed(1) : 0}
+            <span className="text-xs font-sans text-emerald-400/90 font-normal ml-1">kWh</span>
+          </div>
+          <div className="text-[10px] text-slate-400 truncate">
+            {stats.peakDay ? stats.peakDay.fullDateThai : '-'}
+          </div>
+        </div>
+
+        {/* Card 3: Daily Average */}
+        <div className="bg-[#0b101d] border border-sky-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-sky-300 font-semibold">
+              <TrendingUp className="w-3.5 h-3.5 text-sky-400" />
+              <span>{t('dailyAvgGen')}</span>
+            </span>
+            <span className="text-[10px] text-sky-400 font-mono">{chartData.length} {lang === 'th' ? 'วันจริง' : 'days'}</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-sky-300 tracking-tight">
+            {stats.avgPv.toFixed(1)}
+            <span className="text-xs font-sans text-sky-400/90 font-normal ml-1">kWh/{lang === 'th' ? 'วัน' : 'day'}</span>
+          </div>
+          <div className="text-[10px] text-slate-400">
+            {lang === 'th' ? 'เฉลี่ยต่อวันตามช่วงนี้' : 'Average daily production'}
+          </div>
+        </div>
+
+        {/* Card 4: Total Savings */}
+        <div className="bg-[#0b101d] border border-cyan-500/25 rounded-2xl p-3 sm:p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+            <span className="flex items-center gap-1 text-cyan-300 font-semibold">
+              <Coins className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{t('totalLifetimeSavings')}</span>
+            </span>
+            <span className="text-[10px] text-cyan-400 font-bold">฿ Baht</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold font-mono text-cyan-300 tracking-tight">
+            {formatBaht(stats.totalSavings)}
+          </div>
+          <div className="text-[10px] text-slate-400">
+            {lang === 'th' ? 'มูลค่าประหยัดตามช่วงนี้' : 'Savings for this period'}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. The Daily Bar Chart */}
+      <div className="h-64 sm:h-72 w-full pt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="dailyPvAmberGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                <stop offset="100%" stopColor="#d97706" stopOpacity={0.7} />
+              </linearGradient>
+              <linearGradient id="dailyPvPeakGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <XAxis
+              dataKey="shortDate"
+              stroke="#94a3b8"
+              fontSize={10}
+              tickLine={false}
+              axisLine={{ stroke: '#334155' }}
+            />
+            <YAxis
+              stroke="#94a3b8"
+              fontSize={11}
+              tickLine={false}
+              axisLine={{ stroke: '#334155' }}
+              tickFormatter={(v) => `${v}`}
+              unit=" kWh"
+            />
+            <Tooltip content={<CustomDailyTooltip lang={lang} t={t} />} />
+            {showComparison && <Legend />}
+            <Bar
+              dataKey="pvGenerationKWh"
+              name={t('barPvGen')}
+              radius={[6, 6, 0, 0]}
+              cursor="pointer"
+              onClick={(data) => {
+                if (data?.date && onSelectDay) {
+                  onSelectDay(data.date);
+                }
+              }}
+            >
+              {chartData.map((entry) => {
+                const isPeak = stats.peakDay && entry.date === stats.peakDay.date;
+                return (
+                  <Cell
+                    key={entry.date}
+                    fill={isPeak ? 'url(#dailyPvPeakGrad)' : 'url(#dailyPvAmberGrad)'}
+                    stroke={isPeak ? '#34d399' : '#fbbf24'}
+                    strokeWidth={isPeak ? 2 : 1}
+                  />
+                );
+              })}
+            </Bar>
+            {showComparison && (
+              <Bar
+                dataKey="loadElectricityKWh"
+                name={t('barHouseLoad')}
+                fill="#6366f1"
+                radius={[6, 6, 0, 0]}
+              />
+            )}
+            {showComparison && (
+              <Bar
+                dataKey="importKWh"
+                name={t('barGridImport')}
+                fill="#38bdf8"
+                radius={[6, 6, 0, 0]}
+              />
+            )}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+        <span className="flex items-center gap-1.5 text-slate-300">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>{t('tapBarToView24h')}</span>
+        </span>
+        <span className="text-[10px] font-mono text-slate-500">
+          {chartData.length} {lang === 'th' ? 'วันบันทึกข้อมูล' : 'recorded days'}
+        </span>
       </div>
     </div>
   );
@@ -1135,9 +1539,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   const [isPeaModalOpen, setIsPeaModalOpen] = useState(false);
   const [selectedPeaMonth, setSelectedPeaMonth] = useState(null);
   const [selectedPeaCycleKey, setSelectedPeaCycleKey] = useState('2026-10');
-  const [graphViewMode, setGraphViewMode] = useState('dyno24h'); // 'dyno24h' | 'monthlyPv'
+  const [graphViewMode, setGraphViewMode] = useState('dyno24h'); // 'dyno24h' | 'dailyPv' | 'monthlyPv'
   const [historyChartMode, setHistoryChartMode] = useState('monthly'); // 'monthly' | 'daily'
   const [selectedMonthlyCycleKey, setSelectedMonthlyCycleKey] = useState('2026-10');
+  const [selectedDailyCycleKey, setSelectedDailyCycleKey] = useState('LAST_30');
   const [billingCutoffDay, setBillingCutoffDay] = useState(() => {
     try {
       const saved = localStorage.getItem('POWERVIEW_BILLING_CUTOFF_DAY');
@@ -4929,12 +5334,12 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       {/* INTERACTIVE TIME-MACHINE 24-HOUR DYNO CHART & HISTORICAL EXPLORER */}
       {(dashboardSection === 'curve' || dashboardSection === 'all') && (
         <div className="space-y-4">
-          {/* Top Switcher: 24h Dyno vs Monthly PV Bar Chart */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-2xl w-full sm:w-auto self-start">
+          {/* Top Switcher: 24h Dyno vs Daily PV Bar vs Monthly PV Bar */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-2xl w-full sm:w-auto self-start overflow-x-auto">
             <button
               type="button"
               onClick={() => setGraphViewMode('dyno24h')}
-              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 graphViewMode === 'dyno24h'
                   ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
                   : 'text-slate-400 hover:text-slate-200'
@@ -4945,8 +5350,20 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </button>
             <button
               type="button"
+              onClick={() => setGraphViewMode('dailyPv')}
+              className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                graphViewMode === 'dailyPv'
+                  ? 'bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/25'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{t('tabDailyPvBar')}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setGraphViewMode('monthlyPv')}
-              className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 graphViewMode === 'monthlyPv'
                   ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
                   : 'text-slate-400 hover:text-slate-200'
@@ -4957,13 +5374,35 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </button>
           </div>
 
-          {graphViewMode === 'monthlyPv' ? (
+          {graphViewMode === 'dailyPv' ? (
+            <DailySolarPvBarChart
+              historicalLogs={historicalLogs}
+              billingCycles={billingCycles}
+              billingCutoffDay={billingCutoffDay}
+              selectedCycleKey={selectedDailyCycleKey}
+              onSelectCycleKey={setSelectedDailyCycleKey}
+              onSelectDay={(dayDate) => {
+                setSelectedHistoryDate(dayDate);
+                setGraphViewMode('dyno24h');
+              }}
+              lang={lang}
+              t={t}
+              theme={theme}
+            />
+          ) : graphViewMode === 'monthlyPv' ? (
             <MonthlySolarPvBarChart
               billingCycles={billingCycles}
               billingCutoffDay={billingCutoffDay}
               onBillingCutoffDayChange={handleBillingCutoffDayChange}
               selectedCycleKey={selectedMonthlyCycleKey}
-              onSelectCycle={setSelectedMonthlyCycleKey}
+              onSelectCycle={(cycleKey) => {
+                setSelectedMonthlyCycleKey(cycleKey);
+                setSelectedDailyCycleKey(cycleKey);
+              }}
+              onViewDailyForMonth={(cycleKey) => {
+                setSelectedDailyCycleKey(cycleKey);
+                setGraphViewMode('dailyPv');
+              }}
               lang={lang}
               t={t}
               theme={theme}
@@ -6543,61 +6982,35 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               billingCutoffDay={billingCutoffDay}
               onBillingCutoffDayChange={handleBillingCutoffDayChange}
               selectedCycleKey={selectedMonthlyCycleKey}
-              onSelectCycle={setSelectedMonthlyCycleKey}
+              onSelectCycle={(cycleKey) => {
+                setSelectedMonthlyCycleKey(cycleKey);
+                setSelectedDailyCycleKey(cycleKey);
+              }}
+              onViewDailyForMonth={(cycleKey) => {
+                setSelectedDailyCycleKey(cycleKey);
+                setHistoryChartMode('daily');
+              }}
               lang={lang}
               t={t}
               theme={theme}
             />
           ) : (
-            <div className="bg-[#080d19]/95 border border-slate-800/90 rounded-[28px] p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <History className="w-4 h-4 text-sky-400" />
-                  <span>
-                    {t('dailyTimelineTitle', {
-                      count: (statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs).length
-                    })}
-                  </span>
-                </h3>
-              </div>
-
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={statPeriod === 'Day' ? historicalLogs.slice(-30) : filteredHistoryLogs}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="date" tickFormatter={formatSlashDate} stroke="#94a3b8" fontSize={10} />
-                    <YAxis stroke="#94a3b8" fontSize={11} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#070b14',
-                        borderColor: '#1e293b',
-                        borderRadius: '12px',
-                        fontSize: '12px'
-                      }}
-                    />
-                    <Legend />
-                    <Bar
-                      dataKey="pvGenerationKWh"
-                      name={t('barPvGen')}
-                      fill={theme.pvSecondary}
-                      radius={[6, 6, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="loadElectricityKWh"
-                      name={t('barHouseLoad')}
-                      fill="#6366f1"
-                      radius={[6, 6, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="importKWh"
-                      name={t('barGridImport')}
-                      fill="#f59e0b"
-                      radius={[6, 6, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <DailySolarPvBarChart
+              historicalLogs={historicalLogs}
+              billingCycles={billingCycles}
+              billingCutoffDay={billingCutoffDay}
+              selectedCycleKey={selectedDailyCycleKey}
+              onSelectCycleKey={setSelectedDailyCycleKey}
+              onSelectDay={(dayDate) => {
+                setSelectedHistoryDate(dayDate);
+                setDashboardSection('curve');
+                setGraphViewMode('dyno24h');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              lang={lang}
+              t={t}
+              theme={theme}
+            />
           )}
         </div>
       )}

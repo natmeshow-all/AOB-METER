@@ -229,7 +229,18 @@ export const TRANSLATIONS = {
     bestPvMonth: 'เดือนที่ผลิตได้สูงสุด',
     avgPvPerMonth: 'เฉลี่ยต่อเดือน',
     inspectMonthDetail: 'เลือกดูข้อมูลเจาะลึกรายเดือน',
-    dailyAvgGen: 'เฉลี่ยวันละ'
+    dailyAvgGen: 'เฉลี่ยวันละ',
+
+    // Daily Solar PV Bar Chart
+    tabDailyPvBar: 'กราฟแท่งรายวัน (PV)',
+    dailyPvChartTitle: 'กราฟแท่งพลังงานโซลาร์รายวัน',
+    dailyPvChartSub: 'วิเคราะห์พลังงานที่ผลิตได้จริงในแต่ละวัน ย้อนหลังตามเดือนที่เลือก หรือ 30 วันล่าสุด',
+    selectMonthForDaily: 'เลือกรอบเดือนที่แสดง:',
+    last30DaysOption: '30 วันล่าสุด (ล่าสุด)',
+    peakDayLabel: 'วันที่ผลิตได้สูงสุด',
+    solarOnlyView: 'เฉพาะโซลาร์ PV',
+    compareView: 'เทียบกับโหลด & ไฟหลวง',
+    tapBarToView24h: 'แตะแท่งกราฟเพื่อเปิดดูกราฟ 24 ชม. ของวันนั้น'
   },
   en: {
     // Brand & Status
@@ -459,7 +470,18 @@ export const TRANSLATIONS = {
     bestPvMonth: 'Peak Production Month',
     avgPvPerMonth: 'Monthly Average',
     inspectMonthDetail: 'Select a month for deep breakdown',
-    dailyAvgGen: 'Daily Avg'
+    dailyAvgGen: 'Daily Avg',
+
+    // Daily Solar PV Bar Chart
+    tabDailyPvBar: 'Daily PV Bar Chart',
+    dailyPvChartTitle: 'Daily Solar PV Generation Bar Chart',
+    dailyPvChartSub: 'Analyze daily verified solar energy generation by selected month or last 30 days',
+    selectMonthForDaily: 'Select month period:',
+    last30DaysOption: 'Last 30 Days (Latest)',
+    peakDayLabel: 'Peak Generation Day',
+    solarOnlyView: 'Solar PV Only',
+    compareView: 'Compare House & Grid',
+    tapBarToView24h: 'Tap any bar to inspect 24h curve for that day'
   }
 };
 
