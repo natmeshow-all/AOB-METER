@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Navbar } from './components/Navbar';
-import { OverviewMetersView } from './components/OverviewMetersView';
-import { MeterDetailView } from './components/MeterDetailView';
-import { ProductionReportView } from './components/ProductionReportView';
 import { HomeInverterView } from './components/HomeInverterView';
-import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { LoginPortal } from './components/LoginPortal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Lazy-loaded views to optimize initial bundle performance
+const OverviewMetersView = lazy(() =>
+  import('./components/OverviewMetersView').then((m) => ({ default: m.OverviewMetersView }))
+);
+const MeterDetailView = lazy(() =>
+  import('./components/MeterDetailView').then((m) => ({ default: m.MeterDetailView }))
+);
+const ProductionReportView = lazy(() =>
+  import('./components/ProductionReportView').then((m) => ({ default: m.ProductionReportView }))
+);
+const SuperAdminConsole = lazy(() =>
+  import('./components/SuperAdminConsole').then((m) => ({ default: m.SuperAdminConsole }))
+);
 import { useAuth } from './context/AuthContext';
 import { useLanguage } from './context/LanguageContext';
 import { TENANT_COMPANIES } from './data/tenantData';
@@ -44,6 +54,18 @@ export function App() {
   const [isManageSheetOpen, setIsManageSheetOpen] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     let ticking = false;
@@ -126,40 +148,57 @@ export function App() {
       {/* Top App Header */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
+      {/* Offline Status Floating Alert */}
+      {isOffline && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 bg-amber-400 text-slate-950 px-4 py-1.5 rounded-full text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-2 border border-amber-300">
+          <span className="w-2 h-2 rounded-full bg-slate-900 animate-ping" />
+          <span>โหมดออฟไลน์ — แสดงข้อมูลล่าสุดที่บันทึกไว้ในเครื่อง</span>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-3 sm:py-5 pb-24 sm:pb-10 space-y-4">
-        {/* SUPER ADMIN ALL-IN-ONE CONSOLE */}
-        {isSuperAdmin && activeTab === 'super-admin' && (
-          <SuperAdminConsole onInspectTenant={() => setActiveTab('overview')} />
-        )}
+        <Suspense
+          fallback={
+            <div className="min-h-[40vh] flex flex-col items-center justify-center gap-3">
+              <div className="w-9 h-9 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
+              <div className="text-xs text-slate-400 font-mono">Loading view...</div>
+            </div>
+          }
+        >
+          {/* SUPER ADMIN ALL-IN-ONE CONSOLE */}
+          {isSuperAdmin && activeTab === 'super-admin' && (
+            <SuperAdminConsole onInspectTenant={() => setActiveTab('overview')} />
+          )}
 
-        {/* CUSTOMER DASHBOARD: AUTOMATICALLY RENDERS BY USER TYPE (HOME_SOLAR vs INDUSTRIAL) */}
-        {activeTab !== 'super-admin' && isHomeSolarSite && (
-          <ErrorBoundary>
-            <HomeInverterView
-              activeSection={solarSection}
-              onSectionChange={setSolarSection}
-            />
-          </ErrorBoundary>
-        )}
-
-        {activeTab !== 'super-admin' && !isHomeSolarSite && (
-          <ErrorBoundary>
-            {activeTab === 'overview' && (
-              <OverviewMetersView onSelectMeter={handleInspectMeter} />
-            )}
-            {activeTab === 'meter-detail' && (
-              <MeterDetailView
-                selectedMeterId={selectedMeterId}
-                onSelectMeter={(id) => setSelectedMeterId(id)}
-                onBackToOverview={() => setActiveTab('overview')}
+          {/* CUSTOMER DASHBOARD: AUTOMATICALLY RENDERS BY USER TYPE (HOME_SOLAR vs INDUSTRIAL) */}
+          {activeTab !== 'super-admin' && isHomeSolarSite && (
+            <ErrorBoundary>
+              <HomeInverterView
+                activeSection={solarSection}
+                onSectionChange={setSolarSection}
               />
-            )}
-            {activeTab === 'report' && (
-              <ProductionReportView onSelectMeter={handleInspectMeter} />
-            )}
-          </ErrorBoundary>
-        )}
+            </ErrorBoundary>
+          )}
+
+          {activeTab !== 'super-admin' && !isHomeSolarSite && (
+            <ErrorBoundary>
+              {activeTab === 'overview' && (
+                <OverviewMetersView onSelectMeter={handleInspectMeter} />
+              )}
+              {activeTab === 'meter-detail' && (
+                <MeterDetailView
+                  selectedMeterId={selectedMeterId}
+                  onSelectMeter={(id) => setSelectedMeterId(id)}
+                  onBackToOverview={() => setActiveTab('overview')}
+                />
+              )}
+              {activeTab === 'report' && (
+                <ProductionReportView onSelectMeter={handleInspectMeter} />
+              )}
+            </ErrorBoundary>
+          )}
+        </Suspense>
       </main>
 
       {/* Mobile Action Bottom Sheet for Managing Solar & Inverter */}
