@@ -240,7 +240,23 @@ export const TRANSLATIONS = {
     peakDayLabel: 'วันที่ผลิตได้สูงสุด',
     solarOnlyView: 'เฉพาะโซลาร์ PV',
     compareView: 'เทียบกับโหลด & ไฟหลวง',
-    tapBarToView24h: 'แตะแท่งกราฟเพื่อเปิดดูกราฟ 24 ชม. ของวันนั้น'
+    tapBarToView24h: 'แตะแท่งกราฟเพื่อเปิดดูกราฟ 24 ชม. ของวันนั้น',
+
+    // Daily Battery Charge/Discharge & Solar Windows
+    dailyEnergyCycleTitle: '📋 รายละเอียดระยะเวลาชาร์จ-จ่ายแบตเตอรี่ & โซลาร์รายวัน',
+    dailyEnergyCycleSub: 'สรุปชั่วโมงชาร์จแบตจาก SOC ตั้งไว้จนเต็ม 100%, ชั่วโมงจ่ายไฟเลี้ยงบ้าน และดึงไฟหลวงในแต่ละวัน',
+    batteryChargeWindow: 'เวลาชาร์จแบตเตอรี่ (PV ➔ แบต)',
+    batteryDischargeWindow: 'เวลาจ่ายไฟจากแบต (แบต ➔ บ้าน)',
+    solarGenWindow: 'เวลาแดดผลิตไฟ (PV รวม)',
+    peaImportWindow: 'เวลาดึงไฟหลวง (PEA Grid)',
+    chargeDuration: 'ระยะเวลาชาร์จ',
+    dischargeDuration: 'ระยะเวลาจ่ายไฟ',
+    socChargedToFull: 'ชาร์จจนเต็ม 100%',
+    socDischargedToCutoff: 'จ่ายจนถึง Cutoff',
+    avgChargeHoursTitle: 'เฉลี่ยเวลาชาร์จแบตจนเต็ม',
+    avgDischargeHoursTitle: 'เฉลี่ยเวลาจ่ายไฟจากแบต',
+    avgPvHoursTitle: 'เฉลี่ยเวลาแดดผลิตไฟ',
+    fullChargedRate: 'อัตราชาร์จเต็ม 100%'
   },
   en: {
     // Brand & Status
@@ -481,7 +497,23 @@ export const TRANSLATIONS = {
     peakDayLabel: 'Peak Generation Day',
     solarOnlyView: 'Solar PV Only',
     compareView: 'Compare House & Grid',
-    tapBarToView24h: 'Tap any bar to inspect 24h curve for that day'
+    tapBarToView24h: 'Tap any bar to inspect 24h curve for that day',
+
+    // Daily Battery Charge/Discharge & Solar Windows
+    dailyEnergyCycleTitle: '📋 Daily Battery Charge & Discharge Duration Breakdown',
+    dailyEnergyCycleSub: 'Daily analysis of battery charge hours to 100%, discharge hours to cutoff, and PEA grid hours',
+    batteryChargeWindow: 'Battery Charging Window (PV ➔ Batt)',
+    batteryDischargeWindow: 'Battery Discharge Window (Batt ➔ Home)',
+    solarGenWindow: 'Solar PV Active Window',
+    peaImportWindow: 'PEA Grid Import Window',
+    chargeDuration: 'Charge Duration',
+    dischargeDuration: 'Discharge Duration',
+    socChargedToFull: 'Charged to 100%',
+    socDischargedToCutoff: 'Discharged to Cutoff',
+    avgChargeHoursTitle: 'Avg Battery Charge Time',
+    avgDischargeHoursTitle: 'Avg Battery Discharge Time',
+    avgPvHoursTitle: 'Avg Solar Production Time',
+    fullChargedRate: 'Full Charge Rate (100%)'
   }
 };
 

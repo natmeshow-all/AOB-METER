@@ -1059,6 +1059,195 @@ const CustomDailyTooltip = ({ active, payload, lang, t }) => {
   );
 };
 
+export const THAI_DAY_NAMES = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+export const formatDayWithWeekday = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dayOfWeek = THAI_DAY_NAMES[dt.getDay()] || '';
+  const thaiYear = (y + 543) % 100;
+  return `${d} ${THAI_MONTHS[m - 1]} ${thaiYear} (${dayOfWeek})`;
+};
+
+export const calcDailyBatteryAndPvMetrics = (dayLog, hourlyCurve = [], batteryCapKWh = 16.0, cutoffSoc = 20) => {
+  const pvKWh = Number(dayLog?.pvGenerationKWh || 0);
+  const loadKWh = Number(dayLog?.loadElectricityKWh || 0);
+  const chargeKWh = Number(dayLog?.chargeBatteryKWh || 0);
+  const dischargeKWh = Number(dayLog?.dischargeBatteryKWh || 0);
+  const importKWh = Number(dayLog?.importKWh || 0);
+  const exportKWh = Number(dayLog?.exportKWh || 0);
+  const savedBaht = Number(dayLog?.savedBaht || 0);
+
+  const points = Array.isArray(hourlyCurve) && hourlyCurve.length > 0 ? hourlyCurve : (dayLog?.hourlyCurve || []);
+
+  // 1. Solar Window (คำนวณช่วงเวลาที่มีแดดผลิตไฟ)
+  const pvPoints = points.filter((pt) => Number(pt.pvW || 0) >= 50);
+  let pvStartH = 7;
+  let pvEndH = 17;
+  if (pvPoints.length > 0) {
+    pvStartH = parseInt(pvPoints[0].hour, 10);
+    pvEndH = parseInt(pvPoints[pvPoints.length - 1].hour, 10);
+  } else if (pvKWh > 0) {
+    pvStartH = 7;
+    pvEndH = 17;
+  }
+  const pvSpanHours = pvKWh > 0 ? Math.max(1, (pvEndH - pvStartH) + 1) : 0;
+  const pvStartStr = `${String(pvStartH).padStart(2, '0')}:00`;
+  const pvEndStr = `${String(pvEndH).padStart(2, '0')}:30`;
+  const pvWindow = pvKWh > 0 ? `${pvStartStr} – ${pvEndStr}` : '07:00 – 17:30';
+
+  // 2. Battery Charge Window (จาก SOC ตั้งไว้จนถึง SOC เต็ม 100%)
+  let chargeStartH = Math.max(7, pvStartH + 1);
+  let chargeEndH = 13;
+  let chargeStartSoc = cutoffSoc;
+  let chargeEndSoc = 100;
+  let chargeHours = 5.0;
+
+  if (points.length >= 12) {
+    let minMorningSoc = 100;
+    let minMorningH = 7;
+    for (let i = 4; i <= 9 && i < points.length; i++) {
+      const s = Number(points[i]?.batterySOC || 0);
+      if (s > 0 && s < minMorningSoc) {
+        minMorningSoc = s;
+        minMorningH = i;
+      }
+    }
+    chargeStartSoc = minMorningSoc < 90 ? Math.round(minMorningSoc) : cutoffSoc;
+    chargeStartH = minMorningH;
+
+    let maxSoc = 0;
+    let maxSocH = 13;
+    for (let i = chargeStartH; i <= 18 && i < points.length; i++) {
+      const s = Number(points[i]?.batterySOC || 0);
+      if (s > maxSoc) {
+        maxSoc = s;
+        maxSocH = i;
+      }
+      if (s >= 98) {
+        maxSoc = s;
+        maxSocH = i;
+        break; // reached 100% full
+      }
+    }
+    chargeEndSoc = maxSoc > 0 ? Math.round(maxSoc) : 100;
+    chargeEndH = maxSocH;
+    chargeHours = Math.max(1, (chargeEndH - chargeStartH));
+  } else {
+    const estChargeKWh = chargeKWh > 0 ? chargeKWh : (pvKWh > 12 ? 10.5 : 8.0);
+    chargeHours = Number((Math.max(2.5, Math.min(6.5, estChargeKWh / 2.2))).toFixed(1));
+    chargeStartH = 8;
+    chargeEndH = Math.min(16, 8 + Math.round(chargeHours));
+    chargeStartSoc = cutoffSoc;
+    chargeEndSoc = (estChargeKWh >= 9.5 || pvKWh >= 14) ? 100 : Math.min(100, Math.round(cutoffSoc + (estChargeKWh / batteryCapKWh) * 100));
+  }
+
+  const isFull100 = chargeEndSoc >= 98;
+  const chargeStartStr = `${String(chargeStartH).padStart(2, '0')}:00`;
+  const chargeEndStr = `${String(chargeEndH).padStart(2, '0')}:${points.length >= 12 ? '00' : '30'}`;
+  const chargeWindow = `${chargeStartStr} – ${chargeEndStr}`;
+  const effectiveChargeKWh = chargeKWh > 0 ? chargeKWh : Number(((chargeEndSoc - chargeStartSoc) / 100 * batteryCapKWh).toFixed(2));
+  const chargeAvgKw = chargeHours > 0 ? Number((effectiveChargeKWh / chargeHours).toFixed(2)) : 2.2;
+
+  // 3. Battery Discharge Window (จ่ายไฟเลี้ยงบ้านจาก SOC เต็ม ลงมาถึง Cutoff)
+  let dischargeStartH = Math.max(16, pvEndH);
+  let dischargeEndH = 1;
+  let dischargeStartSoc = chargeEndSoc;
+  let dischargeEndSoc = cutoffSoc;
+  let dischargeHours = 7.5;
+
+  if (points.length >= 12) {
+    dischargeStartH = Math.min(18, Math.max(16, pvEndH));
+    let minNightSoc = dischargeStartSoc;
+    let minNightH = 23;
+    for (let i = dischargeStartH; i < points.length; i++) {
+      const s = Number(points[i]?.batterySOC || 0);
+      if (s <= cutoffSoc + 5) {
+        minNightSoc = s;
+        minNightH = i;
+        break;
+      }
+      if (s < minNightSoc) {
+        minNightSoc = s;
+        minNightH = i;
+      }
+    }
+    dischargeEndSoc = Math.round(minNightSoc);
+    dischargeEndH = minNightH;
+    if (dischargeEndH >= dischargeStartH) {
+      dischargeHours = (dischargeEndH - dischargeStartH) + 1;
+    } else {
+      dischargeHours = (24 - dischargeStartH) + dischargeEndH + 1;
+    }
+  } else {
+    const estDischargeKWh = dischargeKWh > 0 ? dischargeKWh : (pvKWh > 12 ? 9.6 : 7.5);
+    dischargeHours = Number((Math.max(4.0, Math.min(10.0, estDischargeKWh / 1.25))).toFixed(1));
+    dischargeStartH = 17;
+    dischargeEndH = (17 + Math.round(dischargeHours)) % 24;
+    dischargeStartSoc = chargeEndSoc;
+    dischargeEndSoc = cutoffSoc;
+  }
+  dischargeHours = Math.max(1, dischargeHours);
+
+  const dischargeStartStr = `${String(dischargeStartH).padStart(2, '0')}:30`;
+  const dischargeEndStr = `${String(dischargeEndH).padStart(2, '0')}:00`;
+  const dischargeWindow = `${dischargeStartStr} – ${dischargeEndStr}`;
+  const effectiveDischargeKWh = dischargeKWh > 0 ? dischargeKWh : Number(((dischargeStartSoc - dischargeEndSoc) / 100 * batteryCapKWh).toFixed(2));
+  const dischargeAvgKw = dischargeHours > 0 ? Number((effectiveDischargeKWh / dischargeHours).toFixed(2)) : 1.25;
+
+  // 4. PEA Grid Import Window (ดึงไฟหลวงช่วงแบตหมดจนถึงเช้า)
+  const peaStartH = dischargeEndH;
+  const peaEndH = pvStartH;
+  let peaHours = 0;
+  if (peaEndH >= peaStartH) {
+    peaHours = peaEndH - peaStartH;
+  } else {
+    peaHours = (24 - peaStartH) + peaEndH;
+  }
+  peaHours = Math.max(1, peaHours);
+  const peaStartStr = `${String(peaStartH).padStart(2, '0')}:00`;
+  const peaEndStr = `${String(peaEndH).padStart(2, '0')}:00`;
+  const peaWindow = `${peaStartStr} – ${peaEndStr}`;
+  const effectiveImportKWh = importKWh > 0 ? importKWh : Number((peaHours * 0.7).toFixed(2));
+  const peaAvgKw = peaHours > 0 ? Number((effectiveImportKWh / peaHours).toFixed(2)) : 0.7;
+
+  return {
+    date: dayLog?.date,
+    pv: {
+      window: pvWindow,
+      hours: pvSpanHours,
+      kwh: pvKWh,
+      avgKw: pvSpanHours > 0 ? Number((pvKWh / pvSpanHours).toFixed(2)) : 0
+    },
+    charge: {
+      window: chargeWindow,
+      hours: chargeHours,
+      kwh: effectiveChargeKWh,
+      avgKw: chargeAvgKw,
+      startSoc: chargeStartSoc,
+      endSoc: chargeEndSoc,
+      isFull: isFull100
+    },
+    discharge: {
+      window: dischargeWindow,
+      hours: dischargeHours,
+      kwh: effectiveDischargeKWh,
+      avgKw: dischargeAvgKw,
+      startSoc: dischargeStartSoc,
+      endSoc: dischargeEndSoc
+    },
+    pea: {
+      window: peaWindow,
+      hours: peaHours,
+      kwh: effectiveImportKWh,
+      avgKw: peaAvgKw
+    },
+    loadKWh,
+    exportKWh,
+    savedBaht
+  };
+};
+
 export const DailySolarPvBarChart = ({
   historicalLogs = [],
   billingCycles = [],
@@ -1102,6 +1291,8 @@ export const DailySolarPvBarChart = ({
       const thaiYear = (parseInt(y, 10) + 543) % 100;
       const shortDate = `${parseInt(d, 10)}/${m}`;
       const fullDateThai = `${parseInt(d, 10)}/${m}/${thaiYear}`;
+      const dayWithWeekday = formatDayWithWeekday(log.date);
+      const metrics = calcDailyBatteryAndPvMetrics(log, log.hourlyCurve, 16.0, 20);
 
       return {
         ...log,
@@ -1110,14 +1301,26 @@ export const DailySolarPvBarChart = ({
         importKWh: Number(log.importKWh || 0),
         exportKWh: Number(log.exportKWh || 0),
         shortDate,
-        fullDateThai
+        fullDateThai,
+        dayWithWeekday,
+        metrics
       };
     });
   }, [dailyLogs]);
 
   const stats = useMemo(() => {
     if (!chartData || chartData.length === 0) {
-      return { totalPv: 0, avgPv: 0, peakDay: null, totalSavings: 0 };
+      return {
+        totalPv: 0,
+        avgPv: 0,
+        peakDay: null,
+        totalSavings: 0,
+        avgChargeHours: 0,
+        avgDischargeHours: 0,
+        avgPvHours: 0,
+        fullChargeCount: 0,
+        fullChargePct: 0
+      };
     }
     const totalPv = chartData.reduce((acc, d) => acc + (d.pvGenerationKWh || 0), 0);
     const totalSavings = chartData.reduce((acc, d) => acc + (d.savedBaht || 0), 0);
@@ -1130,11 +1333,26 @@ export const DailySolarPvBarChart = ({
       }
     });
 
+    const totalChargeHours = chartData.reduce((acc, d) => acc + (d.metrics?.charge?.hours || 0), 0);
+    const totalDischargeHours = chartData.reduce((acc, d) => acc + (d.metrics?.discharge?.hours || 0), 0);
+    const totalPvHours = chartData.reduce((acc, d) => acc + (d.metrics?.pv?.hours || 0), 0);
+    const fullChargeCount = chartData.filter((d) => d.metrics?.charge?.isFull).length;
+
+    const avgChargeHours = chartData.length > 0 ? Number((totalChargeHours / chartData.length).toFixed(1)) : 0;
+    const avgDischargeHours = chartData.length > 0 ? Number((totalDischargeHours / chartData.length).toFixed(1)) : 0;
+    const avgPvHours = chartData.length > 0 ? Number((totalPvHours / chartData.length).toFixed(1)) : 0;
+    const fullChargePct = chartData.length > 0 ? Math.round((fullChargeCount / chartData.length) * 100) : 0;
+
     return {
       totalPv: Number(totalPv.toFixed(2)),
       avgPv: Number(avgPv.toFixed(2)),
       peakDay,
-      totalSavings: Number(totalSavings.toFixed(2))
+      totalSavings: Number(totalSavings.toFixed(2)),
+      avgChargeHours,
+      avgDischargeHours,
+      avgPvHours,
+      fullChargeCount,
+      fullChargePct
     };
   }, [chartData]);
 
@@ -1380,6 +1598,235 @@ export const DailySolarPvBarChart = ({
         <span className="text-[10px] font-mono text-slate-500">
           {chartData.length} {lang === 'th' ? 'วันบันทึกข้อมูล' : 'recorded days'}
         </span>
+      </div>
+
+      {/* 5. BATTERY & SOLAR TIMING PERIOD AVERAGES */}
+      <div className="bg-[#050811] border border-emerald-500/30 rounded-2xl p-3 sm:p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-emerald-400" />
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                <span>{t('dailyEnergyCycleTitle')}</span>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                  {chartData.length} {lang === 'th' ? 'วันบันทึก' : 'days'}
+                </span>
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {t('dailyEnergyCycleSub')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* 1. Avg Solar Production Hours */}
+          <div className="bg-[#0b101c] border border-amber-500/30 rounded-xl p-3 flex flex-col justify-between space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="flex items-center gap-1 text-amber-300 font-semibold">
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span>{t('avgPvHoursTitle')}</span>
+              </span>
+              <span className="text-[10px] font-mono text-amber-400 font-bold">☀️ PV</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-amber-300">
+              ~{stats.avgPvHours} <span className="text-xs font-sans text-slate-400 font-normal">{lang === 'th' ? 'ชม./วัน' : 'hrs/d'}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {lang === 'th' ? 'ช่วงแดดออก ~06:30 – 17:30 น.' : 'Daylight ~06:30 – 17:30'}
+            </div>
+          </div>
+
+          {/* 2. Avg Charge to Full Hours */}
+          <div className="bg-[#0b101c] border border-emerald-500/30 rounded-xl p-3 flex flex-col justify-between space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="flex items-center gap-1 text-emerald-300 font-semibold">
+                <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{t('avgChargeHoursTitle')}</span>
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">🎯 {stats.fullChargePct}% {lang === 'th' ? 'เต็ม' : 'Full'}</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-300">
+              ~{stats.avgChargeHours} <span className="text-xs font-sans text-slate-400 font-normal">{lang === 'th' ? 'ชม./วัน' : 'hrs/d'}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {lang === 'th' ? 'ชาร์จจาก 20% ➔ เต็ม 100%' : 'From 20% to 100% full'}
+            </div>
+          </div>
+
+          {/* 3. Avg Discharge Hours */}
+          <div className="bg-[#0b101c] border border-cyan-500/30 rounded-xl p-3 flex flex-col justify-between space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="flex items-center gap-1 text-cyan-300 font-semibold">
+                <Battery className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{t('avgDischargeHoursTitle')}</span>
+              </span>
+              <span className="text-[10px] font-mono text-cyan-400 font-bold">🌙 {lang === 'th' ? 'เลี้ยงบ้าน' : 'Discharge'}</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-cyan-300">
+              ~{stats.avgDischargeHours} <span className="text-xs font-sans text-slate-400 font-normal">{lang === 'th' ? 'ชม./คืน' : 'hrs/night'}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {lang === 'th' ? 'จ่ายจาก 100% ➔ Cutoff 20%' : 'From 100% to 20% Cutoff'}
+            </div>
+          </div>
+
+          {/* 4. Full Charge Success Rate */}
+          <div className="bg-[#0b101c] border border-sky-500/30 rounded-xl p-3 flex flex-col justify-between space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="flex items-center gap-1 text-sky-300 font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
+                <span>{t('fullChargedRate')}</span>
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 font-bold">16 kWh</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-sky-300">
+              {stats.fullChargeCount}/{chartData.length} <span className="text-xs font-sans text-slate-400 font-normal">{lang === 'th' ? 'วัน' : 'days'} ({stats.fullChargePct}%)</span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {lang === 'th' ? 'แบตเต็มทุกวันไร้กังวล' : 'Full capacity every sunny day'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. DAILY DETAILED TIMELINE BREAKDOWN CARDS */}
+      <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
+        <div className="flex items-center justify-between text-[11px] text-slate-400">
+          <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <span>{lang === 'th' ? `รายละเอียดรายวัน (${chartData.length} วันจริง)` : `Daily Detailed Breakdown (${chartData.length} days)`}</span>
+          </span>
+          <span className="text-[10px] text-slate-500 font-mono">
+            {lang === 'th' ? 'เรียงจากวันล่าสุด ➔ อดีต' : 'Sorted Latest First'}
+          </span>
+        </div>
+
+        <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+          {[...chartData].reverse().map((day) => {
+            const m = day.metrics || {};
+            const pv = m.pv || {};
+            const chg = m.charge || {};
+            const dsg = m.discharge || {};
+            const pea = m.pea || {};
+            return (
+              <div
+                key={day.date}
+                className="bg-[#090d19] border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-3 sm:p-3.5 space-y-2.5 transition-all shadow-sm"
+              >
+                {/* Row 1: Date & Status Badges & Button */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/70">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-xs sm:text-sm font-sans flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{day.dayWithWeekday || day.fullDateThai}</span>
+                    </span>
+                    {chg.isFull ? (
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
+                        <span>✅ {t('socChargedToFull')}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+                        {chg.endSoc}%
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onSelectDay && onSelectDay(day.date)}
+                    className="px-2.5 py-1 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Activity className="w-3 h-3 text-sky-400" />
+                    <span>{lang === 'th' ? 'ดูกราฟ 24 ชม.' : 'View 24h Dyno'}</span>
+                  </button>
+                </div>
+
+                {/* Row 2: 4 Telemetry Timing Panels */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                  {/* Panel 1: Solar Active Window */}
+                  <div className="bg-[#05070e] border border-amber-500/20 rounded-xl p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-amber-300 font-semibold flex items-center gap-1">
+                        <Sun className="w-3 h-3 text-amber-400" />
+                        <span>{t('solarGenWindow')}</span>
+                      </span>
+                      <span className="font-mono text-amber-400 font-bold">~{pv.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</span>
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white">
+                      {pv.window}
+                    </div>
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60 font-mono">
+                      <span>{lang === 'th' ? 'ผลิต' : 'Gen'}: <strong className="text-amber-300">{Number(pv.kwh || 0).toFixed(1)} kWh</strong></span>
+                      <span>~{pv.avgKw} kW</span>
+                    </div>
+                  </div>
+
+                  {/* Panel 2: Battery Charge Window */}
+                  <div className="bg-[#05070e] border border-emerald-500/25 rounded-xl p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-emerald-300 font-semibold flex items-center gap-1">
+                        <BatteryCharging className="w-3 h-3 text-emerald-400" />
+                        <span>{t('batteryChargeWindow')}</span>
+                      </span>
+                      <span className="font-mono text-emerald-400 font-bold">~{chg.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</span>
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white flex items-center justify-between">
+                      <span>{chg.window}</span>
+                      <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                        {chg.startSoc}% ➔ {chg.endSoc}%
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60 font-mono">
+                      <span>{lang === 'th' ? 'ชาร์จเข้า' : 'In'}: <strong className="text-emerald-300">{Number(chg.kwh || 0).toFixed(1)} kWh</strong></span>
+                      <span>~{chg.avgKw} kW</span>
+                    </div>
+                  </div>
+
+                  {/* Panel 3: Battery Discharge Window */}
+                  <div className="bg-[#05070e] border border-cyan-500/25 rounded-xl p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-cyan-300 font-semibold flex items-center gap-1">
+                        <Battery className="w-3 h-3 text-cyan-400" />
+                        <span>{t('batteryDischargeWindow')}</span>
+                      </span>
+                      <span className="font-mono text-cyan-400 font-bold">~{dsg.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</span>
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white flex items-center justify-between">
+                      <span>{dsg.window}</span>
+                      <span className="text-[10px] text-cyan-400 font-mono font-bold">
+                        {dsg.startSoc}% ➔ {dsg.endSoc}%
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60 font-mono">
+                      <span>{lang === 'th' ? 'จ่ายออก' : 'Out'}: <strong className="text-cyan-300">{Number(dsg.kwh || 0).toFixed(1)} kWh</strong></span>
+                      <span>~{dsg.avgKw} kW</span>
+                    </div>
+                  </div>
+
+                  {/* Panel 4: PEA Grid Import Window */}
+                  <div className="bg-[#05070e] border border-slate-700/60 rounded-xl p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-sky-300 font-semibold flex items-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-sky-400" />
+                        <span>{t('peaImportWindow')}</span>
+                      </span>
+                      <span className="font-mono text-sky-400 font-bold">~{pea.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</span>
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white flex items-center justify-between">
+                      <span>{pea.window}</span>
+                      <span className="text-[10px] text-sky-400 font-mono">Off-Peak</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60 font-mono">
+                      <span>{lang === 'th' ? 'ดึงไฟ' : 'Grid'}: <strong className="text-sky-300">{Number(pea.kwh || 0).toFixed(1)} kWh</strong></span>
+                      <span className="text-emerald-400 font-bold">+{formatBaht(m.savedBaht)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2286,149 +2733,52 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
   }, [dailyCurveData, activeHistoryDay]);
 
   // Daily 3-Stage Energy Dispatch Windows (PV vs Battery vs PEA Grid with Hours, SOC, and kWh)
+  // Daily 4-Stage Energy Dispatch Windows (PV vs Battery Charge vs Battery Discharge vs PEA Grid)
   const dailyEnergyWindows = useMemo(() => {
     const day = activeHistoryDay || {};
-    const validPoints = (dailyCurveData || []).filter((pt) => !pt.isFuture);
-    const activePool = validPoints.length > 0 ? validPoints : (dailyCurveData || []);
-
-    // 1. Solar Active Window (คำนวณจากชั่วโมงแรกและชั่วโมงสุดท้ายที่มีแดด pvW > 50W)
-    const pvPointsWithSolar = activePool.filter((pt) => Number(pt.pvW || 0) >= 50);
-    const pvFirstHour = pvPointsWithSolar.length > 0 ? pvPointsWithSolar[0].hour : '06:00';
-    const pvLastHour = pvPointsWithSolar.length > 0 ? pvPointsWithSolar[pvPointsWithSolar.length - 1].hour : '18:00';
-    
-    // คำนวณระยะเวลาจริงของโซลาร์จากจุดเริ่มถึงจุดสิ้นสุด
-    const pvStartH = parseInt(pvFirstHour, 10);
-    const pvEndH = parseInt(pvLastHour, 10);
-    const pvSpanHours = pvPointsWithSolar.length > 0 ? Math.max(1, (pvEndH - pvStartH) + 1) : 0;
-    const pvKWh = Number(day.pvGenerationKWh != null ? day.pvGenerationKWh : (todayGenKWh || 0));
-    const pvAvgKw = pvSpanHours > 0 ? Number((pvKWh / pvSpanHours).toFixed(2)) : 0;
-
-    // 2. Battery & PEA Windows (คำนวณจากระดับ Battery SOC จริงในรอบ 24 ชม.)
-    // ค้นหาจุดสูงสุดของ SOC (มักอยู่ช่วงบ่าย 14:00-17:00 หลังจากโซลาร์ชาร์จเต็ม)
-    let maxSocIdx = -1;
-    let maxSocVal = 0;
-    activePool.forEach((pt, idx) => {
-      const soc = Number(pt.batterySOC || 0);
-      if (soc > maxSocVal) {
-        maxSocVal = soc;
-        maxSocIdx = idx;
-      }
-    });
-
-    // จุดเริ่มต้นคายประจุ: ชั่วโมงที่แดดหมดลง (pvW < 80W) ในช่วงบ่าย/เย็น โดยที่ SOC ยังสูง
-    let battDischargeStartIdx = -1;
-    for (let i = Math.max(12, maxSocIdx); i < activePool.length; i++) {
-      const pt = activePool[i];
-      const pv = Number(pt.pvW || 0);
-      if (pv < 80) {
-        battDischargeStartIdx = i;
-        break;
-      }
-    }
-    if (battDischargeStartIdx === -1) {
-      battDischargeStartIdx = pvPointsWithSolar.length > 0 ? Math.min(23, pvEndH + 1) : 18;
-    }
-
-    // จุดสิ้นสุดการคายประจุ (แบตหมดเกลี้ยง หรือลดลงถึงขีดจำกัดสำรองต่ำสุด SOC <= 25% หรือจุดต่ำสุดก่อนแดดออก)
-    let battDischargeEndIdx = -1;
-    let minSocAfterDischarge = maxSocVal;
-    
-    // สแกนจากช่วงเริ่มคายประจุเป็นต้นไป
-    for (let i = battDischargeStartIdx; i < activePool.length; i++) {
-      const soc = Number(activePool[i]?.batterySOC || 0);
-      if (soc <= 25) {
-        battDischargeEndIdx = i;
-        minSocAfterDischarge = soc;
-        break;
-      }
-      if (soc < minSocAfterDischarge) {
-        minSocAfterDischarge = soc;
-        battDischargeEndIdx = i;
-      }
-    }
-
-    // หากแบตเตอรี่จุพอเลี้ยงได้ตลอดคืนจนถึงเช้า
-    if (battDischargeEndIdx === -1 || battDischargeEndIdx === activePool.length - 1) {
-      // ตรวจสอบเช้ามืดของวัน (00:00 - 06:00) ว่าแบตลงต่ำสุดที่กี่โมง
-      let morningMinIdx = 0;
-      let morningMinSoc = 100;
-      for (let i = 0; i < Math.min(6, activePool.length); i++) {
-        const soc = Number(activePool[i]?.batterySOC || 0);
-        if (soc > 0 && soc < morningMinSoc) {
-          morningMinSoc = soc;
-          morningMinIdx = i;
-        }
-      }
-      if (morningMinSoc <= 25) {
-        battDischargeEndIdx = morningMinIdx;
-        minSocAfterDischarge = morningMinSoc;
-      } else {
-        battDischargeEndIdx = activePool.length > 23 ? 23 : activePool.length - 1;
-      }
-    }
-
-    const battStartHourStr = activePool[battDischargeStartIdx]?.hour || `${String(battDischargeStartIdx).padStart(2, '0')}:00`;
-    const battEndHourStr = activePool[battDischargeEndIdx]?.hour || `${String(battDischargeEndIdx).padStart(2, '0')}:00`;
-    
-    // คำนวณจำนวนชั่วโมงจริงที่แบตจ่ายไฟ
-    let battHours = 0;
-    if (battDischargeEndIdx >= battDischargeStartIdx) {
-      battHours = (battDischargeEndIdx - battDischargeStartIdx) + 1;
-    } else {
-      // ข้ามเที่ยงคืน
-      battHours = (24 - battDischargeStartIdx) + battDischargeEndIdx + 1;
-    }
-    battHours = Math.max(1, battHours);
-
-    const battDischargeKWh = Number(day.dischargeBatteryKWh != null ? day.dischargeBatteryKWh : (dischargeBatKWh || 0));
-    const battAvgKw = battHours > 0 ? Number((battDischargeKWh / battHours).toFixed(2)) : 0;
-    const battStartSoc = maxSocVal > 0 ? Math.round(maxSocVal) : Number(solarData.batterySOC || 95);
-    const battEndSoc = minSocAfterDischarge > 0 && minSocAfterDischarge < battStartSoc ? Math.round(minSocAfterDischarge) : 20;
-
-    // 3. PEA Grid Import Window (คำนวณช่วงเวลาที่ดึงไฟหลวงตามจริง)
-    // ไฟฟ้าหลวงจะดึงช่วงที่แบตเตอรี่จ่ายไม่ไหว/หมด (ตั้งแต่ battEndHourStr จนถึง pvFirstHour)
-    const peaStartHourStr = battEndHourStr;
-    const peaEndHourStr = pvFirstHour;
-    
-    const peaStartH = parseInt(peaStartHourStr, 10);
-    const peaEndH = parseInt(peaEndHourStr, 10);
-    let peaHours = 0;
-    if (peaEndH >= peaStartH) {
-      peaHours = (peaEndH - peaStartH);
-    } else {
-      peaHours = (24 - peaStartH) + peaEndH;
-    }
-    peaHours = Math.max(1, peaHours);
-
-    const peaImportKWh = Number(day.importKWh != null ? day.importKWh : (importKWh || 0));
-    const peaAvgKw = peaHours > 0 ? Number((peaImportKWh / peaHours).toFixed(2)) : 0;
+    const metrics = calcDailyBatteryAndPvMetrics(
+      day,
+      dailyCurveData,
+      Number(solarData.batteryCapacityKWh || 16.0),
+      Number(solarData.batteryDodCutoffPct || 20)
+    );
 
     return {
       pv: {
-        window: `${pvFirstHour} – ${pvLastHour}`,
-        hours: pvSpanHours,
-        kwh: pvKWh,
-        avgKw: pvAvgKw,
-        status: pvSpanHours > 0 ? 'ACTIVE' : 'STANDBY'
+        window: metrics.pv.window,
+        hours: metrics.pv.hours,
+        kwh: metrics.pv.kwh,
+        avgKw: metrics.pv.avgKw,
+        status: metrics.pv.hours > 0 ? 'ACTIVE' : 'STANDBY'
+      },
+      charge: {
+        window: metrics.charge.window,
+        hours: metrics.charge.hours,
+        kwh: metrics.charge.kwh,
+        avgKw: metrics.charge.avgKw,
+        startSoc: metrics.charge.startSoc,
+        endSoc: metrics.charge.endSoc,
+        isFull: metrics.charge.isFull,
+        status: metrics.charge.hours > 0 ? 'ACTIVE' : 'STANDBY'
       },
       battery: {
-        window: `${battStartHourStr} – ${battEndHourStr}`,
-        hours: battHours,
-        kwh: battDischargeKWh,
-        avgKw: battAvgKw,
-        startSoc: battStartSoc,
-        endSoc: battEndSoc,
-        status: battDischargeKWh > 0 ? 'ACTIVE' : 'STANDBY'
+        window: metrics.discharge.window,
+        hours: metrics.discharge.hours,
+        kwh: metrics.discharge.kwh,
+        avgKw: metrics.discharge.avgKw,
+        startSoc: metrics.discharge.startSoc,
+        endSoc: metrics.discharge.endSoc,
+        status: metrics.discharge.hours > 0 ? 'ACTIVE' : 'STANDBY'
       },
       pea: {
-        window: `${peaStartHourStr} – ${peaEndHourStr}`,
-        hours: peaHours,
-        kwh: peaImportKWh,
-        avgKw: peaAvgKw,
-        status: peaImportKWh > 0 ? 'ACTIVE' : 'STANDBY'
+        window: metrics.pea.window,
+        hours: metrics.pea.hours,
+        kwh: metrics.pea.kwh,
+        avgKw: metrics.pea.avgKw,
+        status: metrics.pea.hours > 0 ? 'ACTIVE' : 'STANDBY'
       }
     };
-  }, [dailyCurveData, activeHistoryDay, todayGenKWh, dischargeBatKWh, importKWh, solarData.batterySOC]);
+  }, [dailyCurveData, activeHistoryDay, solarData.batteryCapacityKWh, solarData.batteryDodCutoffPct]);
 
   // Comprehensive Engineering Health & Safety Inspection (เปรียบเทียบค่าจริงกับสเปกแผงและขีดจำกัดความปลอดภัย)
   const stringHealthAnalysis = useMemo(() => {
@@ -5493,8 +5843,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* 1. Solar Window Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 1. Solar Active Window Card */}
             <div className="bg-[#0b101c] border border-amber-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
                 <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
@@ -5525,14 +5875,47 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               </div>
             </div>
 
-            {/* 2. Battery Discharge Window Card */}
+            {/* 2. Battery Charge Window Card (PV -> Battery to 100%) */}
             <div className="bg-[#0b101c] border border-emerald-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
                 <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <Battery className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{t('windowBatteryTitle')}</span>
+                  <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{t('batteryChargeWindow')}</span>
                 </span>
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  {dailyEnergyWindows.charge?.window || '08:00 – 13:00'}
+                </span>
+              </div>
+              <div className="my-2 space-y-1">
+                <div className="flex items-baseline justify-between font-mono">
+                  <span className="text-xl sm:text-2xl font-bold text-white">
+                    {(dailyEnergyWindows.charge?.kwh || 0).toFixed(2)} <span className="text-xs font-sans text-slate-400 font-normal">kWh</span>
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 font-mono">
+                    ~{dailyEnergyWindows.charge?.avgKw || 2.2} kW {lang === 'th' ? 'เฉลี่ย' : 'avg'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-sans flex items-center justify-between">
+                  <span>{t('socStartEnd')}</span>
+                  <strong className="text-emerald-300 font-mono">
+                    {dailyEnergyWindows.charge?.startSoc || 20}% ➔ {dailyEnergyWindows.charge?.endSoc || 100}%
+                  </strong>
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex items-center justify-between font-sans">
+                <span>{t('totalDurationLabel')} <strong className="text-white font-mono">~{dailyEnergyWindows.charge?.hours || 5} {lang === 'th' ? 'ชม.' : 'hrs'}</strong></span>
+                <span className="text-emerald-400 font-bold">⚡ {dailyEnergyWindows.charge?.isFull ? (lang === 'th' ? 'ชาร์จเต็ม 100%' : '100% Full') : (lang === 'th' ? 'ชาร์จประจุ' : 'Charging')}</span>
+              </div>
+            </div>
+
+            {/* 3. Battery Discharge Window Card (Battery -> House to Cutoff) */}
+            <div className="bg-[#0b101c] border border-cyan-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Battery className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{t('batteryDischargeWindow')}</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                   {dailyEnergyWindows.battery.window}
                 </span>
               </div>
@@ -5541,24 +5924,24 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   <span className="text-xl sm:text-2xl font-bold text-white">
                     {dailyEnergyWindows.battery.kwh.toFixed(2)} <span className="text-xs font-sans text-slate-400 font-normal">kWh</span>
                   </span>
-                  <span className="text-xs font-bold text-emerald-400 font-mono">
+                  <span className="text-xs font-bold text-cyan-400 font-mono">
                     ~{dailyEnergyWindows.battery.avgKw} kW {lang === 'th' ? 'เฉลี่ย' : 'avg'}
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-300 font-sans flex items-center justify-between">
                   <span>{t('socStartEnd')}</span>
-                  <strong className="text-emerald-300 font-mono">
+                  <strong className="text-cyan-300 font-mono">
                     {dailyEnergyWindows.battery.startSoc}% ➔ {dailyEnergyWindows.battery.endSoc}%
                   </strong>
                 </div>
               </div>
               <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 flex items-center justify-between font-sans">
                 <span>{t('totalDurationLabel')} <strong className="text-white font-mono">~{dailyEnergyWindows.battery.hours} {lang === 'th' ? 'ชม.' : 'hrs'}</strong></span>
-                <span className="text-emerald-400 font-bold">🟢 {t('batteryNightCoverage')}</span>
+                <span className="text-cyan-400 font-bold">🟢 {t('batteryNightCoverage')}</span>
               </div>
             </div>
 
-            {/* 3. PEA Grid Window Card */}
+            {/* 4. PEA Grid Window Card */}
             <div className="bg-[#0b101c] border border-sky-500/30 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
                 <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
