@@ -18,4 +18,8 @@ Key Invariants:
      - **Iconography & Badges:** `icon-craft` (Lucide React & Simple Icons)
      - **IoT Energy, BMS & PEA Tariff:** `iot-security-and-tariff-audit`
      - **Video, Animations & Timelines:** `hyperframes`
+     - **PWA Mobile & Offline Caching:** `pwa-mobile-offline` ➔ `mobile-ergonomics-audit`
+     - **Supabase & Idempotent SQL:** `supabase-sql-guardian` ➔ `verification-before-completion`
+     - **Vite Bundle & Performance:** `bundle-performance-optimizer` ➔ `verification-before-completion`
+     - **Hardware Modbus & Inverter API:** `iot-modbus-protocol-debugger` ➔ `systematic-debugging`
      - **Post-Task Quality Gate:** Always run `verification-before-completion` and audit with `impeccable` on any UI task.

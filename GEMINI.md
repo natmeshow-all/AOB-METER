@@ -62,7 +62,11 @@ All coding assistants and agents working on this project MUST strictly follow th
      4. **Iconography & Badges:** `icon-craft` (Lucide React & Simple Icons)
      5. **Solar Telemetry, BMS & PEA Tariff Audit:** `iot-security-and-tariff-audit`
      6. **Video, Motion & GSAP Animation:** `hyperframes`
-     7. **Post-Task Completion Gate:** `verification-before-completion` (Linter, Build, Tests) ➔ `impeccable` (visual audit)
+     7. **PWA Mobile & Offline Caching:** `pwa-mobile-offline` ➔ `mobile-ergonomics-audit`
+     8. **Supabase & Idempotent SQL:** `supabase-sql-guardian` ➔ `verification-before-completion`
+     9. **Vite Bundle & Web Performance:** `bundle-performance-optimizer` ➔ `verification-before-completion`
+     10. **Hardware Modbus & Inverter API:** `iot-modbus-protocol-debugger` ➔ `systematic-debugging`
+     11. **Post-Task Completion Gate:** `verification-before-completion` (Linter, Build, Tests) ➔ `impeccable` (visual audit)
 
 10. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
    - Whenever completing UI/frontend implementation or modification, ALWAYS invoke skill `impeccable` to audit and polish visual craft, elegance, typography, subtle micro-interactions, and fresh modern aesthetics.
