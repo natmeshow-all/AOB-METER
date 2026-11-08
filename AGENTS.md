@@ -22,4 +22,5 @@ Key Invariants:
      - **Supabase & Idempotent SQL:** `supabase-sql-guardian` ➔ `verification-before-completion`
      - **Vite Bundle & Performance:** `bundle-performance-optimizer` ➔ `verification-before-completion`
      - **Hardware Modbus & Inverter API:** `iot-modbus-protocol-debugger` ➔ `systematic-debugging`
+     - **Web Scraping & Live Web Extraction:** `firecrawl`
      - **Post-Task Quality Gate:** Always run `verification-before-completion` and audit with `impeccable` on any UI task.

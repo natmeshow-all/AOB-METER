@@ -7,6 +7,12 @@
       "skillPath": "skills/figma/SKILL.md",
       "computedHash": "c7593153c627ecb96d93c65d6908475cc3f7faefc398c0b9176b15063e917e2e"
     },
+    "firecrawl": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "skillPath": "skills/firecrawl/SKILL.md",
+      "computedHash": "a5e6c731b74eadd9692232ebc7ca82b13decbd7a1aa8ba910489126eda82095e"
+    },
     "hyperframes": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",
