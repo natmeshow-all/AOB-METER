@@ -4533,6 +4533,39 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
         </div>
       </div>
 
+      {/* TOP LIVE ANIMATED ENERGY FLOW & INTERACTIVE EQUIPMENT INSPECTION (เรียวไทม์บนสุด + สรุปรายวัน) */}
+      {(dashboardSection === 'summary' || dashboardSection === 'all') && (
+        <AnimatedEnergyFlow
+          pvPowerW={totalPvPowerW}
+          pv1Volt={solarData?.pv1Volt ?? 260}
+          pv1CurrentA={solarData?.pv1CurrentA ?? (totalPvPowerW > 0 ? Number(((totalPvPowerW * 0.6) / 260).toFixed(2)) : 0)}
+          pv2Volt={solarData?.pv2Volt ?? 255}
+          pv2CurrentA={solarData?.pv2CurrentA ?? (totalPvPowerW > 0 ? Number(((totalPvPowerW * 0.4) / 255).toFixed(2)) : 0)}
+          gridPowerW={solarData?.gridPowerW ?? 0}
+          gridVoltageV={solarData?.gridVoltageV ?? 230.5}
+          gridCurrentA={solarData?.gridCurrentA ?? Number((Math.abs(solarData?.gridPowerW || 0) / 230.5).toFixed(2))}
+          batteryPowerW={solarData?.batteryPowerW ?? 1450}
+          batteryVoltageV={solarData?.batteryVoltageV ?? 51.2}
+          batteryCurrentA={solarData?.batteryCurrentA ?? 28.3}
+          batterySOC={battSoc}
+          loadPowerW={solarData?.totalLoadPowerW ?? 1510}
+          loadVoltageV={solarData?.loadVoltageV ?? 230.0}
+          loadCurrentA={solarData?.loadCurrentA ?? Number((Number(solarData?.totalLoadPowerW || 1510) / 230).toFixed(2))}
+          inverterTempC={solarData?.inverterTempC ?? 36.5}
+          batteryTempC={solarData?.batteryTempC ?? 28.5}
+          todayGenKWh={todayGenKWh || 20.69}
+          peakPvWatts={peakPvWatts || 5420}
+          statGridImportKWh={solarData?.statGridImportKWh ?? 4.19}
+          statGridExportKWh={solarData?.statGridExportKWh ?? 0.0}
+          chargeBatteryKWh={Number(solarData?.statChargeBatteryKWh || solarData?.chargeBatteryKWh || 9.20)}
+          dischargeBatteryKWh={Number(solarData?.statDischargeBatteryKWh || solarData?.dischargeBatteryKWh || 9.02)}
+          statLoadElectricityKWh={solarData?.statLoadElectricityKWh ?? 19.66}
+          todayEstSavings={Math.round((todayGenKWh || 20.69) * (tariffSettings?.tier2Rate || 4.22))}
+          sajDeviceSn={solarData?.sajDeviceSn || 'H2A2602J2539E14713'}
+          isHomeSolar={true}
+        />
+      )}
+
       {/* TRIPLE-DIAL SUPERCAR INSTRUMENT CLUSTER (MOBILE SWIPEABLE CAROUSEL + DESKTOP PANORAMA) */}
       {(dashboardSection === 'summary' || dashboardSection === 'all') && (
         <div className="space-y-1">
@@ -4882,20 +4915,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
     </div>
     )}
 
-      {/* NEXT-GEN LIVE ANIMATED ENERGY FLOW & ESG COUNTER */}
+      {/* ESG CARBON COUNTER */}
       {(dashboardSection === 'summary' || dashboardSection === 'all') && (
         <div className="space-y-4">
-          <AnimatedEnergyFlow
-            pvPowerW={totalPvPowerW}
-            gridPowerW={solarData.gridPowerW || 0}
-            batteryPowerW={solarData.batteryPowerW || 0}
-            batterySOC={battSoc}
-            loadPowerW={solarData.totalLoadPowerW || 1850}
-            inverterTempC={solarData.inverterTempC || 60.1}
-            batteryTempC={solarData.batteryTempC || 28.5}
-            todayGenKWh={todayGenKWh || 20.69}
-            isHomeSolar={true}
-          />
           <EsgCarbonCounter
             totalSolarKWh={totalGenKWh}
             monthlySolarKWh={todayGenKWh * 28}
