@@ -7,10 +7,18 @@ import {
   Search,
   Flame,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Leaf,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { TENANT_COMPANIES } from '../data/tenantData';
+import { AnimatedEnergyFlow } from './AnimatedEnergyFlow';
+import { ThreePhaseHealthGuard } from './ThreePhaseHealthGuard';
+import { PeakDemandCeiling } from './PeakDemandCeiling';
+import { EnergyIntensityHeatmap } from './EnergyIntensityHeatmap';
+import { EsgCarbonCounter } from './EsgCarbonCounter';
 
 export const OverviewMetersView = ({ onSelectMeter }) => {
   const { activeOrgId } = useAuth();
@@ -23,6 +31,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
       electricityMeters: []
     };
 
+  const [activeSubTab, setActiveSubTab] = useState('meters'); // 'meters' | 'flow' | 'health' | 'demand' | 'heatmap' | 'esg'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPanel, setSelectedPanel] = useState('ALL');
 
@@ -219,37 +228,120 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
         </div>
       </div>
 
-      {/* 2. Filter & Search Bar for Meters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-          {panels.map((panel) => (
+      {/* 2. Next-Gen Sub-Feature Navigation Pills */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-slate-800/80">
+        {[
+          { id: 'meters', label: `📊 มิเตอร์ทั้งหมด (${metersLive.length})`, icon: Layers },
+          { id: 'flow', label: '⚡ สายธารพลังงาน (Flow)', icon: Zap },
+          { id: 'health', label: '🛡️ คุณภาพ 3 เฟส (Power Quality)', icon: ShieldCheck },
+          { id: 'demand', label: '🎯 พีคดีมานด์ (Peak Ceiling)', icon: Gauge },
+          { id: 'heatmap', label: '🔥 ปฏิทินความร้อน (Heatmap)', icon: Flame },
+          { id: 'esg', label: '🌱 ลดคาร์บอน (ESG Counter)', icon: Leaf }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
             <button
-              key={panel}
-              onClick={() => setSelectedPanel(panel)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                selectedPanel === panel
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
+                  : 'bg-slate-900/90 text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700'
               }`}
             >
-              {panel === 'ALL' ? `ทั้งหมด (${metersLive.length} มิเตอร์)` : `ตู้ ${panel}`}
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
             </button>
-          ))}
-        </div>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาชื่อเครื่องจักร หรือรหัสมิเตอร์..."
-            className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
-          />
-        </div>
+          );
+        })}
       </div>
 
-      {/* 3. All Meters Grid */}
+      {/* SUB-VIEW 1: ANIMATED ENERGY FLOW */}
+      {activeSubTab === 'flow' && (
+        <AnimatedEnergyFlow
+          loadPowerW={summary.totalKW * 1000}
+          pvPowerW={summary.totalKW > 300 ? 120000 : 45000}
+          gridPowerW={summary.totalKW * 1000 - (summary.totalKW > 300 ? 120000 : 45000)}
+          batteryPowerW={15000}
+          batterySOC={85}
+          isHomeSolar={false}
+        />
+      )}
+
+      {/* SUB-VIEW 2: THREE-PHASE HEALTH & POWER QUALITY */}
+      {activeSubTab === 'health' && (
+        <ThreePhaseHealthGuard
+          v12={382.4}
+          v23={381.1}
+          v31={380.8}
+          i1={Number((summary.totalCurrentA * 0.34).toFixed(1))}
+          i2={Number((summary.totalCurrentA * 0.33).toFixed(1))}
+          i3={Number((summary.totalCurrentA * 0.33).toFixed(1))}
+          pf={Number(summary.avgPF)}
+          peakKW={summary.totalKW}
+          transformerKVA={summary.trCapacity}
+        />
+      )}
+
+      {/* SUB-VIEW 3: PEAK DEMAND CEILING */}
+      {activeSubTab === 'demand' && (
+        <PeakDemandCeiling
+          currentKW={summary.totalKW}
+          targetCeilingKW={Math.round(summary.trCapacity * 0.85 * 0.78)}
+          maxTransformerKW={Math.round(summary.trCapacity * 0.85)}
+          monthlyPeakKW={Math.round(summary.totalKW * 1.15)}
+        />
+      )}
+
+      {/* SUB-VIEW 4: ENERGY INTENSITY HEATMAP */}
+      {activeSubTab === 'heatmap' && (
+        <EnergyIntensityHeatmap baseKW={summary.totalKW} />
+      )}
+
+      {/* SUB-VIEW 5: ESG CARBON OFFSET COUNTER */}
+      {activeSubTab === 'esg' && (
+        <EsgCarbonCounter
+          totalSolarKWh={summary.totalTodayKWh * 26}
+          monthlySolarKWh={summary.totalTodayKWh * 4.2}
+        />
+      )}
+
+      {/* DEFAULT SUB-VIEW: METERS GRID & SEARCH */}
+      {activeSubTab === 'meters' && (
+        <>
+          {/* Filter & Search Bar for Meters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+              {panels.map((panel) => (
+                <button
+                  key={panel}
+                  onClick={() => setSelectedPanel(panel)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    selectedPanel === panel
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {panel === 'ALL' ? `ทั้งหมด (${metersLive.length} มิเตอร์)` : `ตู้ ${panel}`}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาชื่อเครื่องจักร หรือรหัสมิเตอร์..."
+                className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* 3. All Meters Grid */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <span className="text-xs font-semibold text-slate-400">
@@ -374,6 +466,8 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
           })}
         </div>
       </div>
-    </div>
+    </>
+  )}
+</div>
   );
 };

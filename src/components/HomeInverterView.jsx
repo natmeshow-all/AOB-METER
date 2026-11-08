@@ -70,6 +70,8 @@ import {
   evaluateStringMismatch,
   HEALTH_LEVELS
 } from '../utils/pvStringHealth';
+import { AnimatedEnergyFlow } from './AnimatedEnergyFlow';
+import { EsgCarbonCounter } from './EsgCarbonCounter';
 
 const HEALTH_TONE_CLASSES = {
   emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
@@ -4879,6 +4881,24 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
       </div>
     </div>
     )}
+
+      {/* NEXT-GEN LIVE ANIMATED ENERGY FLOW & ESG COUNTER */}
+      {(dashboardSection === 'summary' || dashboardSection === 'all') && (
+        <div className="space-y-4">
+          <AnimatedEnergyFlow
+            pvPowerW={totalPvPowerW}
+            gridPowerW={solarData.gridPowerW || 0}
+            batteryPowerW={solarData.batteryPowerW || 0}
+            batterySOC={battSoc}
+            loadPowerW={solarData.totalLoadPowerW || 1850}
+            isHomeSolar={true}
+          />
+          <EsgCarbonCounter
+            totalSolarKWh={totalGenKWh}
+            monthlySolarKWh={todayGenKWh * 28}
+          />
+        </div>
+      )}
 
       {/* DAILY PEAK ELECTRICITY & CURRENT ANALYSIS (วิเคราะห์พีคและกระแสแอมป์) */}
       {(dashboardSection === 'summary' || dashboardSection === 'all') && (
