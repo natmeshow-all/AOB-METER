@@ -24,4 +24,5 @@ Key Invariants:
      - **Hardware Modbus & Inverter API:** `iot-modbus-protocol-debugger` ➔ `systematic-debugging`
      - **Web Scraping & Live Web Extraction:** `firecrawl`
      - **Browser Automation & E2E Testing:** `playwright-skill` ➔ `verification-before-completion`
+     - **Bilingual i18n & Localization Parity:** `i18n-guardian` ➔ `verification-before-completion`
      - **Post-Task Quality Gate:** Always run `verification-before-completion` and audit with `impeccable` on any UI task.

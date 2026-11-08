@@ -26,7 +26,8 @@ Empowers the agent to automatically classify every incoming user task and trigge
 | **10. ฮาร์ดแวร์ Modbus / Gateway / SAJ API** | "modbus", "rs485", "gateway", "register", "crc", "packet", "saj api", "ticket" | `iot-modbus-protocol-debugger` ➔ `systematic-debugging` |
 | **11. Web Scraping & ค้นคว้าข้อมูลเว็บ** | "firecrawl", "scrape", "crawl", "ดูดเว็บ", "ดึงข้อมูลเว็บ", "ค้นข้อมูลเว็บ" | `firecrawl` |
 | **12. ทดสอบเบราว์เซอร์อัตโนมัติ / E2E & Screenshot** | "playwright", "test browser", "e2e", "แคปภาพหน้าจอ", "automate browser", "คลิกทดสอบ" | `playwright-skill` ➔ `verification-before-completion` |
-| **13. ปิดท้ายทุกงาน UI ก่อนส่งมอบ** | ทุกครั้งที่มีการแก้ไข UI หรือหน้าจอเสร็จสิ้น | `verification-before-completion` ➔ `impeccable` |
+| **13. สองภาษาไทย-อังกฤษ / แปลภาษา / i18n** | "ภาษา", "แปล", "ไทย", "อังกฤษ", "i18n", "localization", "คำศัพท์", "สลับภาษา" | `i18n-guardian` ➔ `verification-before-completion` |
+| **14. ปิดท้ายทุกงาน UI ก่อนส่งมอบ** | ทุกครั้งที่มีการแก้ไข UI หรือหน้าจอเสร็จสิ้น | `verification-before-completion` ➔ `impeccable` |
 
 ---
 
