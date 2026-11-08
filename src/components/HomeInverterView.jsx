@@ -4936,15 +4936,15 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
-                  <span>วิเคราะห์ไฟฟ้าพีคสุดประจำวัน & กระแสแอมป์ (Daily Peak & Current)</span>
+                  <span>{lang === 'en' ? 'Daily Peak Electricity & Current Analysis' : 'วิเคราะห์ไฟฟ้าพีคสุดประจำวัน & กระแสแอมป์ (Daily Peak & Current)'}</span>
                 </h4>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  จุดพีคของบ้าน, กำลังผลิต PV1-PV2 และความปลอดภัยของสายส่ง
+                  {lang === 'en' ? 'Household peak, PV1-PV2 generation & conductor safety' : 'จุดพีคของบ้าน, กำลังผลิต PV1-PV2 และความปลอดภัยของสายส่ง'}
                 </p>
               </div>
             </div>
             <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-900 text-sky-300 border border-slate-700 font-bold">
-              {isViewingToday ? `วันปัจจุบัน (${todayThaiDateStr})` : `วันที่ ${activeHistoricalDate}`}
+              {isViewingToday ? (lang === 'en' ? `Today (${todayThaiDateStr})` : `วันปัจจุบัน (${todayThaiDateStr})`) : (lang === 'en' ? `Date: ${activeHistoricalDate}` : `วันที่ ${activeHistoricalDate}`)}
             </span>
           </div>
 
@@ -4954,10 +4954,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-300 font-medium flex items-center gap-1.5">
                   <Home className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ไฟฟ้าพีคสุดของบ้าน</span>
+                  <span>{lang === 'en' ? 'Peak House Load' : 'ไฟฟ้าพีคสุดของบ้าน'}</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
-                  {dailyPeakStats.peakLoadHour} น.
+                  {dailyPeakStats.peakLoadHour} {lang === 'en' ? 'hrs' : 'น.'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
@@ -4970,17 +4970,17 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               </div>
               <div className="pt-2 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
                 <div className="flex justify-between items-center text-slate-300 font-mono">
-                  <span className="text-slate-400 text-[10px]">กระแสพีค (@230V):</span>
+                  <span className="text-slate-400 text-[10px]">{lang === 'en' ? 'Peak Current (@230V):' : 'กระแสพีค (@230V):'}</span>
                   <span className="font-bold text-white text-xs sm:text-sm">
                     {dailyPeakStats.peakLoadCurrentA} A
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 pt-0.5">
                   {dailyPeakStats.peakLoadCurrentA < 16
-                    ? '🟢 ปกติ (สาย 2.5–4.0 mm² เบรกเกอร์ 16–20A)'
+                    ? (lang === 'en' ? '🟢 Normal (2.5–4.0 mm² cable, breaker 16–20A)' : '🟢 ปกติ (สาย 2.5–4.0 mm² เบรกเกอร์ 16–20A)')
                     : dailyPeakStats.peakLoadCurrentA <= 25
-                    ? '🟡 ปานกลาง (แอร์/ต้มน้ำ สาย 4 mm²)'
-                    : '🔴 โหลดสูง (ตรวจเบรกเกอร์เมน 32–40A)'}
+                    ? (lang === 'en' ? '🟡 Moderate (HVAC / Water heater, 4 mm²)' : '🟡 ปานกลาง (แอร์/ต้มน้ำ สาย 4 mm²)')
+                    : (lang === 'en' ? '🔴 High Load (Check main breaker 32–40A)' : '🔴 โหลดสูง (ตรวจเบรกเกอร์เมน 32–40A)')}
                 </p>
               </div>
             </div>
@@ -4990,10 +4990,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-300 font-medium flex items-center gap-1.5">
                   <Sun className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ผลิตโซลาร์พีคสุด (PV)</span>
+                  <span>{lang === 'en' ? 'Peak Solar Generation (PV)' : 'ผลิตโซลาร์พีคสุด (PV)'}</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
-                  {dailyPeakStats.peakPvHour} น.
+                  {dailyPeakStats.peakPvHour} {lang === 'en' ? 'hrs' : 'น.'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
@@ -5006,13 +5006,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               </div>
               <div className="pt-2 border-t border-slate-800/80 text-[11px] space-y-0.5 font-sans">
                 <div className="flex justify-between items-center text-slate-300 font-mono">
-                  <span className="text-slate-400 text-[10px]">กระแส DC พีค (@380V):</span>
+                  <span className="text-slate-400 text-[10px]">{lang === 'en' ? 'Peak DC Current (@380V):' : 'กระแส DC พีค (@380V):'}</span>
                   <span className="font-bold text-white text-xs sm:text-sm">
                     {dailyPeakStats.peakPvCurrentA} A
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 pt-0.5">
-                  ☀️ พีคช่วงแดดเที่ยง เลี้ยงโหลดและชาร์จแบต
+                  {lang === 'en' ? '☀️ Midday sun peak: powers load & charges battery' : '☀️ พีคช่วงแดดเที่ยง เลี้ยงโหลดและชาร์จแบต'}
                 </p>
               </div>
             </div>
@@ -5022,10 +5022,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-300 font-medium flex items-center gap-1.5">
                   <Thermometer className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ความร้อน Inverter สูงสุด</span>
+                  <span>{lang === 'en' ? 'Max Inverter Temp' : 'ความร้อน Inverter สูงสุด'}</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
-                  {dailyPeakStats.maxInverterTempHour} น.
+                  {dailyPeakStats.maxInverterTempHour} {lang === 'en' ? 'hrs' : 'น.'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
@@ -5033,11 +5033,13 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   {dailyPeakStats.maxInverterTempC}°C
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded font-sans font-bold text-slate-300 bg-slate-800 border border-slate-700/80">
-                  {dailyPeakStats.maxInverterTempC < 50 ? '🟢 ระบายความร้อนดี' : '🟡 อุ่นปกติ'}
+                  {dailyPeakStats.maxInverterTempC < 50
+                    ? (lang === 'en' ? '🟢 Efficient Cooling' : '🟢 ระบายความร้อนดี')
+                    : (lang === 'en' ? '🟡 Normal Warmth' : '🟡 อุ่นปกติ')}
                 </span>
               </div>
               <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-sans">
-                เกณฑ์ปลอดภัย &lt; 55°C (ฮีตซิงก์ทำงานสมบูรณ์)
+                {lang === 'en' ? 'Safety benchmark < 55°C (Heatsink optimal)' : 'เกณฑ์ปลอดภัย < 55°C (ฮีตซิงก์ทำงานสมบูรณ์)'}
               </div>
             </div>
 
@@ -5046,10 +5048,10 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-300 font-medium flex items-center gap-1.5">
                   <BatteryCharging className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ความร้อน แบตเตอรี่ สูงสุด</span>
+                  <span>{lang === 'en' ? 'Max Battery Temp' : 'ความร้อน แบตเตอรี่ สูงสุด'}</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
-                  {dailyPeakStats.maxBatteryTempHour} น.
+                  {dailyPeakStats.maxBatteryTempHour} {lang === 'en' ? 'hrs' : 'น.'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono">
@@ -5057,11 +5059,11 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                   {dailyPeakStats.maxBatteryTempC}°C
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/80 text-slate-300 font-sans font-bold">
-                  🟢 ปลอดภัย (Safe)
+                  {lang === 'en' ? '🟢 Safe' : '🟢 ปลอดภัย (Safe)'}
                 </span>
               </div>
               <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 font-sans">
-                เกณฑ์ปลอดภัยแบตเตอรี่ LiFePO4 &lt; 45°C
+                {lang === 'en' ? 'LiFePO4 battery safety benchmark < 45°C' : 'เกณฑ์ปลอดภัยแบตเตอรี่ LiFePO4 < 45°C'}
               </div>
             </div>
           </div>

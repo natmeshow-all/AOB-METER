@@ -19,11 +19,12 @@ import {
   ShieldCheck,
   Calendar
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
- * Format date string into Thai format (พ.ศ. & วันในสัปดาห์)
+ * Format date string into bilingual format (Thai พ.ศ. / English)
  */
-export const formatThaiDate = (dateStr) => {
+export const formatDateBilingual = (dateStr, lang = 'th') => {
   let target = dateStr;
   if (!target) {
     const now = new Date(Date.now() + 7 * 3600 * 1000);
@@ -33,6 +34,25 @@ export const formatThaiDate = (dateStr) => {
   const y = Number(parts[0]) || 2026;
   const m = Number(parts[1]) || 11;
   const d = Number(parts[2]) || 8;
+  const dateObj = new Date(y, m - 1, d);
+  const dayIndex = dateObj.getDay();
+
+  if (lang === 'en') {
+    const enMonths = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    const enDays = [
+      'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+    ];
+    return {
+      full: `${enDays[dayIndex]}, ${d} ${enMonths[m - 1]} ${y}`,
+      short: `${d} ${enMonths[m - 1]} ${y}`,
+      dayName: enDays[dayIndex],
+      rawDate: target
+    };
+  }
+
   const thaiMonths = [
     'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
     'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
@@ -40,12 +60,11 @@ export const formatThaiDate = (dateStr) => {
   const thaiDays = [
     'อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'
   ];
-  const dateObj = new Date(y, m - 1, d);
-  const dayName = thaiDays[dateObj.getDay()] || '';
+  const dayName = thaiDays[dayIndex] || '';
   const thaiYear = y > 2400 ? y : y + 543;
   return {
-    fullThai: `วัน${dayName}ที่ ${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
-    shortThai: `${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
+    full: `วัน${dayName}ที่ ${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
+    short: `${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
     dayName,
     rawDate: target
   };
@@ -90,11 +109,14 @@ export function AnimatedEnergyFlow({
   isHomeSolar = true,
   currentDate = ''
 }) {
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
+
   // Interactive selected node state: 'battery' | 'inverter' | 'solar' | 'grid' | 'load' | null
   const [selectedNode, setSelectedNode] = useState('battery');
 
-  // Format Thai current date
-  const thaiDate = useMemo(() => formatThaiDate(currentDate), [currentDate]);
+  // Format bilingual current date
+  const dateFormatted = useMemo(() => formatDateBilingual(currentDate, lang), [currentDate, lang]);
 
   // Compute live physics
   const physics = useMemo(() => {
@@ -119,15 +141,25 @@ export function AnimatedEnergyFlow({
 
     let narrative = '';
     if (isDischarging && !isPvActive && !isImporting) {
-      narrative = `🔋 แบตเตอรี่คายประจุ ${(Math.abs(bat) / 1000).toFixed(2)} kW จ่ายตรงเลี้ยงบ้าน 100% (ค่าไฟหลวง ฿0.00)`;
+      narrative = isEn
+        ? `🔋 Battery discharging ${(Math.abs(bat) / 1000).toFixed(2)} kW directly powering home 100% (Grid Cost $0.00)`
+        : `🔋 แบตเตอรี่คายประจุ ${(Math.abs(bat) / 1000).toFixed(2)} kW จ่ายตรงเลี้ยงบ้าน 100% (ค่าไฟหลวง ฿0.00)`;
     } else if (isPvActive && isCharging && isExporting) {
-      narrative = `☀️ โซลาร์ผลิต ${(pv / 1000).toFixed(2)} kW → เลี้ยงบ้าน + อัดประจุแบตเตอรี่ + ขายไฟคืน กฟภ. ${(Math.abs(grid) / 1000).toFixed(2)} kW`;
+      narrative = isEn
+        ? `☀️ Solar generating ${(pv / 1000).toFixed(2)} kW → Home Load + Battery Charging + Grid Feed-in ${(Math.abs(grid) / 1000).toFixed(2)} kW`
+        : `☀️ โซลาร์ผลิต ${(pv / 1000).toFixed(2)} kW → เลี้ยงบ้าน + อัดประจุแบตเตอรี่ + ขายไฟคืน กฟภ. ${(Math.abs(grid) / 1000).toFixed(2)} kW`;
     } else if (isPvActive) {
-      narrative = `☀️ แดดจัด: โซลาร์ผลิต ${(pv / 1000).toFixed(2)} kW จ่ายเครื่องใช้ไฟฟ้าและชาร์จแบตเตอรี่`;
+      narrative = isEn
+        ? `☀️ Sunlight Peak: Solar generating ${(pv / 1000).toFixed(2)} kW powering home appliances & charging battery`
+        : `☀️ แดดจัด: โซลาร์ผลิต ${(pv / 1000).toFixed(2)} kW จ่ายเครื่องใช้ไฟฟ้าและชาร์จแบตเตอรี่`;
     } else if (isImporting) {
-      narrative = `⚡ ดึงไฟจากการไฟฟ้า (PEA) ${(grid / 1000).toFixed(2)} kW เลี้ยงบ้าน`;
+      narrative = isEn
+        ? `⚡ Importing ${(grid / 1000).toFixed(2)} kW from utility grid to support household load`
+        : `⚡ ดึงไฟจากการไฟฟ้า (PEA) ${(grid / 1000).toFixed(2)} kW เลี้ยงบ้าน`;
     } else {
-      narrative = `⚡ ระบบทำงานปกติ: แบตเตอรี่ ${soc}% สแตนด์บายพร้อมจ่ายไฟสำรอง`;
+      narrative = isEn
+        ? `⚡ System Normal: Battery ${soc}% standby on active backup duty`
+        : `⚡ ระบบทำงานปกติ: แบตเตอรี่ ${soc}% สแตนด์บายพร้อมจ่ายไฟสำรอง`;
     }
 
     return {
@@ -144,15 +176,15 @@ export function AnimatedEnergyFlow({
       isCharging,
       narrative
     };
-  }, [pvPowerW, gridPowerW, batteryPowerW, batterySOC, loadPowerW, inverterTempC]);
+  }, [pvPowerW, gridPowerW, batteryPowerW, batterySOC, loadPowerW, inverterTempC, isEn]);
 
   // Selected Equipment Detail Data Provider
   const nodeDetails = useMemo(() => {
     switch (selectedNode) {
       case 'solar':
         return {
-          title: 'แผงโซลาร์เซลล์ (Solar PV Rooftop)',
-          subtitle: 'กำลังผลิตไฟฟ้าจากแสงอาทิตย์ (6 kWp Dual MPPT)',
+          title: t('solarHudTitle'),
+          subtitle: t('solarHudSub'),
           icon: Sun,
           color: 'text-amber-400',
           borderColor: 'border-amber-500/50',
@@ -161,21 +193,23 @@ export function AnimatedEnergyFlow({
           powerLabel: physics.pv >= 1000 ? `${(physics.pv / 1000).toFixed(2)} kW` : `${physics.pv} W`,
           currentA: (Number(pv1CurrentA) + Number(pv2CurrentA)).toFixed(2) + ' A',
           voltageV: Math.max(Number(pv1Volt), Number(pv2Volt), 380).toFixed(1) + ' V',
-          tempC: 'อุณหภูมิแผง ~42°C',
-          status: physics.isPvActive ? 'กำลังผลิตไฟฟ้า' : 'สแตนด์บาย (กลางคืน)',
+          tempC: isEn ? 'PV Array Temp ~42°C' : 'อุณหภูมิแผง ~42°C',
+          status: physics.isPvActive
+            ? (isEn ? 'Generating Solar' : 'กำลังผลิตไฟฟ้า')
+            : (isEn ? 'Standby (Night)' : 'สแตนด์บาย (กลางคืน)'),
           statusClass: physics.isPvActive ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400',
           dailySummary: [
-            { label: 'ผลิตสะสมวันนี้', val: `${todayGenKWh.toFixed(2)} kWh` },
-            { label: 'พีคสูงสุดวันนี้', val: `${peakPvWatts.toLocaleString()} W` },
-            { label: 'ประหยัดเงินสะสม', val: `฿${todayEstSavings} บาท` },
-            { label: 'สตริง PV1 / PV2', val: `${pv1Volt || 260}V / ${pv2Volt || 0}V` }
+            { label: isEn ? "Today's Generation" : 'ผลิตสะสมวันนี้', val: `${todayGenKWh.toFixed(2)} kWh` },
+            { label: isEn ? "Today's Peak Watts" : 'พีคสูงสุดวันนี้', val: `${peakPvWatts.toLocaleString()} W` },
+            { label: isEn ? 'Estimated Savings' : 'ประหยัดเงินสะสม', val: `฿${todayEstSavings}` },
+            { label: isEn ? 'PV1 / PV2 Strings' : 'สตริง PV1 / PV2', val: `${pv1Volt || 260}V / ${pv2Volt || 0}V` }
           ]
         };
 
       case 'battery':
         return {
-          title: 'แบตเตอรี่สำรอง (Battery Energy Storage)',
-          subtitle: 'ลิเธียมไอออนฟอสเฟต (LiFePO4) ความจุ 16 kWh',
+          title: t('batteryHudTitle'),
+          subtitle: t('batteryHudSub'),
           icon: Battery,
           color: 'text-emerald-400',
           borderColor: 'border-emerald-500/50',
@@ -184,21 +218,25 @@ export function AnimatedEnergyFlow({
           powerLabel: `${(Math.abs(physics.bat) / 1000).toFixed(2)} kW`,
           currentA: `${Number(batteryCurrentA || 28.3).toFixed(1)} A`,
           voltageV: `${Number(batteryVoltageV || 51.2).toFixed(1)} V`,
-          tempC: `${batteryTempC}°C (ปกติ)`,
-          status: physics.isDischarging ? '⚡ คายประจุจ่ายไฟเลี้ยงบ้าน' : physics.isCharging ? 'กำลังชาร์จเข้า' : 'สแตนด์บาย',
+          tempC: `${batteryTempC}°C (${isEn ? 'Safe' : 'ปกติ'})`,
+          status: physics.isDischarging
+            ? (isEn ? '⚡ Discharging to Home' : '⚡ คายประจุจ่ายไฟเลี้ยงบ้าน')
+            : physics.isCharging
+            ? (isEn ? 'Charging' : 'กำลังชาร์จเข้า')
+            : (isEn ? 'Standby' : 'สแตนด์บาย'),
           statusClass: physics.isDischarging ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse' : 'bg-slate-800 text-slate-300',
           dailySummary: [
-            { label: 'ระดับความจุ SOC', val: `${physics.soc}% (${((16 * physics.soc) / 100).toFixed(1)} kWh)` },
-            { label: 'คายประจุวันนี้', val: `${dischargeBatteryKWh} kWh` },
-            { label: 'ชาร์จเก็บวันนี้', val: `${chargeBatteryKWh} kWh` },
-            { label: 'อุณหภูมิเซลล์แบต', val: `${batteryTempC}°C (ปลอดภัย)` }
+            { label: isEn ? 'State of Charge (SOC)' : 'ระดับความจุ SOC', val: `${physics.soc}% (${((16 * physics.soc) / 100).toFixed(1)} kWh)` },
+            { label: isEn ? 'Discharged Today' : 'คายประจุวันนี้', val: `${dischargeBatteryKWh} kWh` },
+            { label: isEn ? 'Charged Today' : 'ชาร์จเก็บวันนี้', val: `${chargeBatteryKWh} kWh` },
+            { label: isEn ? 'Cell Temperature' : 'อุณหภูมิเซลล์แบต', val: `${batteryTempC}°C (${isEn ? 'Safe' : 'ปลอดภัย'})` }
           ]
         };
 
       case 'inverter':
         return {
-          title: 'อินเวอร์เตอร์ไฮบริด (SAJ H2 Hybrid Inverter)',
-          subtitle: `รุ่น H2-6K-LS2 • SN: ${sajDeviceSn}`,
+          title: t('inverterHudTitle'),
+          subtitle: isEn ? `Model H2-6K-LS2 • SN: ${sajDeviceSn}` : `รุ่น H2-6K-LS2 • SN: ${sajDeviceSn}`,
           icon: Zap,
           color: 'text-sky-400',
           borderColor: 'border-sky-500/50',
@@ -207,21 +245,21 @@ export function AnimatedEnergyFlow({
           powerLabel: `${(physics.load / 1000).toFixed(2)} kW`,
           currentA: `${loadCurrentA} A`,
           voltageV: `230.0 V (50.0 Hz)`,
-          tempC: `${physics.temp}°C (ฮีตซิงค์)`,
-          status: 'ONLINE (ทำงานปกติ)',
+          tempC: `${physics.temp}°C (${isEn ? 'Heatsink' : 'ฮีตซิงค์'})`,
+          status: isEn ? 'ONLINE (Synchronized)' : 'ONLINE (ทำงานปกติ)',
           statusClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
           dailySummary: [
-            { label: 'ประสิทธิภาพแปลงไฟ', val: '97.6% (Peak)' },
-            { label: 'ความถี่ระบบ', val: '50.0 Hz (Synchronized)' },
-            { label: 'ความร้อน Inverter', val: `${physics.temp}°C (< 55°C ปลอดภัย)` },
-            { label: 'สถานะกริด PEA', val: 'On-Grid / Zero Export' }
+            { label: isEn ? 'Efficiency' : 'ประสิทธิภาพแปลงไฟ', val: '97.6% (Peak)' },
+            { label: isEn ? 'Grid Frequency' : 'ความถี่ระบบ', val: '50.0 Hz (Synchronized)' },
+            { label: isEn ? 'Inverter Temp' : 'ความร้อน Inverter', val: `${physics.temp}°C (< 55°C ${isEn ? 'Safe' : 'ปลอดภัย'})` },
+            { label: isEn ? 'PEA Grid Sync' : 'สถานะกริด PEA', val: 'On-Grid / Zero Export' }
           ]
         };
 
       case 'grid':
         return {
-          title: 'การไฟฟ้าส่วนภูมิภาค (PEA Grid)',
-          subtitle: 'จุดเชื่อมต่อสายส่งไฟฟ้า 1 เฟส 230V / 3 เฟส 380V',
+          title: t('gridHudTitle'),
+          subtitle: t('gridHudSub'),
           icon: Activity,
           color: 'text-sky-300',
           borderColor: 'border-sky-500/50',
@@ -231,20 +269,24 @@ export function AnimatedEnergyFlow({
           currentA: `${Number(gridCurrentA || 0).toFixed(2)} A`,
           voltageV: `${Number(gridVoltageV || 230.5).toFixed(1)} V`,
           tempC: '50.0 Hz',
-          status: physics.isExporting ? '⚡ ขายไฟคืน กฟภ.' : physics.isImporting ? 'ดึงไฟหลวง' : 'ไม่ดึงไฟ (0.00 kW)',
+          status: physics.isExporting
+            ? (isEn ? '⚡ Exporting to PEA Grid' : '⚡ ขายไฟคืน กฟภ.')
+            : physics.isImporting
+            ? (isEn ? 'Importing from PEA Grid' : 'ดึงไฟหลวง')
+            : (isEn ? 'Zero Grid Import (0.00 kW)' : 'ไม่ดึงไฟ (0.00 kW)'),
           statusClass: physics.isExporting ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-300',
           dailySummary: [
-            { label: 'หน่วยดึงไฟวันนี้', val: `${statGridImportKWh} kWh` },
-            { label: 'หน่วยขายไฟคืน', val: `${statGridExportKWh} kWh` },
-            { label: 'แรงดันไฟหลวง', val: `${gridVoltageV} V` },
-            { label: 'ช่วงเวลา', val: 'Off-Peak (ประหยัด)' }
+            { label: isEn ? 'Imported Today' : 'หน่วยดึงไฟวันนี้', val: `${statGridImportKWh} kWh` },
+            { label: isEn ? 'Exported Today' : 'หน่วยขายไฟคืน', val: `${statGridExportKWh} kWh` },
+            { label: isEn ? 'Grid Voltage' : 'แรงดันไฟหลวง', val: `${gridVoltageV} V` },
+            { label: isEn ? 'Tariff Window' : 'ช่วงเวลา', val: isEn ? 'Off-Peak (Saving)' : 'Off-Peak (ประหยัด)' }
           ]
         };
 
       case 'load':
         return {
-          title: 'โหลดเครื่องใช้ไฟฟ้าในบ้าน (Home Consumption)',
-          subtitle: 'กำลังไฟฟ้าทั้งหมดที่บ้านกำลังใช้งานในวินาทีนี้',
+          title: t('loadHudTitle'),
+          subtitle: t('loadHudSub'),
           icon: Home,
           color: 'text-rose-400',
           borderColor: 'border-rose-500/50',
@@ -254,20 +296,22 @@ export function AnimatedEnergyFlow({
           currentA: `${Number(loadCurrentA || 6.56).toFixed(2)} A`,
           voltageV: `${Number(loadVoltageV || 230.0).toFixed(1)} V`,
           tempC: '230V @ 50Hz',
-          status: physics.isDischarging ? 'รับไฟจากแบตเตอรี่ 100%' : 'บริโภคไฟฟ้า',
+          status: physics.isDischarging
+            ? (isEn ? '100% Battery Powered' : 'รับไฟจากแบตเตอรี่ 100%')
+            : (isEn ? 'Power Consumption' : 'บริโภคไฟฟ้า'),
           statusClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
           dailySummary: [
-            { label: 'ใช้ไฟรวมวันนี้', val: `${statLoadElectricityKWh} kWh` },
-            { label: 'สัดส่วนไฟฟรี (โซลาร์+แบต)', val: '86.4% ของวัน' },
-            { label: 'กระแสไฟใช้งาน', val: `${loadCurrentA} A` },
-            { label: 'แหล่งจ่ายหลัก', val: physics.isDischarging ? 'แบตเตอรี่ 16 kWh' : 'แผงโซลาร์' }
+            { label: isEn ? 'Total Load Today' : 'ใช้ไฟรวมวันนี้', val: `${statLoadElectricityKWh} kWh` },
+            { label: isEn ? 'Clean Energy Share' : 'สัดส่วนไฟฟรี (โซลาร์+แบต)', val: '86.4%' },
+            { label: isEn ? 'Load Current' : 'กระแสไฟใช้งาน', val: `${Number(loadCurrentA || 6.56).toFixed(2)} A` },
+            { label: isEn ? 'Primary Source' : 'แหล่งจ่ายหลัก', val: physics.isDischarging ? (isEn ? 'Battery 16 kWh' : 'แบตเตอรี่ 16 kWh') : (isEn ? 'Solar PV' : 'แผงโซลาร์') }
           ]
         };
 
       default:
         return null;
     }
-  }, [selectedNode, physics, pv1Volt, pv1CurrentA, pv2Volt, pv2CurrentA, gridVoltageV, gridCurrentA, batteryVoltageV, batteryCurrentA, loadVoltageV, loadCurrentA, batteryTempC, todayGenKWh, peakPvWatts, statGridImportKWh, statGridExportKWh, chargeBatteryKWh, dischargeBatteryKWh, statLoadElectricityKWh, todayEstSavings, sajDeviceSn]);
+  }, [selectedNode, physics, pv1Volt, pv1CurrentA, pv2Volt, pv2CurrentA, gridVoltageV, gridCurrentA, batteryVoltageV, batteryCurrentA, loadVoltageV, loadCurrentA, batteryTempC, todayGenKWh, peakPvWatts, statGridImportKWh, statGridExportKWh, chargeBatteryKWh, dischargeBatteryKWh, statLoadElectricityKWh, todayEstSavings, sajDeviceSn, t, isEn]);
 
   return (
     <div className="bg-gradient-to-b from-[#0a101d] via-[#070c17] to-[#040710] border border-slate-800/90 rounded-[32px] p-4 sm:p-6 shadow-2xl relative overflow-hidden space-y-4">
@@ -295,22 +339,22 @@ export function AnimatedEnergyFlow({
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-              <span>แผนผังสายธารพลังงาน (Live Energy Flow)</span>
+              <span>{t('energyFlowTitle')}</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
-                เรียลไทม์
+                {t('energyFlowRealtime')}
               </span>
             </h3>
             {/* CURRENT DAY DISPLAY (แสดงวันปัจจุบัน) */}
             <div className="flex items-center gap-1.5 text-xs text-sky-300 font-medium mt-1">
               <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span>วันปัจจุบัน: <strong className="text-white font-bold">{thaiDate.fullThai}</strong></span>
+              <span>{t('currentDayLabel')} <strong className="text-white font-bold">{dateFormatted.full}</strong></span>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
-            <span className="text-slate-400 font-sans text-[11px]">ผลิตวันนี้สะสม:</span>
+            <span className="text-slate-400 font-sans text-[11px]">{t('todayAccumulated')}</span>
             <span className="font-bold">{todayGenKWh.toFixed(2)} kWh</span>
           </div>
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-amber-300">
@@ -451,7 +495,7 @@ export function AnimatedEnergyFlow({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">แผงโซลาร์</span>
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">{t('nodeSolarTitle')}</span>
                 <Sun className={`w-4 h-4 text-amber-400 ${physics.isPvActive ? 'animate-[spin_8s_linear_infinite]' : ''}`} />
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
@@ -460,8 +504,8 @@ export function AnimatedEnergyFlow({
                   : `${physics.pv} W`}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5 flex items-center justify-between">
-                <span>{physics.isPvActive ? 'กำลังผลิตไฟ' : 'กลางคืนไร้แดด'}</span>
-                <span className="text-[9px] text-amber-400 font-bold">แตะดู &gt;</span>
+                <span>{physics.isPvActive ? t('nodeSolarDay') : t('nodeSolarNight')}</span>
+                <span className="text-[9px] text-amber-400 font-bold">{t('tapToView')}</span>
               </div>
             </button>
 
@@ -481,7 +525,7 @@ export function AnimatedEnergyFlow({
             >
               <div className="flex items-center justify-between">
                 <Zap className="w-4 h-4 text-sky-400" />
-                <span className="text-[10px] font-bold text-sky-300 uppercase tracking-wider">ไฟหลวง PEA</span>
+                <span className="text-[10px] font-bold text-sky-300 uppercase tracking-wider">{t('nodeGridTitle')}</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {physics.isExporting
@@ -489,8 +533,8 @@ export function AnimatedEnergyFlow({
                   : `${(Math.abs(physics.grid) / 1000).toFixed(2)} kW`}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5 flex items-center justify-between">
-                <span className="text-[9px] text-sky-400 font-bold">&lt; แตะดู</span>
-                <span>{physics.isExporting ? 'ขายไฟคืน' : physics.isImporting ? 'ดึงไฟ' : '0 W'}</span>
+                <span className="text-[9px] text-sky-400 font-bold">{t('tapToViewLeft')}</span>
+                <span>{physics.isExporting ? t('nodeGridExport') : physics.isImporting ? t('nodeGridImport') : t('nodeGridZero')}</span>
               </div>
             </button>
           </div>
@@ -538,11 +582,11 @@ export function AnimatedEnergyFlow({
                     </span>
                   </div>
                   <div className="text-[11px] text-sky-300 font-mono">
-                    ความร้อนเครื่อง: <strong className="text-white">{physics.temp}°C</strong>
+                    {t('nodeInverterTemp')} <strong className="text-white">{physics.temp}°C</strong>
                   </div>
                   <div className="text-[10px] text-slate-400 flex items-center justify-between gap-1">
-                    <span>แปลงไฟ 48Vdc → 230V</span>
-                    <span className="text-[9px] text-sky-400 font-bold">แตะดูสเปก &gt;</span>
+                    <span>{t('nodeInverterConvert')}</span>
+                    <span className="text-[9px] text-sky-400 font-bold">{t('tapToViewSpec')}</span>
                   </div>
                 </div>
               </div>
@@ -566,7 +610,7 @@ export function AnimatedEnergyFlow({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">แบตเตอรี่</span>
+                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">{t('nodeBatteryTitle')}</span>
                 {physics.isCharging ? (
                   <BatteryCharging className="w-4 h-4 text-emerald-400 animate-bounce" />
                 ) : (
@@ -589,9 +633,9 @@ export function AnimatedEnergyFlow({
                     ? 'bg-amber-500/20 text-amber-300'
                     : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {physics.isDischarging ? '⚡ คายประจุ' : physics.isCharging ? 'ชาร์จเข้า' : 'สแตนด์บาย'}
+                  {physics.isDischarging ? t('nodeBatteryDischarging') : physics.isCharging ? t('nodeBatteryCharging') : t('nodeBatteryStandby')}
                 </span>
-                <span className="text-[9px] text-emerald-400 font-bold">แตะดู &gt;</span>
+                <span className="text-[9px] text-emerald-400 font-bold">{t('tapToView')}</span>
               </div>
             </button>
 
@@ -609,14 +653,14 @@ export function AnimatedEnergyFlow({
             >
               <div className="flex items-center justify-between">
                 <Home className="w-4 h-4 text-rose-400" />
-                <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">โหลดในบ้าน</span>
+                <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">{t('nodeLoadTitle')}</span>
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-white mt-1">
                 {(physics.load / 1000).toFixed(2)} kW
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5 flex items-center justify-between">
-                <span className="text-[9px] text-rose-400 font-bold">&lt; แตะดู</span>
-                <span>{physics.isDischarging ? 'รับไฟจากแบต 100%' : 'บริโภคไฟ'}</span>
+                <span className="text-[9px] text-rose-400 font-bold">{t('tapToViewLeft')}</span>
+                <span>{physics.isDischarging ? t('nodeLoadBattFed') : t('nodeLoadGridFed')}</span>
               </div>
             </button>
           </div>
@@ -649,7 +693,7 @@ export function AnimatedEnergyFlow({
               type="button"
               onClick={() => setSelectedNode(null)}
               className="p-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
-              title="ปิดรายละเอียด"
+              title={isEn ? "Close Inspection" : "ปิดรายละเอียด"}
             >
               <X className="w-4 h-4" />
             </button>
@@ -659,40 +703,40 @@ export function AnimatedEnergyFlow({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {/* 1. กำลังไฟฟ้า (Power) */}
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-medium">กำลังไฟฟ้า (Power)</div>
+              <div className="text-[11px] text-slate-400 font-medium">{t('hudPower')}</div>
               <div className={`text-lg sm:text-xl font-black font-mono mt-0.5 ${nodeDetails.color}`}>
                 {nodeDetails.powerLabel}
               </div>
               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                {nodeDetails.powerW.toLocaleString()} วัตต์
+                {nodeDetails.powerW.toLocaleString()} {t('hudWattsUnit')}
               </div>
             </div>
 
             {/* 2. กระแสไฟฟ้า (Current) */}
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-medium">กระแสไฟฟ้า (Current)</div>
+              <div className="text-[11px] text-slate-400 font-medium">{t('hudCurrent')}</div>
               <div className="text-lg sm:text-xl font-black font-mono text-white mt-0.5">
                 {nodeDetails.currentA}
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">แอมแปร์ (A)</div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5">{t('hudAmpUnit')}</div>
             </div>
 
             {/* 3. แรงดันไฟฟ้า (Voltage) */}
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-medium">แรงดันไฟฟ้า (Voltage)</div>
+              <div className="text-[11px] text-slate-400 font-medium">{t('hudVoltage')}</div>
               <div className="text-lg sm:text-xl font-black font-mono text-white mt-0.5">
                 {nodeDetails.voltageV}
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">โวลต์ (V)</div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5">{t('hudVoltUnit')}</div>
             </div>
 
             {/* 4. ความร้อน (Temperature) */}
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-medium">ความร้อน / ความถี่</div>
+              <div className="text-[11px] text-slate-400 font-medium">{t('hudTempFreq')}</div>
               <div className="text-lg sm:text-xl font-black font-mono text-amber-300 mt-0.5">
                 {nodeDetails.tempC}
               </div>
-              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">สถานะปกติ</div>
+              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">{t('hudNormalStatus')}</div>
             </div>
           </div>
 
@@ -701,10 +745,10 @@ export function AnimatedEnergyFlow({
             <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-sky-400" />
-                <span>สรุปข้อมูลการจ่ายไฟวันปัจจุบัน (Today's Energy Summary)</span>
+                <span>{t('hudDailySummaryTitle')}</span>
               </span>
               <span className="text-[10px] font-mono font-bold text-sky-300 bg-sky-950/70 px-2.5 py-0.5 rounded-lg border border-sky-800/50">
-                {thaiDate.shortThai}
+                {dateFormatted.short}
               </span>
             </div>
 
@@ -728,7 +772,7 @@ export function AnimatedEnergyFlow({
         </div>
         <div className="text-[10px] font-mono text-emerald-400 shrink-0 hidden sm:flex items-center gap-1 font-bold">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>แตะที่อุปกรณ์ใดก็ได้เพื่อดูรายละเอียด</span>
+          <span>{t('tapToInspect')}</span>
         </div>
       </div>
     </div>

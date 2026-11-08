@@ -15,9 +15,12 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export const LoginPortal = () => {
   const { loginWithCredentials, isLoadingAuth, authError, setAuthError } = useAuth();
+  const { lang, setLang, t } = useLanguage();
+  const isEn = lang === 'en';
   const [identifier, setIdentifier] = useState(() => {
     try {
       return localStorage.getItem('POWERVIEW_REMEMBERED_USERNAME') || '';
@@ -32,11 +35,11 @@ export const LoginPortal = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setAuthError('กรุณากรอกชื่อผู้ใช้งาน หรือ อีเมล');
+      setAuthError(isEn ? 'Please enter username or email' : 'กรุณากรอกชื่อผู้ใช้งาน หรือ อีเมล');
       return;
     }
     if (!password.trim()) {
-      setAuthError('กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน');
+      setAuthError(isEn ? 'Please enter your password' : 'กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน');
       return;
     }
 
@@ -67,7 +70,7 @@ export const LoginPortal = () => {
       <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[560px] h-[320px] bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-[400px] h-[280px] bg-indigo-600/10 rounded-full blur-[110px] pointer-events-none" />
 
-      {/* Minimal Top Bar */}
+      {/* Minimal Top Bar with Dual Flag Language Switcher */}
       <header className="w-full max-w-6xl mx-auto px-5 py-5 flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-600/25 border border-blue-400/20">
@@ -88,9 +91,44 @@ export const LoginPortal = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Cloud Telemetry Online</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Dual Flag Language Capsule Switcher */}
+          <div
+            className="relative flex items-center bg-[#070d1a] p-0.5 rounded-full border border-slate-700/60 shadow-inner"
+            role="radiogroup"
+            aria-label="Language selector"
+          >
+            <div
+              className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out bg-gradient-to-r from-slate-700/90 to-slate-800/90 border border-slate-600/60 shadow-sm ${
+                lang === 'th' ? 'left-0.5' : 'left-[calc(50%+1px)]'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setLang('th')}
+              className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                lang === 'th' ? 'text-white font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span className="text-sm leading-none">🇹🇭</span>
+              <span className="text-[10px] font-mono">TH</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang('en')}
+              className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                lang === 'en' ? 'text-white font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span className="text-sm leading-none">🇬🇧</span>
+              <span className="text-[10px] font-mono">EN</span>
+            </button>
+          </div>
+
+          <div className="hidden xs:flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Cloud Live</span>
+          </div>
         </div>
       </header>
 
@@ -104,10 +142,10 @@ export const LoginPortal = () => {
                 <Lock className="w-6 h-6 text-blue-400" />
               </div>
               <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                ลงชื่อเข้าใช้งานระบบ
+                {isEn ? 'Account Sign In' : 'ลงชื่อเข้าใช้งานระบบ'}
               </h1>
               <p className="text-xs text-slate-400 mt-1.5">
-                กรุณากรอกชื่อผู้ใช้งาน (Login ID) และรหัสผ่านของหน่วยงานท่าน
+                {isEn ? 'Enter your organization username and security credentials' : 'กรุณากรอกชื่อผู้ใช้งาน (Login ID) และรหัสผ่านของหน่วยงานท่าน'}
               </p>
             </div>
 
@@ -123,7 +161,7 @@ export const LoginPortal = () => {
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  ชื่อผู้ใช้งาน หรือ อีเมล (Login / Username)
+                  {isEn ? 'Username or Email' : 'ชื่อผู้ใช้งาน หรือ อีเมล (Login / Username)'}
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -136,7 +174,7 @@ export const LoginPortal = () => {
                       setIdentifier(e.target.value);
                       if (authError) setAuthError(null);
                     }}
-                    placeholder="กรอกชื่อผู้ใช้งาน หรือ อีเมล"
+                    placeholder={isEn ? "Enter username or email" : "กรอกชื่อผู้ใช้งาน หรือ อีเมล"}
                     className="w-full bg-slate-950/90 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 transition-all outline-none"
                   />
                 </div>
@@ -144,7 +182,7 @@ export const LoginPortal = () => {
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  รหัสผ่าน (Password)
+                  {isEn ? 'Password' : 'รหัสผ่าน (Password)'}
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -163,7 +201,7 @@ export const LoginPortal = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-300 cursor-pointer"
                     tabIndex={-1}
-                    aria-label="แสดงหรือซ่อนรหัสผ่าน"
+                    aria-label="Toggle password visibility"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -182,7 +220,7 @@ export const LoginPortal = () => {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded bg-slate-950 border-slate-700 text-blue-500 accent-blue-500 focus:ring-0 cursor-pointer"
                   />
-                  <span>จดจำการเข้าสู่ระบบบนเครื่องนี้ (จำถาวร)</span>
+                  <span>{isEn ? 'Remember me on this device' : 'จดจำการเข้าสู่ระบบบนเครื่องนี้ (จำถาวร)'}</span>
                 </label>
               </div>
 
@@ -195,11 +233,11 @@ export const LoginPortal = () => {
                   {isLoadingAuth ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>กำลังตรวจสอบสิทธิ์...</span>
+                      <span>{isEn ? 'Authenticating...' : 'กำลังตรวจสอบสิทธิ์...'}</span>
                     </>
                   ) : (
                     <>
-                      <span>เข้าสู่ระบบ (Sign In)</span>
+                      <span>{isEn ? 'Sign In' : 'เข้าสู่ระบบ (Sign In)'}</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -211,7 +249,7 @@ export const LoginPortal = () => {
             <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>แยกสิทธิ์ข้อมูลเฉพาะองค์กร (RLS)</span>
+                <span>{isEn ? 'Row-Level Security (RLS)' : 'แยกสิทธิ์ข้อมูลเฉพาะองค์กร (RLS)'}</span>
               </div>
               <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500">
                 <Cpu className="w-3.5 h-3.5 text-blue-400" />
@@ -221,7 +259,7 @@ export const LoginPortal = () => {
           </div>
 
           <p className="text-center text-[11px] text-slate-500 mt-4">
-            หากยังไม่มีรหัสผู้ใช้งานหลังติดตั้งอุปกรณ์ กรุณาติดต่อวิศวกรผู้ดูแลระบบ
+            {isEn ? 'If you do not have credentials after hardware installation, please contact system engineer.' : 'หากยังไม่มีรหัสผู้ใช้งานหลังติดตั้งอุปกรณ์ กรุณาติดต่อวิศวกรผู้ดูแลระบบ'}
           </p>
         </div>
       </main>

@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { TENANT_COMPANIES } from '../data/tenantData';
 import { AnimatedEnergyFlow } from './AnimatedEnergyFlow';
 import { ThreePhaseHealthGuard } from './ThreePhaseHealthGuard';
@@ -22,10 +23,13 @@ import { EsgCarbonCounter } from './EsgCarbonCounter';
 
 export const OverviewMetersView = ({ onSelectMeter }) => {
   const { activeOrgId } = useAuth();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
+
   const currentCompany = TENANT_COMPANIES[activeOrgId] ||
     Object.values(TENANT_COMPANIES)[0] || {
       id: '',
-      name: 'ยังไม่มีบริษัทลูกค้าในระบบ',
+      name: isEn ? 'No client companies in system' : 'ยังไม่มีบริษัทลูกค้าในระบบ',
       code: '-',
       transformerKVA: 1600,
       electricityMeters: []
@@ -118,10 +122,12 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-10 text-center max-w-xl mx-auto my-8">
         <div className="text-3xl mb-3">⚡</div>
         <h3 className="text-lg font-black text-white">
-          ยังไม่มีข้อมูลบริษัทลูกค้าในระบบ
+          {isEn ? 'No client companies in system' : 'ยังไม่มีข้อมูลบริษัทลูกค้าในระบบ'}
         </h3>
         <p className="text-xs text-slate-400 mt-1">
-          กรุณาไปที่เมนู <strong>👑 จัดการลูกค้า (Super Admin)</strong> เพื่อเพิ่มบริษัทลูกค้าจริงและตั้งค่าพาวเวอร์มิเตอร์
+          {isEn
+            ? 'Please navigate to Super Admin Console to onboard a client company and configure power meters.'
+            : 'กรุณาไปที่เมนู 👑 จัดการลูกค้า (Super Admin) เพื่อเพิ่มบริษัทลูกค้าจริงและตั้งค่าพาวเวอร์มิเตอร์'}
         </p>
       </div>
     );
@@ -135,7 +141,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             <h2 className="text-sm sm:text-base font-bold text-white">
-              ภาพรวมพาวเวอร์มิเตอร์ทั้งหมดของ {currentCompany.name}
+              {t('overviewHeroTitle', { name: currentCompany.name })}
             </h2>
           </div>
 
@@ -148,7 +154,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
           >
             <Clock className="w-3.5 h-3.5" />
             <span>
-              ช่วงเวลาปัจจุบัน: {isOnPeakNow ? 'On-Peak (09:00 - 22:00 น.)' : 'Off-Peak (22:00 - 09:00 น.)'}
+              {isOnPeakNow ? t('currentPeriodOnPeak') : t('currentPeriodOffPeak')}
             </span>
           </div>
         </div>
@@ -157,7 +163,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4">
           <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>กำลังไฟฟ้ารวมขณะนี้</span>
+              <span>{t('totalActivePower')}</span>
               <Zap className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-amber-400 font-mono mt-1">
@@ -165,13 +171,13 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               <span className="text-xs font-sans font-normal text-slate-400">kW</span>
             </div>
             <div className="text-xs text-slate-400 mt-1">
-              ติดตั้งทั้งหมด {summary.meterCount} จุดวัด
+              {t('installedMetersCount', { count: summary.meterCount })}
             </div>
           </div>
 
           <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>ภาระหม้อแปลง ({summary.trCapacity} kVA)</span>
+              <span>{t('transformerLoad', { kva: summary.trCapacity })}</span>
               <Gauge className="w-4 h-4 text-sky-400" />
             </div>
             <div className="flex items-baseline gap-2 mt-1">
@@ -182,7 +188,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               >
                 {summary.loadPct}%
               </span>
-              <span className="text-xs text-slate-400">ของพิกัดปลอดภัย</span>
+              <span className="text-xs text-slate-400">{t('safeCapacityPct')}</span>
             </div>
             <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
               <div
@@ -200,7 +206,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
 
           <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>พลังงานไฟฟ้าสะสมวันนี้</span>
+              <span>{t('todayTotalEnergy')}</span>
               <Activity className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono mt-1">
@@ -208,13 +214,13 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               <span className="text-xs font-sans font-normal text-slate-400">kWh</span>
             </div>
             <div className="text-xs text-slate-400 mt-1 font-mono">
-              กระแสรวม {summary.totalCurrentA.toLocaleString()} A
+              {isEn ? 'Total Current' : 'กระแสรวม'} {summary.totalCurrentA.toLocaleString()} A
             </div>
           </div>
 
           <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>ค่าเพาเวอร์แฟกเตอร์เฉลี่ย</span>
+              <span>{t('avgPowerFactor')}</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono mt-1">
@@ -222,7 +228,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
               <span className="text-xs font-sans font-normal text-slate-400">PF</span>
             </div>
             <div className="text-xs text-emerald-400/90 mt-1">
-              ✓ คุณภาพไฟฟ้าอยู่ในเกณฑ์มาตรฐาน
+              {isEn ? '✓ Grid power quality within norm' : '✓ คุณภาพไฟฟ้าอยู่ในเกณฑ์มาตรฐาน'}
             </div>
           </div>
         </div>
@@ -231,12 +237,12 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
       {/* 2. Next-Gen Sub-Feature Navigation Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-slate-800/80">
         {[
-          { id: 'meters', label: `📊 มิเตอร์ทั้งหมด (${metersLive.length})`, icon: Layers },
-          { id: 'flow', label: '⚡ สายธารพลังงาน (Flow)', icon: Zap },
-          { id: 'health', label: '🛡️ คุณภาพ 3 เฟส (Power Quality)', icon: ShieldCheck },
-          { id: 'demand', label: '🎯 พีคดีมานด์ (Peak Ceiling)', icon: Gauge },
-          { id: 'heatmap', label: '🔥 ปฏิทินความร้อน (Heatmap)', icon: Flame },
-          { id: 'esg', label: '🌱 ลดคาร์บอน (ESG Counter)', icon: Leaf }
+          { id: 'meters', label: isEn ? `📊 All Meters (${metersLive.length})` : `📊 มิเตอร์ทั้งหมด (${metersLive.length})`, icon: Layers },
+          { id: 'flow', label: isEn ? '⚡ Energy Flow' : '⚡ สายธารพลังงาน (Flow)', icon: Zap },
+          { id: 'health', label: isEn ? '🛡️ 3-Phase Quality' : '🛡️ คุณภาพ 3 เฟส (Power Quality)', icon: ShieldCheck },
+          { id: 'demand', label: isEn ? '🎯 Peak Demand Ceiling' : '🎯 พีคดีมานด์ (Peak Ceiling)', icon: Gauge },
+          { id: 'heatmap', label: isEn ? '🔥 Thermal Heatmap' : '🔥 ปฏิทินความร้อน (Heatmap)', icon: Flame },
+          { id: 'esg', label: isEn ? '🌱 ESG Counter' : '🌱 ลดคาร์บอน (ESG Counter)', icon: Leaf }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -324,7 +330,9 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
-                  {panel === 'ALL' ? `ทั้งหมด (${metersLive.length} มิเตอร์)` : `ตู้ ${panel}`}
+                  {panel === 'ALL'
+                    ? (isEn ? `All (${metersLive.length} meters)` : `ทั้งหมด (${metersLive.length} มิเตอร์)`)
+                    : (isEn ? `Panel ${panel}` : `ตู้ ${panel}`)}
                 </button>
               ))}
             </div>
@@ -335,7 +343,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาชื่อเครื่องจักร หรือรหัสมิเตอร์..."
+                placeholder={isEn ? "Search machine or meter tag..." : "ค้นหาชื่อเครื่องจักร หรือรหัสมิเตอร์..."}
                 className="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
               />
             </div>
@@ -345,7 +353,9 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <span className="text-xs font-semibold text-slate-400">
-            แตะที่การ์ดมิเตอร์ตัวใดก็ได้ เพื่อเจาะลึกดูแรงดัน 3 เฟส กระแส และกราฟรายตัว
+            {isEn
+              ? 'Tap any meter card for 3-phase voltage, current and telemetry curve'
+              : 'แตะที่การ์ดมิเตอร์ตัวใดก็ได้ เพื่อเจาะลึกดูแรงดัน 3 เฟส กระแส และกราฟรายตัว'}
           </span>
         </div>
 
@@ -375,7 +385,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                       </span>
                       {isHighConsumer && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center gap-0.5">
-                          <Flame className="w-3 h-3" /> โหลดหลัก
+                          <Flame className="w-3 h-3" /> {isEn ? 'Major Load' : 'โหลดหลัก'}
                         </span>
                       )}
                     </div>
@@ -404,7 +414,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 <div className="bg-slate-950/90 border border-slate-800/80 rounded-xl p-3 mb-3 flex items-center justify-between">
                   <div>
                     <span className="text-[11px] text-slate-400 block">
-                      กำลังไฟฟ้าขณะนี้ (Active Power)
+                      {isEn ? 'Active Power (Real-time)' : 'กำลังไฟฟ้าขณะนี้ (Active Power)'}
                     </span>
                     <div className="text-2xl font-extrabold font-mono text-white mt-0.5">
                       {meter.activeKW}{' '}
@@ -413,7 +423,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[11px] text-slate-400 block">สัดส่วนของโรงงาน</span>
+                    <span className="text-[11px] text-slate-400 block">{isEn ? 'Facility Share' : 'สัดส่วนของโรงงาน'}</span>
                     <span className="text-base font-extrabold font-mono text-blue-300">
                       {meter.sharePercent}%
                     </span>
@@ -433,11 +443,11 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 {/* Secondary Electrical Parameters (V, A, PF, kWh) */}
                 <div className="grid grid-cols-4 gap-1.5 text-center bg-slate-950/50 rounded-xl p-2 border border-slate-800/50 text-xs">
                   <div>
-                    <span className="text-slate-500 block text-[10px]">แรงดัน</span>
+                    <span className="text-slate-500 block text-[10px]">{isEn ? 'Volt' : 'แรงดัน'}</span>
                     <span className="font-mono font-bold text-slate-200">{meter.voltageLL}V</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px]">กระแส</span>
+                    <span className="text-slate-500 block text-[10px]">{isEn ? 'Current' : 'กระแส'}</span>
                     <span className="font-mono font-bold text-cyan-300">{meter.currentA}A</span>
                   </div>
                   <div>
@@ -445,7 +455,7 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                     <span className="font-mono font-bold text-emerald-300">{meter.pf}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px]">สะสม (kWh)</span>
+                    <span className="text-slate-500 block text-[10px]">{isEn ? 'Today (kWh)' : 'สะสม (kWh)'}</span>
                     <span className="font-mono font-bold text-amber-300">
                       {meter.todayKWh.toLocaleString()}
                     </span>
@@ -455,10 +465,10 @@ export const OverviewMetersView = ({ onSelectMeter }) => {
                 {/* Footer Tap Prompt */}
                 <div className="mt-3 pt-2.5 border-t border-slate-800/70 flex items-center justify-between text-xs">
                   <span className="text-slate-400">
-                    รุ่น: <strong className="text-slate-200">{meter.model || 'PM2200'}</strong>
+                    {isEn ? 'Model:' : 'รุ่น:'} <strong className="text-slate-200">{meter.model || 'PM2200'}</strong>
                   </span>
                   <span className="text-blue-400 font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
-                    เจาะลึกมิเตอร์นี้ <ChevronRight className="w-4 h-4" />
+                    {isEn ? 'Inspect Meter' : 'เจาะลึกมิเตอร์นี้'} <ChevronRight className="w-4 h-4" />
                   </span>
                 </div>
               </div>

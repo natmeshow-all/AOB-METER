@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { PasswordManagementModal } from './PasswordManagementModal';
 import {
   TENANT_COMPANIES,
@@ -93,6 +94,8 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
     clearAllDemoData,
     testRealGatewayConnection
   } = useAuth();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
 
   // Single-Page Unified Form State (Zero Manual Electrical Input Required!)
   const [form, setForm] = useState(() => createBlankSetupForm('INDUSTRIAL'));
@@ -566,13 +569,17 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold mb-2">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              ALL-IN-ONE SUPER ADMIN SETTING • คุณณัฐพงษ์ (natshownolimit@gmail.com)
+              ALL-IN-ONE SUPER ADMIN SETTING • {isEn ? 'Super Admin' : 'คุณณัฐพงษ์'} (natshownolimit@gmail.com)
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              ตั้งค่าผู้ใช้งานและดึงค่าจากอุปกรณ์จริงอัตโนมัติ (ไม่ต้องกรอกค่าไฟเอง • ไม่ต้องใช้ IP)
+              {isEn
+                ? 'Client Tenant Management & Hardware Telemetry Gateway'
+                : 'ตั้งค่าผู้ใช้งานและดึงค่าจากอุปกรณ์จริงอัตโนมัติ (ไม่ต้องกรอกค่าไฟเอง • ไม่ต้องใช้ IP)'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              เพียงตั้งชื่อผู้ใช้งาน + เลือกรุ่นอุปกรณ์ + กดปุ่มเชื่อมต่ออ่านค่าอัตโนมัติ แล้วกดบันทึกลงฐานข้อมูลได้ทันทีในหน้าเดียว
+              {isEn
+                ? 'Onboard client companies, configure Modbus meters/inverters, test live gateway connection, and persist to database.'
+                : 'เพียงตั้งชื่อผู้ใช้งาน + เลือกรุ่นอุปกรณ์ + กดปุ่มเชื่อมต่ออ่านค่าอัตโนมัติ แล้วกดบันทึกลงฐานข้อมูลได้ทันทีในหน้าเดียว'}
             </p>
           </div>
 
@@ -585,27 +592,27 @@ export const SuperAdminConsole = ({ onInspectTenant }) => {
               }}
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
             >
-              <span>🔑 จัดการรหัสผ่านผู้ใช้ทั้งหมด</span>
+              <span>{isEn ? '🔑 Password Vault & Credentials' : '🔑 จัดการรหัสผ่านผู้ใช้ทั้งหมด'}</span>
             </button>
 
             <div className="bg-slate-950/90 border border-slate-800 rounded-2xl px-4 py-2 text-center">
-              <div className="text-[10px] text-slate-400 font-bold">ผู้ใช้งานในฐานข้อมูล</div>
-              <div className="text-xl font-black text-cyan-400">{allOrganizations.length} ราย</div>
+              <div className="text-[10px] text-slate-400 font-bold">{isEn ? 'Database Clients' : 'ผู้ใช้งานในฐานข้อมูล'}</div>
+              <div className="text-xl font-black text-cyan-400">{allOrganizations.length} {isEn ? 'Sites' : 'ราย'}</div>
             </div>
 
             {allOrganizations.length > 0 && (
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm('ยืนยันการล้างข้อมูลทั้งหมดเพื่อเริ่มต้นใหม่?')) {
+                  if (window.confirm(isEn ? 'Confirm reset all data to default?' : 'ยืนยันการล้างข้อมูลทั้งหมดเพื่อเริ่มต้นใหม่?')) {
                     clearAllDemoData();
                     setForm(createBlankSetupForm('INDUSTRIAL'));
-                    showNotice('success', 'ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว');
+                    showNotice('success', isEn ? 'System data successfully reset' : 'ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว');
                   }
                 }}
                 className="px-3.5 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold cursor-pointer"
               >
-                🗑️ ล้างข้อมูลทั้งหมด
+                {isEn ? '🗑️ Reset All' : '🗑️ ล้างข้อมูลทั้งหมด'}
               </button>
             )}
           </div>

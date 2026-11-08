@@ -28,6 +28,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   TENANT_COMPANIES,
   generateHourlyData,
@@ -37,10 +38,13 @@ import {
 
 export const ProductionReportView = ({ onSelectMeter }) => {
   const { activeOrgId } = useAuth();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
+
   const currentCompany = TENANT_COMPANIES[activeOrgId] ||
     Object.values(TENANT_COMPANIES)[0] || {
       id: '',
-      name: 'ยังไม่มีบริษัทลูกค้าในระบบ',
+      name: isEn ? 'No Tenant Selected' : 'ยังไม่มีบริษัทลูกค้าในระบบ',
       code: '-',
       transformerKVA: 1600,
       electricityMeters: []
@@ -56,7 +60,22 @@ export const ProductionReportView = ({ onSelectMeter }) => {
   const [isOnePageReportOpen, setIsOnePageReportOpen] = useState(false);
   const [hideControlsForCapture, setHideControlsForCapture] = useState(false);
 
-  const monthNamesFull = [
+  const selectedYearEn = selectedYear === '2569' ? '2026' : selectedYear === '2568' ? '2025' : '2024';
+
+  const monthNamesFull = useMemo(() => isEn ? [
+    { val: '01', label: 'January' },
+    { val: '02', label: 'February' },
+    { val: '03', label: 'March' },
+    { val: '04', label: 'April' },
+    { val: '05', label: 'May' },
+    { val: '06', label: 'June' },
+    { val: '07', label: 'July' },
+    { val: '08', label: 'August' },
+    { val: '09', label: 'September' },
+    { val: '10', label: 'October' },
+    { val: '11', label: 'November' },
+    { val: '12', label: 'December' }
+  ] : [
     { val: '01', label: 'มกราคม' },
     { val: '02', label: 'กุมภาพันธ์' },
     { val: '03', label: 'มีนาคม' },
@@ -69,7 +88,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
     { val: '10', label: 'ตุลาคม' },
     { val: '11', label: 'พฤศจิกายน' },
     { val: '12', label: 'ธันวาคม' }
-  ];
+  ], [isEn]);
 
   // 1. Hourly data (24 hours) - Pure Electrical Telemetry (kW & kWh)
   const hourlyData = useMemo(() => {
@@ -144,8 +163,12 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       const shiftableKWh = Math.round(onPeakKWh * 0.2);
 
       return {
-        title: `รายงานสรุปประจำวันที่ ${selectedDay.split('-').reverse().join('/')}`,
-        shortPeriod: `วันที่ ${selectedDay.split('-').reverse().join('/')}`,
+        title: isEn
+          ? `Daily Energy Report - ${selectedDay}`
+          : `รายงานสรุปประจำวันที่ ${selectedDay.split('-').reverse().join('/')}`,
+        shortPeriod: isEn
+          ? `Date ${selectedDay}`
+          : `วันที่ ${selectedDay.split('-').reverse().join('/')}`,
         totalKWh,
         onPeakKWh,
         offPeakKWh,
@@ -156,7 +179,9 @@ export const ProductionReportView = ({ onSelectMeter }) => {
         minKW: minItem?.activeKW || 450,
         minHour: minItem?.hour || '04:00',
         peakHour: peakItem?.hour || '16:00',
-        peakWindowLabel: `เวลา ${peakItem?.hour || '16:00'} น. (${peakKW} kW)`,
+        peakWindowLabel: isEn
+          ? `Time ${peakItem?.hour || '16:00'} (${peakKW} kW)`
+          : `เวลา ${peakItem?.hour || '16:00'} น. (${peakKW} kW)`,
         trLoadPct,
         loadFactorPct,
         avgPF: 0.95,
@@ -177,11 +202,15 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       const loadFactorPct = Math.round((avgKW / (peakKW || 1)) * 100);
       const onPeakPct = Math.round((onPeakKWh / (totalKWh || 1)) * 100);
       const shiftableKWh = Math.round(onPeakKWh * 0.2);
-      const mLabel = monthNamesFull.find((m) => m.val === selectedMonth)?.label || 'ตุลาคม';
+      const mLabel = monthNamesFull.find((m) => m.val === selectedMonth)?.label || (isEn ? 'October' : 'ตุลาคม');
 
       return {
-        title: `รายงานสรุปประจำเดือน ${mLabel} ${selectedYear}`,
-        shortPeriod: `เดือน${mLabel} ${selectedYear}`,
+        title: isEn
+          ? `Monthly Energy Report - ${mLabel} ${selectedYearEn}`
+          : `รายงานสรุปประจำเดือน ${mLabel} ${selectedYear}`,
+        shortPeriod: isEn
+          ? `${mLabel} ${selectedYearEn}`
+          : `เดือน${mLabel} ${selectedYear}`,
         totalKWh,
         onPeakKWh,
         offPeakKWh,
@@ -190,9 +219,11 @@ export const ProductionReportView = ({ onSelectMeter }) => {
         peakKW,
         avgKW,
         minKW: Math.round((minDay?.totalKWh || 12000) / 24),
-        minHour: minDay?.fullDateLabel || 'วันอาทิตย์',
-        peakHour: peakDay?.fullDateLabel || '15 ต.ค.',
-        peakWindowLabel: `วันที่ ${peakDay?.fullDateLabel} (${peakDay?.totalKWh.toLocaleString()} kWh)`,
+        minHour: minDay?.fullDateLabel || (isEn ? 'Sunday' : 'วันอาทิตย์'),
+        peakHour: peakDay?.fullDateLabel || (isEn ? 'Oct 15' : '15 ต.ค.'),
+        peakWindowLabel: isEn
+          ? `Date ${peakDay?.fullDateLabel} (${peakDay?.totalKWh.toLocaleString()} kWh)`
+          : `วันที่ ${peakDay?.fullDateLabel} (${peakDay?.totalKWh.toLocaleString()} kWh)`,
         trLoadPct,
         loadFactorPct,
         avgPF: 0.94,
@@ -215,8 +246,12 @@ export const ProductionReportView = ({ onSelectMeter }) => {
     const shiftableKWh = Math.round(onPeakKWh * 0.2);
 
     return {
-      title: `รายงานสรุปประจำปี พ.ศ. ${selectedYear}`,
-      shortPeriod: `ปี พ.ศ. ${selectedYear}`,
+      title: isEn
+        ? `Annual Energy Report - ${selectedYearEn}`
+        : `รายงานสรุปประจำปี พ.ศ. ${selectedYear}`,
+      shortPeriod: isEn
+        ? `Year ${selectedYearEn}`
+        : `ปี พ.ศ. ${selectedYear}`,
       totalKWh,
       onPeakKWh,
       offPeakKWh,
@@ -225,9 +260,11 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       peakKW,
       avgKW,
       minKW: Math.round((minMonth?.totalKWh || 350000) / 720),
-      minHour: `เดือน${minMonth?.month || 'ม.ค.'}`,
-      peakHour: `เดือน${peakMonth?.month || 'เม.ย.'}`,
-      peakWindowLabel: `เดือน${peakMonth?.month} (${peakMonth?.totalKWh.toLocaleString()} kWh)`,
+      minHour: isEn ? `Month ${minMonth?.month || 'Jan'}` : `เดือน${minMonth?.month || 'ม.ค.'}`,
+      peakHour: isEn ? `Month ${peakMonth?.month || 'Apr'}` : `เดือน${peakMonth?.month || 'เม.ย.'}`,
+      peakWindowLabel: isEn
+        ? `Month ${peakMonth?.month} (${peakMonth?.totalKWh.toLocaleString()} kWh)`
+        : `เดือน${peakMonth?.month} (${peakMonth?.totalKWh.toLocaleString()} kWh)`,
       trLoadPct,
       loadFactorPct,
       avgPF: 0.94,
@@ -274,42 +311,50 @@ export const ProductionReportView = ({ onSelectMeter }) => {
     return [
       buildShift(
         'shift-1',
-        '1. กะเช้าตรู่ (06:00 - 09:00 น.)',
-        'ช่วงเตรียมเดินเครื่อง (3 ชม.)',
+        isEn ? '1. Early Morning (06:00 - 09:00)' : '1. กะเช้าตรู่ (06:00 - 09:00 น.)',
+        isEn ? 'Pre-operation (3 hrs)' : 'ช่วงเตรียมเดินเครื่อง (3 ชม.)',
         (h) => h.hourNum >= 6 && h.hourNum < 9,
         false,
         'Off-Peak',
-        'เดินระบบทำความเย็นล่วงหน้า (Pre-cooling) และอุ่นเตา/เครื่องจักรก่อนเวลา 09:00 น.'
+        isEn
+          ? 'Pre-cooling & pre-heating machinery before 09:00 On-Peak tariff.'
+          : 'เดินระบบทำความเย็นล่วงหน้า (Pre-cooling) และอุ่นเตา/เครื่องจักรก่อนเวลา 09:00 น.'
       ),
       buildShift(
         'shift-2',
-        '2. กะกลางวัน (09:00 - 17:00 น.)',
-        'ช่วงการผลิตหลัก (8 ชม.)',
+        isEn ? '2. Day Shift (09:00 - 17:00)' : '2. กะกลางวัน (09:00 - 17:00 น.)',
+        isEn ? 'Main Production (8 hrs)' : 'ช่วงการผลิตหลัก (8 ชม.)',
         (h) => h.hourNum >= 9 && h.hourNum < 17,
         true,
         'On-Peak',
-        'โหลดสูงสุดของวัน ควรสลับคิวเดินเครื่องจักรขนาดใหญ่ ไม่ให้พีคชนกันในช่วงบ่าย'
+        isEn
+          ? 'Peak load period. Stagger high-power machinery to avoid peak collisions.'
+          : 'โหลดสูงสุดของวัน ควรสลับคิวเดินเครื่องจักรขนาดใหญ่ ไม่ให้พีคชนกันในช่วงบ่าย'
       ),
       buildShift(
         'shift-3',
-        '3. กะเย็น-ค่ำ (17:00 - 22:00 น.)',
-        'ช่วงผลิตต่อเนื่อง (5 ชม.)',
+        isEn ? '3. Evening Shift (17:00 - 22:00)' : '3. กะเย็น-ค่ำ (17:00 - 22:00 น.)',
+        isEn ? 'Continuous Ops (5 hrs)' : 'ช่วงผลิตต่อเนื่อง (5 ชม.)',
         (h) => h.hourNum >= 17 && h.hourNum < 22,
         true,
         'On-Peak',
-        'ทยอยปิดระบบปรับอากาศสำนักงานและลดโหลดปั๊มลมในไลน์ที่จบการผลิตแล้ว'
+        isEn
+          ? 'Shutdown office HVAC & unload compressors on finished production lines.'
+          : 'ทยอยปิดระบบปรับอากาศสำนักงานและลดโหลดปั๊มลมในไลน์ที่จบการผลิตแล้ว'
       ),
       buildShift(
         'shift-4',
-        '4. กะดึก (22:00 - 06:00 น.)',
-        'ช่วงเดินเครื่องกลางคืน (8 ชม.)',
+        isEn ? '4. Night Shift (22:00 - 06:00)' : '4. กะดึก (22:00 - 06:00 น.)',
+        isEn ? 'Night Production (8 hrs)' : 'ช่วงเดินเครื่องกลางคืน (8 ชม.)',
         (h) => h.hourNum >= 22 || h.hourNum < 6,
         false,
         'Off-Peak',
-        'โหลดหม้อแปลงว่าง เหมาะสำหรับเดินเครื่องห้องเย็นแช่แข็ง (Blast Freezer) เต็มพิกัด'
+        isEn
+          ? 'Maximum transformer headroom. Ideal for blast freezers & thermal loads.'
+          : 'โหลดหม้อแปลงว่าง เหมาะสำหรับเดินเครื่องห้องเย็นแช่แข็ง (Blast Freezer) เต็มพิกัด'
       )
     ];
-  }, [hourlyData, reportMode, reportSummary.totalKWh]);
+  }, [hourlyData, reportMode, reportSummary.totalKWh, isEn]);
 
   // Complete Meter-by-Meter Breakdown (ALL Meters of the company - Pure Electrical)
   const meterBreakdown = useMemo(() => {
@@ -355,7 +400,9 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               <div className="flex items-center gap-2 text-xs">
                 <Camera className="w-4 h-4 text-emerald-400" />
                 <span className="font-bold text-white">
-                  โหมดรายงานสรุปหน้าเดียวแนวนอน (สำหรับแคปหน้าจอทำรายงานและวางแผนการผลิต)
+                  {isEn
+                    ? 'Single-Page Landscape Report Mode (For capture & production planning)'
+                    : 'โหมดรายงานสรุปหน้าเดียวแนวนอน (สำหรับแคปหน้าจอทำรายงานและวางแผนการผลิต)'}
                 </span>
               </div>
 
@@ -365,7 +412,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-bold cursor-pointer transition-all"
                 >
                   <EyeOff className="w-3.5 h-3.5" />
-                  <span>ซ่อนปุ่มเพื่อแคปจอ</span>
+                  <span>{isEn ? 'Hide Controls' : 'ซ่อนปุ่มเพื่อแคปจอ'}</span>
                 </button>
 
                 <button
@@ -373,7 +420,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>พิมพ์ / PDF</span>
+                  <span>{isEn ? 'Print / PDF' : 'พิมพ์ / PDF'}</span>
                 </button>
 
                 <button
@@ -381,7 +428,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   className="flex items-center gap-1 px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-all"
                 >
                   <X className="w-4 h-4" />
-                  <span>ปิดหน้ารายงาน</span>
+                  <span>{isEn ? 'Close Report' : 'ปิดหน้ารายงาน'}</span>
                 </button>
               </div>
             </div>
@@ -390,7 +437,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               onClick={() => setHideControlsForCapture(false)}
               className="fixed top-2 right-2 z-50 px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-amber-300 rounded-lg text-[10px] border border-amber-500/40 flex items-center gap-1 cursor-pointer shadow-lg"
             >
-              <Eye className="w-3 h-3" /> แสดงปุ่มควบคุม
+              <Eye className="w-3 h-3" /> {isEn ? 'Show Controls' : 'แสดงปุ่มควบคุม'}
             </button>
           )}
 
@@ -408,21 +455,23 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                       {currentCompany.name}
                     </h1>
                     <span className="px-2.5 py-0.5 text-xs font-mono font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg">
-                      หม้อแปลง {currentCompany.transformerKVA} kVA
+                      {isEn ? `Transformer ${currentCompany.transformerKVA} kVA` : `หม้อแปลง ${currentCompany.transformerKVA} kVA`}
                     </span>
                     <span className="px-2.5 py-0.5 text-xs font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg">
-                      มิเตอร์ออนไลน์ {meterBreakdown.length} จุดวัด
+                      {isEn ? `Online Meters: ${meterBreakdown.length}` : `มิเตอร์ออนไลน์ ${meterBreakdown.length} จุดวัด`}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    รายงานสรุปการใช้พลังงานไฟฟ้าและวิเคราะห์โหลดการผลิต (PowerView Industrial Energy Report)
+                    {isEn
+                      ? 'PowerView Industrial Energy Telemetry & Production Load Analysis Report'
+                      : 'รายงานสรุปการใช้พลังงานไฟฟ้าและวิเคราะห์โหลดการผลิต (PowerView Industrial Energy Report)'}
                   </p>
                 </div>
               </div>
 
               <div className="bg-slate-950 border-2 border-amber-500/50 rounded-xl px-4 py-1.5 text-right">
                 <span className="text-[10px] text-slate-400 block uppercase font-mono">
-                  งวดรายงานที่ตรวจสอบ
+                  {isEn ? 'Inspection Period' : 'งวดรายงานที่ตรวจสอบ'}
                 </span>
                 <span className="text-sm sm:text-lg font-extrabold text-amber-300">
                   📌 {reportSummary.title}
@@ -436,7 +485,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold text-slate-300 block">
-                    ⚡ พลังงานไฟฟ้ารวมทั้งสิ้น
+                    {isEn ? '⚡ Total Active Energy' : '⚡ พลังงานไฟฟ้ารวมทั้งสิ้น'}
                   </span>
                   <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white mt-0.5 tracking-tight">
                     {reportSummary.totalKWh.toLocaleString()}{' '}
@@ -445,7 +494,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     </span>
                   </div>
                   <span className="text-xs text-blue-300 font-mono">
-                    กำลังไฟฟ้าเฉลี่ย {reportSummary.avgKW} kW/ชม.
+                    {isEn ? `Avg Power ${reportSummary.avgKW} kW/h` : `กำลังไฟฟ้าเฉลี่ย ${reportSummary.avgKW} kW/ชม.`}
                   </span>
                 </div>
                 <div className="w-11 h-11 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
@@ -457,7 +506,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               <div className="bg-gradient-to-br from-amber-950/35 to-slate-950 border border-amber-500/40 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-amber-300 block">
-                    ☀️ ใช้ไฟช่วง On-Peak (09:00-22:00)
+                    {isEn ? '☀️ On-Peak Energy (09:00-22:00)' : '☀️ ใช้ไฟช่วง On-Peak (09:00-22:00)'}
                   </span>
                   <div className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-300 mt-0.5 tracking-tight">
                     {reportSummary.onPeakKWh.toLocaleString()}{' '}
@@ -466,7 +515,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     </span>
                   </div>
                   <span className="text-xs text-amber-200 font-bold">
-                    คิดเป็นสัดส่วน {reportSummary.onPeakPct}% ของทั้งหมด
+                    {isEn ? `Share: ${reportSummary.onPeakPct}% of total` : `คิดเป็นสัดส่วน ${reportSummary.onPeakPct}% ของทั้งหมด`}
                   </span>
                 </div>
                 <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-extrabold text-lg">
@@ -478,7 +527,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               <div className="bg-gradient-to-br from-emerald-950/35 to-slate-950 border border-emerald-500/40 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-emerald-300 block">
-                    🌙 ใช้ไฟช่วง Off-Peak (22:00-09:00)
+                    {isEn ? '🌙 Off-Peak Energy (22:00-09:00)' : '🌙 ใช้ไฟช่วง Off-Peak (22:00-09:00)'}
                   </span>
                   <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-300 mt-0.5 tracking-tight">
                     {reportSummary.offPeakKWh.toLocaleString()}{' '}
@@ -487,7 +536,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     </span>
                   </div>
                   <span className="text-xs text-emerald-200 font-bold">
-                    คิดเป็นสัดส่วน {reportSummary.offPeakPct}% ของทั้งหมด
+                    {isEn ? `Share: ${reportSummary.offPeakPct}% of total` : `คิดเป็นสัดส่วน ${reportSummary.offPeakPct}% ของทั้งหมด`}
                   </span>
                 </div>
                 <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-extrabold text-lg">
@@ -499,7 +548,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               <div className="bg-gradient-to-br from-rose-950/30 to-slate-950 border border-rose-500/40 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-rose-300 block">
-                    🔥 พีคสูงสุด (Peak Demand)
+                    {isEn ? '🔥 Peak Demand' : '🔥 พีคสูงสุด (Peak Demand)'}
                   </span>
                   <div className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-400 mt-0.5 tracking-tight">
                     {reportSummary.peakKW.toLocaleString()}{' '}
@@ -508,7 +557,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     </span>
                   </div>
                   <span className="text-xs text-slate-300 font-mono">
-                    เวลา {reportSummary.peakHour} • ภาระหม้อแปลง {reportSummary.trLoadPct}%
+                    {isEn ? `Time ${reportSummary.peakHour} • TR Load ${reportSummary.trLoadPct}%` : `เวลา ${reportSummary.peakHour} • ภาระหม้อแปลง ${reportSummary.trLoadPct}%`}
                   </span>
                 </div>
                 <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-mono font-extrabold text-sm text-center">
@@ -527,10 +576,10 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                 <div className="flex items-center justify-between gap-2 shrink-0">
                   <div>
                     <h3 className="text-sm sm:text-base font-extrabold text-white">
-                      📊 กราฟการใช้ไฟฟ้ารายช่วงเวลา ({reportSummary.shortPeriod})
+                      {isEn ? `📊 Electricity Usage Timeline (${reportSummary.shortPeriod})` : `📊 กราฟการใช้ไฟฟ้ารายช่วงเวลา (${reportSummary.shortPeriod})`}
                     </h3>
                     <p className="text-xs text-slate-300">
-                      พีคสูงสุด: <strong className="text-rose-400 font-mono">{reportSummary.peakKW} kW ({reportSummary.peakHour})</strong> • ต่ำสุด: <strong className="text-emerald-400 font-mono">{reportSummary.minKW} kW ({reportSummary.minHour})</strong>
+                      {isEn ? 'Peak:' : 'พีคสูงสุด:'} <strong className="text-rose-400 font-mono">{reportSummary.peakKW} kW ({reportSummary.peakHour})</strong> • {isEn ? 'Min:' : 'ต่ำสุด:'} <strong className="text-emerald-400 font-mono">{reportSummary.minKW} kW ({reportSummary.minHour})</strong>
                     </p>
                   </div>
                   <div className="flex items-center gap-3 text-xs shrink-0">
@@ -611,13 +660,13 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   <div className="text-xs font-bold text-slate-200 mb-1.5 flex items-center justify-between">
                     <span>
                       {reportMode === 'daily'
-                        ? '📋 สรุปหน่วยไฟฟ้ารายชั่วโมงครบ 24 ชม. (kWh)'
+                        ? (isEn ? '📋 24-Hour Energy Matrix (kWh)' : '📋 สรุปหน่วยไฟฟ้ารายชั่วโมงครบ 24 ชม. (kWh)')
                         : reportMode === 'monthly'
-                        ? '📋 สรุปหน่วยไฟฟ้ารายวัน (วันที่ 1 - 30)'
-                        : '📋 สรุปหน่วยไฟฟ้ารายเดือนทั้ง 12 เดือน (kWh)'}
+                        ? (isEn ? '📋 Daily Energy Matrix (Day 1 - 30)' : '📋 สรุปหน่วยไฟฟ้ารายวัน (วันที่ 1 - 30)')
+                        : (isEn ? '📋 Monthly Energy Matrix (12 Months) (kWh)' : '📋 สรุปหน่วยไฟฟ้ารายเดือนทั้ง 12 เดือน (kWh)')}
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      สีส้ม = On-Peak • สีเขียว = Off-Peak
+                      {isEn ? 'Orange = On-Peak • Green = Off-Peak' : 'สีส้ม = On-Peak • สีเขียว = Off-Peak'}
                     </span>
                   </div>
 
@@ -650,7 +699,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                           key={d.day}
                           className="px-1 py-1 rounded-lg bg-slate-900 border border-slate-800 text-center"
                         >
-                          <div className="text-[9px] text-slate-400">วันที่ {d.day}</div>
+                          <div className="text-[9px] text-slate-400">{isEn ? `Day ${d.day}` : `วันที่ ${d.day}`}</div>
                           <div className="text-xs font-extrabold text-amber-300">
                             {d.totalKWh.toLocaleString()}
                           </div>
@@ -684,10 +733,10 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                 <div className="shrink-0">
                   <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-1.5">
                     <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>สรุปโหลด 4 กะการผลิต</span>
+                    <span>{isEn ? '4-Shift Production Load' : 'สรุปโหลด 4 กะการผลิต'}</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    เปรียบเทียบหน่วยไฟและโหลดแต่ละกะเพื่อเกลี่ยคิวผลิต
+                    {isEn ? 'Compare energy & load by shift to balance production schedules' : 'เปรียบเทียบหน่วยไฟและโหลดแต่ละกะเพื่อเกลี่ยคิวผลิต'}
                   </p>
                 </div>
 
@@ -720,7 +769,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                       {/* Large Crisp Shift Numbers */}
                       <div className="flex items-baseline justify-between bg-slate-950/85 rounded-lg px-3 py-1.5 border border-slate-800/80">
                         <div>
-                          <span className="text-[10px] text-slate-400 block">พลังงานที่ใช้</span>
+                          <span className="text-[10px] text-slate-400 block">{isEn ? 'Energy Used' : 'พลังงานที่ใช้'}</span>
                           <span
                             className={`text-base sm:text-xl font-extrabold font-mono ${
                               shift.isPeak ? 'text-amber-300' : 'text-emerald-300'
@@ -732,14 +781,14 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                         </div>
 
                         <div className="text-center">
-                          <span className="text-[10px] text-slate-400 block">โหลดเฉลี่ย/พีค</span>
+                          <span className="text-[10px] text-slate-400 block">{isEn ? 'Avg/Peak Load' : 'โหลดเฉลี่ย/พีค'}</span>
                           <span className="text-xs sm:text-sm font-extrabold font-mono text-cyan-300">
                             {shift.avgKW} / {shift.maxKW} kW
                           </span>
                         </div>
 
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">สัดส่วน</span>
+                          <span className="text-[10px] text-slate-400 block">{isEn ? 'Share' : 'สัดส่วน'}</span>
                           <span className="text-sm sm:text-base font-extrabold font-mono text-white">
                             {shift.sharePct}%
                           </span>
@@ -747,7 +796,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                       </div>
 
                       <div className="text-[11px] text-slate-200 leading-snug">
-                        <strong className="text-amber-300">แผนผลิต:</strong> {shift.advice}
+                        <strong className="text-amber-300">{isEn ? 'Plan:' : 'แผนผลิต:'}</strong> {shift.advice}
                       </div>
                     </div>
                   ))}
@@ -762,10 +811,10 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   <div>
                     <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-1.5">
                       <Flame className="w-4 h-4 text-rose-400" />
-                      <span>ตารางสรุปรายมิเตอร์ครบทุกจุด ({meterBreakdown.length} มิเตอร์)</span>
+                      <span>{isEn ? `All-Meters Breakdown (${meterBreakdown.length} Meters)` : `ตารางสรุปรายมิเตอร์ครบทุกจุด (${meterBreakdown.length} มิเตอร์)`}</span>
                     </h3>
                     <p className="text-xs text-slate-400">
-                      เรียงตามปริมาณการใช้ไฟฟ้า (kWh) จากมากไปน้อย
+                      {isEn ? 'Sorted by active energy consumption (kWh) descending' : 'เรียงตามปริมาณการใช้ไฟฟ้า (kWh) จากมากไปน้อย'}
                     </p>
                   </div>
                 </div>
@@ -777,12 +826,12 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                       <tr className="bg-slate-900 text-slate-300 border-b border-slate-800 font-bold text-[11px]">
                         <th className="py-2 px-2">#</th>
                         <th className="py-2 px-1.5">Tag</th>
-                        <th className="py-2 px-2">สายการผลิต / เครื่องจักร</th>
+                        <th className="py-2 px-2">{isEn ? 'Line / Equipment' : 'สายการผลิต / เครื่องจักร'}</th>
                         <th className="py-2 px-1.5 text-right">kW</th>
                         <th className="py-2 px-1.5 text-right text-amber-300">On-Peak</th>
                         <th className="py-2 px-1.5 text-right text-emerald-300">Off-Peak</th>
-                        <th className="py-2 px-2 text-right text-white">รวม (kWh)</th>
-                        <th className="py-2 px-2 text-right">สัดส่วน</th>
+                        <th className="py-2 px-2 text-right text-white">{isEn ? 'Total (kWh)' : 'รวม (kWh)'}</th>
+                        <th className="py-2 px-2 text-right">{isEn ? 'Share' : 'สัดส่วน'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/70 font-mono text-[11.5px]">
@@ -818,7 +867,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     <tfoot>
                       <tr className="bg-slate-900 border-t-2 border-slate-700 font-mono font-extrabold text-xs">
                         <td colSpan={3} className="py-2 px-2 font-sans text-amber-300">
-                          รวมทั้งหมด ({meterBreakdown.length} จุดวัด)
+                          {isEn ? `Total All (${meterBreakdown.length} Meters)` : `รวมทั้งหมด (${meterBreakdown.length} จุดวัด)`}
                         </td>
                         <td className="py-2 px-1.5 text-right text-cyan-300">
                           {meterBreakdown.reduce((s, m) => s + m.baseKW, 0)}
@@ -851,10 +900,12 @@ export const ProductionReportView = ({ onSelectMeter }) => {
           <div>
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-indigo-400" />
-              <span>รายงานวิเคราะห์การใช้พลังงานไฟฟ้า & แผนปรับเวลาการผลิต</span>
+              <span>{isEn ? 'Electricity Telemetry & Production Planning Report' : 'รายงานวิเคราะห์การใช้พลังงานไฟฟ้า & แผนปรับเวลาการผลิต'}</span>
             </h2>
             <p className="text-xs text-slate-400">
-              เลือกวัน เดือน หรือปี แล้วกดปุ่ม <strong className="text-emerald-400">GO</strong> เพื่อเปิดหน้ารายงานสรุปแนวนอนหน้าเดียวสำหรับแคปหน้าจอ
+              {isEn
+                ? 'Select day, month or year and click GO to launch the full-screen landscape summary report.'
+                : 'เลือกวัน เดือน หรือปี แล้วกดปุ่ม GO เพื่อเปิดหน้ารายงานสรุปแนวนอนหน้าเดียวสำหรับแคปหน้าจอ'}
             </p>
           </div>
 
@@ -868,7 +919,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📅 รายวัน
+              {isEn ? '📅 Daily' : '📅 รายวัน'}
             </button>
             <button
               onClick={() => setReportMode('monthly')}
@@ -878,7 +929,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🗓️ รายเดือน
+              {isEn ? '🗓️ Monthly' : '🗓️ รายเดือน'}
             </button>
             <button
               onClick={() => setReportMode('yearly')}
@@ -888,7 +939,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📈 รายปี
+              {isEn ? '📈 Yearly' : '📈 รายปี'}
             </button>
           </div>
         </div>
@@ -902,7 +953,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
             {reportMode === 'daily' && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-400">เลือกวันที่:</label>
+                <label className="text-xs text-slate-400">{isEn ? 'Date:' : 'เลือกวันที่:'}</label>
                 <input
                   type="date"
                   value={selectedDay}
@@ -914,7 +965,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
 
             {reportMode === 'monthly' && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-400">เลือกเดือน:</label>
+                <label className="text-xs text-slate-400">{isEn ? 'Month:' : 'เลือกเดือน:'}</label>
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
@@ -922,7 +973,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                 >
                   {monthNamesFull.map((m) => (
                     <option key={m.val} value={m.val}>
-                      เดือน{m.label} {selectedYear}
+                      {isEn ? `${m.label} ${selectedYearEn}` : `เดือน${m.label} ${selectedYear}`}
                     </option>
                   ))}
                 </select>
@@ -931,15 +982,15 @@ export const ProductionReportView = ({ onSelectMeter }) => {
 
             {reportMode === 'yearly' && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-400">เลือกปี พ.ศ.:</label>
+                <label className="text-xs text-slate-400">{isEn ? 'Year:' : 'เลือกปี พ.ศ.:'}</label>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
                   className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="2569">ปี พ.ศ. 2569 (2026 ปัจจุบัน)</option>
-                  <option value="2568">ปี พ.ศ. 2568 (2025)</option>
-                  <option value="2567">ปี พ.ศ. 2567 (2024)</option>
+                  <option value="2569">{isEn ? '2026 (Current)' : 'ปี พ.ศ. 2569 (2026 ปัจจุบัน)'}</option>
+                  <option value="2568">{isEn ? '2025' : 'ปี พ.ศ. 2568 (2025)'}</option>
+                  <option value="2567">{isEn ? '2024' : 'ปี พ.ศ. 2567 (2024)'}</option>
                 </select>
               </div>
             )}
@@ -953,7 +1004,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
               }}
               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              <span>GO • แสดงรายงานหน้าเดียว (แคปจอ)</span>
+              <span>{isEn ? 'GO • Single-Page Report' : 'GO • แสดงรายงานหน้าเดียว (แคปจอ)'}</span>
               <Maximize2 className="w-4 h-4" />
             </button>
           </div>
@@ -963,52 +1014,52 @@ export const ProductionReportView = ({ onSelectMeter }) => {
       {/* Standard Page 4 Large Summary Cards (Pure Electrical kWh & kW) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <span className="text-xs text-slate-400 block">พลังงานไฟฟ้ารวมทั้งสิ้น</span>
+          <span className="text-xs text-slate-400 block">{isEn ? 'Total Active Energy' : 'พลังงานไฟฟ้ารวมทั้งสิ้น'}</span>
           <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white mt-1">
             {reportSummary.totalKWh.toLocaleString()}{' '}
             <span className="text-xs font-sans font-normal text-slate-400">kWh</span>
           </div>
           <span className="text-xs text-blue-300 mt-1 block">
-            โหลดเฉลี่ย {reportSummary.avgKW} kW/ชม.
+            {isEn ? `Average Load ${reportSummary.avgKW} kW/h` : `โหลดเฉลี่ย ${reportSummary.avgKW} kW/ชม.`}
           </span>
         </div>
 
         <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4">
           <span className="text-xs text-amber-300 font-bold block">
-            พลังงานช่วง On-Peak (09:00-22:00)
+            {isEn ? 'On-Peak Energy (09:00-22:00)' : 'พลังงานช่วง On-Peak (09:00-22:00)'}
           </span>
           <div className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-300 mt-1">
             {reportSummary.onPeakKWh.toLocaleString()}{' '}
             <span className="text-xs font-sans font-normal text-slate-400">kWh</span>
           </div>
           <span className="text-xs text-amber-200/80 mt-1 block">
-            สัดส่วน {reportSummary.onPeakPct}% ของหน่วยไฟทั้งหมด
+            {isEn ? `Share: ${reportSummary.onPeakPct}% of total energy` : `สัดส่วน ${reportSummary.onPeakPct}% ของหน่วยไฟทั้งหมด`}
           </span>
         </div>
 
         <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4">
           <span className="text-xs text-emerald-300 font-bold block">
-            พลังงานช่วง Off-Peak (22:00-09:00)
+            {isEn ? 'Off-Peak Energy (22:00-09:00)' : 'พลังงานช่วง Off-Peak (22:00-09:00)'}
           </span>
           <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-300 mt-1">
             {reportSummary.offPeakKWh.toLocaleString()}{' '}
             <span className="text-xs font-sans font-normal text-slate-400">kWh</span>
           </div>
           <span className="text-xs text-emerald-200/80 mt-1 block">
-            สัดส่วน {reportSummary.offPeakPct}% ของหน่วยไฟทั้งหมด
+            {isEn ? `Share: ${reportSummary.offPeakPct}% of total energy` : `สัดส่วน ${reportSummary.offPeakPct}% ของหน่วยไฟทั้งหมด`}
           </span>
         </div>
 
         <div className="bg-slate-900 border border-rose-500/30 rounded-2xl p-4">
           <span className="text-xs text-rose-300 font-bold block">
-            ความต้องการพลังไฟฟ้าสูงสุด (Peak)
+            {isEn ? 'Peak Demand' : 'ความต้องการพลังไฟฟ้าสูงสุด (Peak)'}
           </span>
           <div className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-400 mt-1">
             {reportSummary.peakKW.toLocaleString()}{' '}
             <span className="text-xs font-sans font-normal text-slate-400">kW</span>
           </div>
           <span className="text-xs text-slate-400 mt-1 block">
-            เวลา {reportSummary.peakHour} • ภาระหม้อแปลง {reportSummary.trLoadPct}%
+            {isEn ? `Time ${reportSummary.peakHour} • TR Load ${reportSummary.trLoadPct}%` : `เวลา ${reportSummary.peakHour} • ภาระหม้อแปลง ${reportSummary.trLoadPct}%`}
           </span>
         </div>
       </div>
@@ -1019,25 +1070,25 @@ export const ProductionReportView = ({ onSelectMeter }) => {
           <div>
             <h3 className="text-sm sm:text-base font-bold text-white">
               {reportMode === 'daily' &&
-                '📊 กราฟการใช้ไฟฟ้ารายชั่วโมง (00:00 - 23:00 น.) พร้อมตัวเลขกำกับทุกแท่ง'}
+                (isEn ? '📊 Hourly Electricity Usage (00:00 - 23:00) with kWh Labels' : '📊 กราฟการใช้ไฟฟ้ารายชั่วโมง (00:00 - 23:00 น.) พร้อมตัวเลขกำกับทุกแท่ง')}
               {reportMode === 'monthly' &&
-                '📊 กราฟการใช้ไฟฟ้ารายวันตลอดเดือน (เปรียบเทียบ On-Peak และ Off-Peak)'}
+                (isEn ? '📊 Daily Electricity Usage (On-Peak vs Off-Peak Comparison)' : '📊 กราฟการใช้ไฟฟ้ารายวันตลอดเดือน (เปรียบเทียบ On-Peak และ Off-Peak)')}
               {reportMode === 'yearly' &&
-                '📊 กราฟสรุปการใช้ไฟฟ้ารายเดือนตลอดทั้งปี (มกราคม - ธันวาคม)'}
+                (isEn ? '📊 Monthly Electricity Summary for the Year (Jan - Dec)' : '📊 กราฟสรุปการใช้ไฟฟ้ารายเดือนตลอดทั้งปี (มกราคม - ธันวาคม)')}
             </h3>
             <p className="text-xs text-slate-400">
-              ช่วงเวลาพีคสูงสุด: <strong className="text-amber-300">{reportSummary.peakWindowLabel}</strong>
+              {isEn ? 'Peak Demand Period:' : 'ช่วงเวลาพีคสูงสุด:'} <strong className="text-amber-300">{reportSummary.peakWindowLabel}</strong>
             </p>
           </div>
 
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1.5 text-amber-300 font-semibold">
               <span className="w-3 h-3 rounded bg-amber-500 inline-block" />
-              On-Peak (09:00-22:00 น.)
+              On-Peak (09:00-22:00)
             </span>
             <span className="flex items-center gap-1.5 text-emerald-300 font-semibold">
               <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-              Off-Peak (22:00-09:00 น.)
+              Off-Peak (22:00-09:00)
             </span>
           </div>
         </div>
@@ -1056,7 +1107,7 @@ export const ProductionReportView = ({ onSelectMeter }) => {
                     borderRadius: '12px',
                     fontSize: '12px'
                   }}
-                  formatter={(value) => [`${value.toLocaleString()} kWh`, 'พลังงานไฟฟ้าที่ใช้']}
+                  formatter={(value) => [`${value.toLocaleString()} kWh`, isEn ? 'Active Energy Used' : 'พลังงานไฟฟ้าที่ใช้']}
                 />
                 <Bar dataKey="energyKWh" radius={[6, 6, 0, 0]}>
                   <LabelList dataKey="energyKWh" position="top" fill="#ffffff" fontSize={10.5} fontWeight="bold" />
@@ -1125,10 +1176,10 @@ export const ProductionReportView = ({ onSelectMeter }) => {
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Flame className="w-5 h-5 text-rose-400" />
-              <span>ตารางสรุปการใช้พลังงานไฟฟ้ารายมิเตอร์ครบทุกจุด ({meterBreakdown.length} มิเตอร์)</span>
+              <span>{isEn ? `All-Meters Energy Breakdown (${meterBreakdown.length} Meters)` : `ตารางสรุปการใช้พลังงานไฟฟ้ารายมิเตอร์ครบทุกจุด (${meterBreakdown.length} มิเตอร์)`}</span>
             </h3>
             <p className="text-xs text-slate-400">
-              แตะที่แถวมิเตอร์ใดก็ได้เพื่อเจาะลึกดูแรงดัน กระแส และกราฟรายชั่วโมงของมิเตอร์ตัวนั้น
+              {isEn ? 'Tap any meter row to inspect 3-phase telemetry and 24h curve.' : 'แตะที่แถวมิเตอร์ใดก็ได้เพื่อเจาะลึกดูแรงดัน กระแส และกราฟรายชั่วโมงของมิเตอร์ตัวนั้น'}
             </p>
           </div>
         </div>
@@ -1137,14 +1188,14 @@ export const ProductionReportView = ({ onSelectMeter }) => {
           <table className="w-full text-left border-collapse text-xs sm:text-sm">
             <thead>
               <tr className="bg-slate-950 text-slate-300 border-b border-slate-800 font-bold">
-                <th className="py-3 px-3">อันดับ</th>
-                <th className="py-3 px-3">รหัสตู้ / Tag</th>
-                <th className="py-3 px-3">ชื่อสายการผลิต / เครื่องจักร</th>
-                <th className="py-3 px-3 text-right">โหลดปกติ (kW)</th>
+                <th className="py-3 px-3">{isEn ? 'Rank' : 'อันดับ'}</th>
+                <th className="py-3 px-3">{isEn ? 'Tag / Panel' : 'รหัสตู้ / Tag'}</th>
+                <th className="py-3 px-3">{isEn ? 'Line / Machine' : 'ชื่อสายการผลิต / เครื่องจักร'}</th>
+                <th className="py-3 px-3 text-right">{isEn ? 'Base (kW)' : 'โหลดปกติ (kW)'}</th>
                 <th className="py-3 px-3 text-right text-amber-300">On-Peak (kWh)</th>
                 <th className="py-3 px-3 text-right text-emerald-300">Off-Peak (kWh)</th>
-                <th className="py-3 px-3 text-right text-white">หน่วยรวม (kWh)</th>
-                <th className="py-3 px-3 text-right">สัดส่วน (%)</th>
+                <th className="py-3 px-3 text-right text-white">{isEn ? 'Total (kWh)' : 'หน่วยรวม (kWh)'}</th>
+                <th className="py-3 px-3 text-right">{isEn ? 'Share (%)' : 'สัดส่วน (%)'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/70 font-mono">
