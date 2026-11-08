@@ -139,7 +139,7 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
               <span className="text-[9px] text-cyan-400 font-bold ml-0.5">BKK</span>
             </div>
 
-            {/* INTERACTIVE DUAL-FLAG SLIDING CAPSULE SWITCHER (ไทย 🇹🇭 / อังกฤษ 🇬🇧) */}
+            {/* INTERACTIVE DUAL-FLAG SLIDING CAPSULE SWITCHER (ธงอย่างเดียวตามคำสั่ง) */}
             <div
               className="relative flex items-center bg-[#070d1a] p-0.5 rounded-full border border-slate-700/60 shadow-inner"
               role="radiogroup"
@@ -156,34 +156,28 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => setLang('th')}
-                className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  lang === 'th'
-                    ? 'text-white font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200'
+                className={`relative z-10 px-2 py-1 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                  lang === 'th' ? 'scale-110 drop-shadow-md' : 'opacity-50 hover:opacity-100'
                 }`}
                 title="เปลี่ยนภาษาเป็นไทย (Thai)"
                 aria-checked={lang === 'th'}
                 role="radio"
               >
-                <span className="text-sm leading-none drop-shadow-sm">🇹🇭</span>
-                <span className="text-[10px] font-mono tracking-wider">TH</span>
+                <span className="text-base leading-none select-none">🇹🇭</span>
               </button>
 
               {/* English Flag Button */}
               <button
                 type="button"
                 onClick={() => setLang('en')}
-                className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  lang === 'en'
-                    ? 'text-white font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200'
+                className={`relative z-10 px-2 py-1 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                  lang === 'en' ? 'scale-110 drop-shadow-md' : 'opacity-50 hover:opacity-100'
                 }`}
                 title="Switch to English"
                 aria-checked={lang === 'en'}
                 role="radio"
               >
-                <span className="text-sm leading-none drop-shadow-sm">🇬🇧</span>
-                <span className="text-[10px] font-mono tracking-wider">EN</span>
+                <span className="text-base leading-none select-none">🇬🇧</span>
               </button>
             </div>
 

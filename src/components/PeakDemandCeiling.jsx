@@ -14,7 +14,8 @@ export function PeakDemandCeiling({
   monthlyPeakKW = 740,
   demandRateTHB = 132.93
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
 
   // Determine current Thai time & On-Peak status (Mon-Fri 09:00-22:00)
   const isCurrentlyOnPeak = useMemo(() => {
@@ -70,17 +71,21 @@ export function PeakDemandCeiling({
           </div>
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              หลอดแก้วคุมพีคดีมานด์ (Peak Demand Ceiling Guard)
+              {isEn ? 'Peak Demand Ceiling Guard' : 'หลอดแก้วคุมพีคดีมานด์ (Peak Demand Ceiling Guard)'}
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${
                 isCurrentlyOnPeak
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                   : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
               }`}>
-                {isCurrentlyOnPeak ? '⚡ ช่วง On-Peak (เฝ้าระวัง)' : '🌙 ช่วง Off-Peak (ค่าไฟถูก)'}
+                {isCurrentlyOnPeak
+                  ? (isEn ? '⚡ On-Peak Window (Caution)' : '⚡ ช่วง On-Peak (เฝ้าระวัง)')
+                  : (isEn ? '🌙 Off-Peak Window (Low Tariff)' : '🌙 ช่วง Off-Peak (ค่าไฟถูก)')}
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              ควบคุมกำลังไฟฟ้าสูงสุดไม่ให้เกินเป้าหมาย เพื่อตัดค่า Peak Demand 132.93 ฿/kW ของ กฟภ.
+              {isEn
+                ? 'Monitors active power against ceiling threshold to avoid PEA Peak Demand charge of ฿132.93/kW.'
+                : 'ควบคุมกำลังไฟฟ้าสูงสุดไม่ให้เกินเป้าหมาย เพื่อตัดค่า Peak Demand 132.93 ฿/kW ของ กฟภ.'}
             </p>
           </div>
         </div>
@@ -89,22 +94,22 @@ export function PeakDemandCeiling({
         <div>
           {metrics.status === 'SAFE' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-              <CheckCircle2 className="w-3.5 h-3.5" /> อยู่ในเกณฑ์ปลอดภัย
+              <CheckCircle2 className="w-3.5 h-3.5" /> {isEn ? 'Within Safe Limits' : 'อยู่ในเกณฑ์ปลอดภัย'}
             </span>
           )}
           {metrics.status === 'ELEVATED' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-500/10 text-sky-400 border border-sky-500/30">
-              โหลด 75% เริ่มใกล้เพดาน
+              {isEn ? '75% Load (Approaching)' : 'โหลด 75% เริ่มใกล้เพดาน'}
             </span>
           )}
           {metrics.status === 'WARNING' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse">
-              <AlertTriangle className="w-3.5 h-3.5" /> ใกล้ชนเป้าหมาย 85%
+              <AlertTriangle className="w-3.5 h-3.5" /> {isEn ? '85% Ceiling Threshold' : 'ใกล้ชนเป้าหมาย 85%'}
             </span>
           )}
           {metrics.status === 'CRITICAL' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/50 animate-bounce">
-              <ShieldAlert className="w-3.5 h-3.5" /> เกิน 95% เสี่ยงค่าไฟพุ่ง!
+              <ShieldAlert className="w-3.5 h-3.5" /> {isEn ? '> 95% High Demand Spike Risk!' : 'เกิน 95% เสี่ยงค่าไฟพุ่ง!'}
             </span>
           )}
         </div>
@@ -119,14 +124,14 @@ export function PeakDemandCeiling({
             </span>
             <span className="text-sm font-bold text-slate-400 ml-1.5">kW</span>
             <span className="text-xs text-slate-500 ml-2">
-              (เป้าหมายเพดาน: {targetCeilingKW.toLocaleString()} kW)
+              ({isEn ? 'Ceiling Target:' : 'เป้าหมายเพดาน:'} {targetCeilingKW.toLocaleString()} kW)
             </span>
           </div>
           <div className="text-right">
             <span className="text-lg font-black font-mono text-white">
               {metrics.pctOfTarget}%
             </span>
-            <span className="text-xs text-slate-400 ml-1">ของเพดาน</span>
+            <span className="text-xs text-slate-400 ml-1">{isEn ? 'of ceiling' : 'ของเพดาน'}</span>
           </div>
         </div>
 
@@ -150,36 +155,36 @@ export function PeakDemandCeiling({
         {/* Reference markers */}
         <div className="flex justify-between text-[10px] font-mono text-slate-500 px-1 pt-1">
           <span>0 kW</span>
-          <span>75% (ปลอดภัย)</span>
-          <span className="text-amber-400 font-bold">85% (จุดเตือน)</span>
-          <span className="text-rose-400 font-bold">เพดาน {targetCeilingKW} kW</span>
+          <span>75% ({isEn ? 'Safe' : 'ปลอดภัย'})</span>
+          <span className="text-amber-400 font-bold">85% ({isEn ? 'Warning' : 'จุดเตือน'})</span>
+          <span className="text-rose-400 font-bold">{isEn ? 'Ceiling' : 'เพดาน'} {targetCeilingKW} kW</span>
         </div>
       </div>
 
       {/* 3 Metric Insight HUDs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/60">
-          <div className="text-[11px] text-slate-400">เหลือช่องว่างเดินเครื่องเพิ่ม (Headroom)</div>
+          <div className="text-[11px] text-slate-400">{isEn ? 'Remaining Power Headroom' : 'เหลือช่องว่างเดินเครื่องเพิ่ม (Headroom)'}</div>
           <div className="text-xl font-black font-mono text-emerald-400 mt-1">
             +{metrics.remainingHeadroomKW} <span className="text-xs font-normal">kW</span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">ก่อนชนเพดานที่ตั้งไว้</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{isEn ? 'Before reaching ceiling limit' : 'ก่อนชนเพดานที่ตั้งไว้'}</div>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/60">
-          <div className="text-[11px] text-slate-400">พีคสูงสุดที่บันทึกได้ในเดือนนี้</div>
+          <div className="text-[11px] text-slate-400">{isEn ? 'Monthly Recorded Peak' : 'พีคสูงสุดที่บันทึกได้ในเดือนนี้'}</div>
           <div className="text-xl font-black font-mono text-amber-300 mt-1">
             {monthlyPeakKW.toLocaleString()} <span className="text-xs font-normal">kW</span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">คิดตามอัตรา กฟภ. 132.93 ฿/kW</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{isEn ? 'PEA Demand Rate: ฿132.93/kW' : 'คิดตามอัตรา กฟภ. 132.93 ฿/kW'}</div>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/60">
-          <div className="text-[11px] text-slate-400">มูลค่าที่ประหยัดได้หากคุมพีคอยู่</div>
+          <div className="text-[11px] text-slate-400">{isEn ? 'Estimated Monthly Demand Savings' : 'มูลค่าที่ประหยัดได้หากคุมพีคอยู่'}</div>
           <div className="text-xl font-black font-mono text-sky-400 mt-1">
-            ~฿{(monthlyPeakKW * demandRateTHB).toLocaleString()} <span className="text-xs font-normal">/ด.</span>
+            ~฿{(monthlyPeakKW * demandRateTHB).toLocaleString()} <span className="text-xs font-normal">{isEn ? '/mo' : '/ด.'}</span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">ลดต้นทุนค่าความต้องการพลังไฟฟ้า</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{isEn ? 'Peak demand cost avoidance' : 'ลดต้นทุนค่าความต้องการพลังไฟฟ้า'}</div>
         </div>
       </div>
 
@@ -189,11 +194,15 @@ export function PeakDemandCeiling({
         <p className="leading-relaxed">
           {isCurrentlyOnPeak ? (
             <span>
-              <strong>คำแนะนำสำหรับกะ On-Peak:</strong> หากโหลดแตะเกิน 85% แนะนำให้สลับรอบเครื่องจักรหนัก (เช่น เครื่องบด ชิลเลอร์ หรือหลีกเลี่ยงการชาร์จรถยกไฟฟ้า) ไปเดินเครื่องหลังเวลา <strong>22:00 น. (Off-Peak)</strong> เพื่อรักษาเพดาน Demand Charge ให้ต่ำที่สุด
+              <strong>{isEn ? 'On-Peak Shift Guidance:' : 'คำแนะนำสำหรับกะ On-Peak:'}</strong> {isEn
+                ? 'If load exceeds 85%, stagger high-power loads (crushers, chillers, or forklift charging) to after 22:00 (Off-Peak) to maintain a low demand charge baseline.'
+                : 'หากโหลดแตะเกิน 85% แนะนำให้สลับรอบเครื่องจักรหนัก (เช่น เครื่องบด ชิลเลอร์ หรือหลีกเลี่ยงการชาร์จรถยกไฟฟ้า) ไปเดินเครื่องหลังเวลา 22:00 น. (Off-Peak) เพื่อรักษาเพดาน Demand Charge ให้ต่ำที่สุด'}
             </span>
           ) : (
             <span>
-              <strong>คำแนะนำช่วง Off-Peak (หลัง 22:00 น.):</strong> ไฟฟ้าช่วงนี้ราคาถูกสุด (~2.60 บาท/kWh) เหมาะสำหรับการเดินเครื่องจักรหนักเต็มกำลัง การเตรียมวัตถุดิบ และการชาร์จแบตเตอรี่สำรอง
+              <strong>{isEn ? 'Off-Peak Window Guidance (After 22:00):' : 'คำแนะนำช่วง Off-Peak (หลัง 22:00 น.):'}</strong> {isEn
+                ? 'Power tariff is cheapest (~฿2.60/kWh). Ideal for maximum production throughput, material prep, and energy storage charging.'
+                : 'ไฟฟ้าช่วงนี้ราคาถูกสุด (~2.60 บาท/kWh) เหมาะสำหรับการเดินเครื่องจักรหนักเต็มกำลัง การเตรียมวัตถุดิบ และการชาร์จแบตเตอรี่สำรอง'}
             </span>
           )}
         </p>

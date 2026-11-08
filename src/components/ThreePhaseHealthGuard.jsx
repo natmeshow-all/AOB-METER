@@ -18,7 +18,8 @@ export function ThreePhaseHealthGuard({
   peakKW = 250,
   transformerKVA = 500
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
 
   const metrics = useMemo(() => {
     // 1. Voltage Unbalance Rate (NEMA Standard)
@@ -76,13 +77,15 @@ export function ThreePhaseHealthGuard({
           </div>
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              3-Phase Health & Power Quality Guardian
+              {isEn ? '3-Phase Health & Power Quality Guardian' : 'ตรวจวัดความสมดุล 3 เฟส & คุณภาพไฟฟ้า'}
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950/70 text-sky-400 border border-sky-800/40">
                 NEMA & PEA Audit
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              วิเคราะห์ความสมดุลไฟฟ้า 3 เฟส ป้องกันหม้อแปลงระเบิด & เฝ้าระวังค่าปรับ กฟภ.
+              {isEn
+                ? '3-phase power balance telemetry, transformer overheat protection & PEA PF fine watchdog.'
+                : 'วิเคราะห์ความสมดุลไฟฟ้า 3 เฟส ป้องกันหม้อแปลงระเบิด & เฝ้าระวังค่าปรับ กฟภ.'}
             </p>
           </div>
         </div>
@@ -91,11 +94,11 @@ export function ThreePhaseHealthGuard({
         <div className="flex items-center gap-2">
           {metrics.vStatus === 'SAFE' && metrics.iStatus === 'SAFE' && !metrics.isPfPenalized ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-              <CheckCircle2 className="w-3.5 h-3.5" /> คุณภาพไฟสมบูรณ์ 100%
+              <CheckCircle2 className="w-3.5 h-3.5" /> {isEn ? '100% Balanced & Optimal' : 'คุณภาพไฟสมบูรณ์ 100%'}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse">
-              <AlertTriangle className="w-3.5 h-3.5" /> ตรวจพบจุดที่ต้องปรับปรุง
+              <AlertTriangle className="w-3.5 h-3.5" /> {isEn ? 'Attention Required' : 'ตรวจพบจุดที่ต้องปรับปรุง'}
             </span>
           )}
         </div>
@@ -107,9 +110,9 @@ export function ThreePhaseHealthGuard({
         <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800/70 space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-              <Zap className="w-4 h-4 text-amber-400" /> สมดุลแรงดัน (Voltage)
+              <Zap className="w-4 h-4 text-amber-400" /> {isEn ? 'Voltage Unbalance' : 'สมดุลแรงดัน (Voltage)'}
             </span>
-            <span className="text-[10px] font-mono text-slate-500">เกณฑ์: &lt; 2.0%</span>
+            <span className="text-[10px] font-mono text-slate-500">{isEn ? 'Norm: < 2.0%' : 'เกณฑ์: < 2.0%'}</span>
           </div>
 
           <div className="flex items-baseline justify-between">
@@ -125,7 +128,11 @@ export function ThreePhaseHealthGuard({
                   : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
               }`}
             >
-              {metrics.vStatus === 'SAFE' ? 'สมดุลดีเยี่ยม' : metrics.vStatus === 'WARN' ? 'เตือน: โวลต์ต่างกัน' : 'อันตรายต่อมอเตอร์'}
+              {metrics.vStatus === 'SAFE'
+                ? (isEn ? 'Excellent' : 'สมดุลดีเยี่ยม')
+                : metrics.vStatus === 'WARN'
+                ? (isEn ? 'Warning: Dev' : 'เตือน: โวลต์ต่างกัน')
+                : (isEn ? 'Motor Risk' : 'อันตรายต่อมอเตอร์')}
             </span>
           </div>
 
@@ -150,9 +157,9 @@ export function ThreePhaseHealthGuard({
         <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800/70 space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-              <Activity className="w-4 h-4 text-sky-400" /> สมดุลกระแสโหลด (Current)
+              <Activity className="w-4 h-4 text-sky-400" /> {isEn ? 'Current Unbalance' : 'สมดุลกระแสโหลด (Current)'}
             </span>
-            <span className="text-[10px] font-mono text-slate-500">เกณฑ์: &lt; 10%</span>
+            <span className="text-[10px] font-mono text-slate-500">{isEn ? 'Norm: < 10%' : 'เกณฑ์: < 10%'}</span>
           </div>
 
           <div className="flex items-baseline justify-between">
@@ -168,7 +175,11 @@ export function ThreePhaseHealthGuard({
                   : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
               }`}
             >
-              {metrics.iStatus === 'SAFE' ? 'กระจายโหลดสม่ำเสมอ' : metrics.iStatus === 'WARN' ? 'โหลดเฟสเริ่มเอียง' : 'เสี่ยงสสายนิวทรัลไหม้'}
+              {metrics.iStatus === 'SAFE'
+                ? (isEn ? 'Balanced' : 'กระจายโหลดสม่ำเสมอ')
+                : metrics.iStatus === 'WARN'
+                ? (isEn ? 'Slightly Skewed' : 'โหลดเฟสเริ่มเอียง')
+                : (isEn ? 'Neutral Cable Risk' : 'เสี่ยงสายสายนิวทรัลไหม้')}
             </span>
           </div>
 
@@ -199,9 +210,9 @@ export function ThreePhaseHealthGuard({
         >
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-              <Flame className="w-4 h-4 text-emerald-400" /> Power Factor (กฟภ.)
+              <Flame className="w-4 h-4 text-emerald-400" /> {isEn ? 'PEA Power Factor' : 'Power Factor (กฟภ.)'}
             </span>
-            <span className="text-[10px] font-mono text-slate-500">เกณฑ์: &ge; 0.85</span>
+            <span className="text-[10px] font-mono text-slate-500">{isEn ? 'Norm: ≥ 0.85' : 'เกณฑ์: ≥ 0.85'}</span>
           </div>
 
           <div className="flex items-baseline justify-between">
@@ -215,14 +226,16 @@ export function ThreePhaseHealthGuard({
                   : 'bg-rose-500/30 text-rose-300 border border-rose-500/50 animate-pulse'
               }`}
             >
-              {!metrics.isPfPenalized ? 'ปลอดภัย ไม่มีค่าปรับ' : `โดนปรับ ~฿${metrics.estimatedPfFineTHB.toLocaleString()}/ด.`}
+              {!metrics.isPfPenalized
+                ? (isEn ? 'Safe • No Penalty' : 'ปลอดภัย ไม่มีค่าปรับ')
+                : (isEn ? `Fine ~฿${metrics.estimatedPfFineTHB.toLocaleString()}/mo` : `โดนปรับ ~฿${metrics.estimatedPfFineTHB.toLocaleString()}/ด.`)}
             </span>
           </div>
 
           <div className="pt-2 border-t border-slate-800/60 text-xs text-slate-400 flex items-center justify-between">
-            <span>{metrics.isPfPenalized ? `ส่วนเกิน kVAR:` : `ค่าปรับสะสม:`}</span>
+            <span>{metrics.isPfPenalized ? (isEn ? 'Excess kVAR:' : 'ส่วนเกิน kVAR:') : (isEn ? 'PF Fine Accrued:' : 'ค่าปรับสะสม:')}</span>
             <span className="font-mono font-bold text-white">
-              {metrics.isPfPenalized ? `${metrics.excessKVAR} kVAR` : '฿0.00 บาท'}
+              {metrics.isPfPenalized ? `${metrics.excessKVAR} kVAR` : '฿0.00'}
             </span>
           </div>
         </div>
@@ -232,7 +245,9 @@ export function ThreePhaseHealthGuard({
       <div className="p-3 rounded-2xl bg-sky-950/30 border border-sky-800/40 text-xs text-slate-300 flex items-start gap-2.5">
         <HelpCircle className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>คำแนะนำวิศวกรไฟฟ้า:</strong> หาก Current Unbalance &gt; 10% ให้จัดสลับเบรกเกอร์เฟส A/B/C ใหม่ให้เท่าๆ กัน เพื่อยืดอายุหม้อแปลงและลดความร้อนสะสมในสายไฟ และหากค่า PF &lt; 0.85 ควรตรวจเช็ค Capacitor Bank เพื่อตัดค่าปรับ 56.07 บาท/kVAR
+          {isEn
+            ? 'Electrical Engineering Advisory: If Current Unbalance > 10%, rebalance breaker phase loads across A/B/C to prolong transformer lifespan and mitigate neutral cable heating. If PF < 0.85, inspect the Capacitor Bank to eliminate PEA ฿56.07/kVAR penalty.'
+            : 'คำแนะนำวิศวกรไฟฟ้า: หาก Current Unbalance > 10% ให้จัดสลับเบรกเกอร์เฟส A/B/C ใหม่ให้เท่าๆ กัน เพื่อยืดอายุหม้อแปลงและลดความร้อนสะสมในสายไฟ และหากค่า PF < 0.85 ควรตรวจเช็ค Capacitor Bank เพื่อตัดค่าปรับ 56.07 บาท/kVAR'}
         </p>
       </div>
     </div>

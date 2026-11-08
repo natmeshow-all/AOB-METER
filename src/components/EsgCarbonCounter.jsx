@@ -11,7 +11,8 @@ export function EsgCarbonCounter({
   totalSolarKWh = 12450.0,
   monthlySolarKWh = 1850.0
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const isEn = lang === 'en';
 
   const metrics = useMemo(() => {
     // TGO Grid Emission Factor: 0.4999 kgCO2e / kWh
@@ -50,20 +51,22 @@ export function EsgCarbonCounter({
           </div>
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              มาตรวัดลดคาร์บอน & ESG Scope 2 Counter
+              {isEn ? 'Carbon Avoidance & ESG Scope 2 Counter' : 'มาตรวัดลดคาร์บอน & ESG Scope 2 Counter'}
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 TGO Standard
               </span>
             </h3>
             <p className="text-xs text-emerald-300/80">
-              คำนวณการลดก๊าซเรือนกระจก (GHG Avoidance) สำหรับจัดทำรายงานความยั่งยืนองค์กร
+              {isEn
+                ? 'Official GHG Avoidance metrics for Corporate Sustainability & Scope 2 ESG reports'
+                : 'คำนวณการลดก๊าซเรือนกระจก (GHG Avoidance) สำหรับจัดทำรายงานความยั่งยืนองค์กร'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-            <Award className="w-3.5 h-3.5 text-amber-400" /> รับรองตามเกณฑ์ TGO
+            <Award className="w-3.5 h-3.5 text-amber-400" /> {isEn ? 'TGO Standard Certified' : 'รับรองตามเกณฑ์ TGO'}
           </span>
         </div>
       </div>
@@ -72,9 +75,11 @@ export function EsgCarbonCounter({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative z-10">
         {/* Metric 1: Total Tons CO2e */}
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
-          <div className="text-xs text-emerald-300/80 font-medium">ลดการปล่อยก๊าซคาร์บอนสะสม</div>
+          <div className="text-xs text-emerald-300/80 font-medium">
+            {isEn ? 'Cumulative Carbon Avoidance' : 'ลดการปล่อยก๊าซคาร์บอนสะสม'}
+          </div>
           <div className="text-3xl font-black font-mono text-emerald-400">
-            {metrics.totalTonsCO2} <span className="text-sm font-bold text-slate-300">ตัน CO₂e</span>
+            {metrics.totalTonsCO2} <span className="text-sm font-bold text-slate-300">{isEn ? 'Tons CO₂e' : 'ตัน CO₂e'}</span>
           </div>
           <div className="text-[10px] text-emerald-400/70 font-mono">
             ({metrics.totalKgCO2.toLocaleString()} kgCO₂e)
@@ -83,38 +88,40 @@ export function EsgCarbonCounter({
 
         {/* Metric 2: Monthly CO2e */}
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
-          <div className="text-xs text-emerald-300/80 font-medium">ลดคาร์บอนเดือนนี้</div>
+          <div className="text-xs text-emerald-300/80 font-medium">
+            {isEn ? 'Monthly Carbon Avoidance' : 'ลดคาร์บอนเดือนนี้'}
+          </div>
           <div className="text-3xl font-black font-mono text-white">
             {metrics.monthlyKgCO2.toLocaleString()} <span className="text-sm font-bold text-slate-300">kg</span>
           </div>
           <div className="text-[10px] text-emerald-400/70 font-mono">
-            {(metrics.monthlyKgCO2 / 1000).toFixed(2)} ตัน CO₂e ในรอบบิลนี้
+            {(metrics.monthlyKgCO2 / 1000).toFixed(2)} {isEn ? 'Tons CO₂e this billing cycle' : 'ตัน CO₂e ในรอบบิลนี้'}
           </div>
         </div>
 
         {/* Metric 3: Trees Equivalent */}
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
           <div className="text-xs text-emerald-300/80 font-medium flex items-center gap-1">
-            <Trees className="w-3.5 h-3.5 text-emerald-400" /> เทียบเท่าการปลูกต้นไม้
+            <Trees className="w-3.5 h-3.5 text-emerald-400" /> {isEn ? 'Equivalent Trees Planted' : 'เทียบเท่าการปลูกต้นไม้'}
           </div>
           <div className="text-3xl font-black font-mono text-amber-300">
-            {metrics.treesEquivalent.toLocaleString()} <span className="text-sm font-bold text-slate-300">ต้น</span>
+            {metrics.treesEquivalent.toLocaleString()} <span className="text-sm font-bold text-slate-300">{isEn ? 'Trees' : 'ต้น'}</span>
           </div>
           <div className="text-[10px] text-emerald-400/70 font-mono">
-            คำนวณที่ 10 kg CO₂ / ต้น / ปี
+            {isEn ? 'Calculated at 10 kg CO₂ / tree / yr' : 'คำนวณที่ 10 kg CO₂ / ต้น / ปี'}
           </div>
         </div>
 
         {/* Metric 4: Car km Avoided */}
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
           <div className="text-xs text-emerald-300/80 font-medium flex items-center gap-1">
-            <Car className="w-3.5 h-3.5 text-sky-400" /> ลดการขับรถยนต์เบนซิน
+            <Car className="w-3.5 h-3.5 text-sky-400" /> {isEn ? 'Vehicle Emissions Avoided' : 'ลดการขับรถยนต์เบนซิน'}
           </div>
           <div className="text-3xl font-black font-mono text-sky-300">
-            {metrics.carKmAvoided} <span className="text-sm font-bold text-slate-300">กม.</span>
+            {metrics.carKmAvoided} <span className="text-sm font-bold text-slate-300">{isEn ? 'km' : 'กม.'}</span>
           </div>
           <div className="text-[10px] text-emerald-400/70 font-mono">
-            ลดมลพิษฝุ่น PM2.5 และควันไอเสีย
+            {isEn ? 'Avoided tailpipe exhaust & PM2.5' : 'ลดมลพิษฝุ่น PM2.5 และควันไอเสีย'}
           </div>
         </div>
       </div>
@@ -123,7 +130,7 @@ export function EsgCarbonCounter({
       <div className="p-3.5 rounded-2xl bg-emerald-950/60 border border-emerald-800/60 text-xs text-emerald-200/90 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>ข้อมูลพร้อมนำไปใช้ในรายงานประจำปี (Annual Sustainability Report / 56-1 One Report)</span>
+          <span>{isEn ? 'Audit-ready for Annual Sustainability & 56-1 One Report disclosures' : 'ข้อมูลพร้อมนำไปใช้ในรายงานประจำปี (Annual Sustainability Report / 56-1 One Report)'}</span>
         </div>
         <div className="text-[11px] font-mono font-bold text-emerald-400 hidden sm:block">
           Grid Factor: 0.4999 tCO₂e/MWh

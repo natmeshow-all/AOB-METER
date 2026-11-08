@@ -237,22 +237,29 @@ const ENG_MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
-const formatThaiMonth = (ym) => {
+const formatThaiMonth = (ym, lang = 'th') => {
   const [y, m] = String(ym).split('-');
-  return `${THAI_MONTHS[Number(m) - 1] || m} ${Number(y) + 543}`;
+  const isEn = lang === 'en';
+  const monthName = isEn ? (ENG_MONTHS[Number(m) - 1] || m) : (THAI_MONTHS[Number(m) - 1] || m);
+  const yearVal = isEn ? y : Number(y) + 543;
+  return `${monthName} ${yearVal}`;
 };
 const formatBaht = (n) =>
   `฿${Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export const formatThaiDateShort = (dateStr) => {
+export const formatThaiDateShort = (dateStr, lang = 'th') => {
   if (!dateStr) return '';
   const [y, m, d] = String(dateStr).split('-');
-  const thaiYear = (parseInt(y, 10) + 543) % 100;
+  const isEn = lang === 'en';
+  const thaiYear = isEn ? String(y).slice(-2) : (parseInt(y, 10) + 543) % 100;
   return `${d}/${m}/${thaiYear}`;
 };
 
-export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
+export const getBillingCycleRange = (year, month, cutOffDay = 24, lang = 'th') => {
   const pad = (n) => String(n).padStart(2, '0');
+  const isEn = lang === 'en';
+  const monthName = isEn ? (ENG_MONTHS[month - 1] || month) : (THAI_MONTHS[month - 1] || month);
+  const yearDisplay = isEn ? year : year + 543;
 
   if (cutOffDay === 1) {
     const daysInCurMonth = new Date(year, month, 0).getDate();
@@ -264,9 +271,9 @@ export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
       month,
       startDate,
       endDate,
-      periodLabel: `${formatThaiDateShort(startDate)} - ${formatThaiDateShort(endDate)}`,
-      readDateThai: formatThaiDateShort(endDate),
-      monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (01/${pad(month)} - ${pad(daysInCurMonth)}/${pad(month)})`
+      periodLabel: `${formatThaiDateShort(startDate, lang)} - ${formatThaiDateShort(endDate, lang)}`,
+      readDateThai: formatThaiDateShort(endDate, lang),
+      monthLabel: `${monthName} ${yearDisplay} (01/${pad(month)} - ${pad(daysInCurMonth)}/${pad(month)})`
     };
   }
 
@@ -288,9 +295,9 @@ export const getBillingCycleRange = (year, month, cutOffDay = 24) => {
     month,
     startDate,
     endDate,
-    periodLabel: `${formatThaiDateShort(startDate)} - ${formatThaiDateShort(endDate)}`,
-    readDateThai: formatThaiDateShort(endDate),
-    monthLabel: `${THAI_MONTHS[month - 1]} ${year + 543} (รอบ ${pad(actualPrevDay)}/${pad(prevMonth)} - ${pad(actualCurDay)}/${pad(month)})`
+    periodLabel: `${formatThaiDateShort(startDate, lang)} - ${formatThaiDateShort(endDate, lang)}`,
+    readDateThai: formatThaiDateShort(endDate, lang),
+    monthLabel: `${monthName} ${yearDisplay} (${isEn ? 'Cycle' : 'รอบ'} ${pad(actualPrevDay)}/${pad(prevMonth)} - ${pad(actualCurDay)}/${pad(month)})`
   };
 };
 
@@ -1062,13 +1069,16 @@ const CustomDailyTooltip = ({ active, payload, lang, t }) => {
 };
 
 export const THAI_DAY_NAMES = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
-export const formatDayWithWeekday = (dateStr) => {
+export const ENG_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const formatDayWithWeekday = (dateStr, lang = 'th') => {
   if (!dateStr) return '';
   const [y, m, d] = String(dateStr).split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  const dayOfWeek = THAI_DAY_NAMES[dt.getDay()] || '';
-  const thaiYear = (y + 543) % 100;
-  return `${d} ${THAI_MONTHS[m - 1]} ${thaiYear} (${dayOfWeek})`;
+  const isEn = lang === 'en';
+  const dayOfWeek = isEn ? (ENG_DAY_NAMES[dt.getDay()] || '') : (THAI_DAY_NAMES[dt.getDay()] || '');
+  const monthName = isEn ? (ENG_MONTHS[m - 1] || m) : (THAI_MONTHS[m - 1] || m);
+  const yearVal = isEn ? y : (y + 543) % 100;
+  return `${d} ${monthName} ${yearVal} (${dayOfWeek})`;
 };
 
 export const calcDailyBatteryAndPvMetrics = (dayLog, hourlyCurve = [], batteryCapKWh = 16.0, cutoffSoc = 20) => {
@@ -1290,10 +1300,11 @@ export const DailySolarPvBarChart = ({
   const chartData = useMemo(() => {
     return dailyLogs.map((log) => {
       const [y, m, d] = String(log.date || '').split('-');
-      const thaiYear = (parseInt(y, 10) + 543) % 100;
+      const isEn = lang === 'en';
+      const yearDisplay = isEn ? String(y).slice(-2) : (parseInt(y, 10) + 543) % 100;
       const shortDate = `${parseInt(d, 10)}/${m}`;
-      const fullDateThai = `${parseInt(d, 10)}/${m}/${thaiYear}`;
-      const dayWithWeekday = formatDayWithWeekday(log.date);
+      const fullDateThai = `${parseInt(d, 10)}/${m}/${yearDisplay}`;
+      const dayWithWeekday = formatDayWithWeekday(log.date, lang);
       const metrics = calcDailyBatteryAndPvMetrics(log, log.hourlyCurve, 16.0, 20);
 
       return {
@@ -1308,7 +1319,7 @@ export const DailySolarPvBarChart = ({
         metrics
       };
     });
-  }, [dailyLogs]);
+  }, [dailyLogs, lang]);
 
   const stats = useMemo(() => {
     if (!chartData || chartData.length === 0) {
@@ -2059,7 +2070,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
     });
 
     return baseCycles.map(({ year, month }) => {
-      const cycleRange = getBillingCycleRange(year, month, billingCutoffDay);
+      const cycleRange = getBillingCycleRange(year, month, billingCutoffDay, lang);
       const { startDate, endDate, cycleKey, periodLabel, readDateThai, monthLabel } = cycleRange;
 
       // Filter historical logs strictly falling in this billing cut-off window

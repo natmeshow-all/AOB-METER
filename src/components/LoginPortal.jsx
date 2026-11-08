@@ -106,22 +106,22 @@ export const LoginPortal = () => {
             <button
               type="button"
               onClick={() => setLang('th')}
-              className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                lang === 'th' ? 'text-white font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              className={`relative z-10 px-2 py-1 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                lang === 'th' ? 'scale-110 drop-shadow-md' : 'opacity-50 hover:opacity-100'
               }`}
+              title="ภาษาไทย"
             >
-              <span className="text-sm leading-none">🇹🇭</span>
-              <span className="text-[10px] font-mono">TH</span>
+              <span className="text-base leading-none select-none">🇹🇭</span>
             </button>
             <button
               type="button"
               onClick={() => setLang('en')}
-              className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                lang === 'en' ? 'text-white font-extrabold' : 'text-slate-400 hover:text-slate-200'
+              className={`relative z-10 px-2 py-1 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                lang === 'en' ? 'scale-110 drop-shadow-md' : 'opacity-50 hover:opacity-100'
               }`}
+              title="English"
             >
-              <span className="text-sm leading-none">🇬🇧</span>
-              <span className="text-[10px] font-mono">EN</span>
+              <span className="text-base leading-none select-none">🇬🇧</span>
             </button>
           </div>
 
