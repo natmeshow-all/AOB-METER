@@ -25,7 +25,7 @@ All coding assistants and agents working on this project MUST strictly follow th
      2. **`meter-detail` (2. เจาะลึกรายมิเตอร์):** Deep dive into a single selected meter (3-Phase Voltage, 3-Phase Current, Active/Apparent/Reactive Power, PF, and 24-hour load curve of that meter).
      3. **`report` (3. รายงาน & ปรับแผนการผลิต):** Daily / Monthly / Yearly electricity report with On-Peak vs Off-Peak breakdown, 4-shift production analysis, and actionable load-shifting recommendations for production planning.
    - Maintain the sticky bottom navigation bar with 1-thumb ergonomics and prominent logout button (`ออก / ออกจากระบบ`).
-   - Font must remain Google Font `Prompt` across all components.
+   - Font must remain Google Font `IBM Plex Sans Thai` (paired with `IBM Plex Sans` and `JetBrains Mono`) across all components.
 
 4. **PowerShell on Windows:**
    - The active development shell is Windows PowerShell.

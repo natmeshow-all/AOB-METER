@@ -7,7 +7,7 @@ Please refer to:
 Key Invariants:
 1. `natshownolimit@gmail.com` is permanently designated as `SUPER_ADMIN`.
 2. Login/Logout must gate on `!currentUser` to show `LoginPortal`.
-3. Mobile-first ergonomics with font `Prompt` must be preserved.
+3. Mobile-first ergonomics with font `IBM Plex Sans Thai` (paired with `IBM Plex Sans` and `JetBrains Mono`) must be preserved.
 4. Shell commands on Windows PowerShell must use `;` instead of `&&`.
 5. **Superpowers Skill-First Discipline:** Always invoke `using-superpowers` before any response or action for every user task.
 6. **Dynamic Workflow Orchestrator (Autonomous Skill Routing by Specialization):**
