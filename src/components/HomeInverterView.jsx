@@ -4891,6 +4891,9 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
             batteryPowerW={solarData.batteryPowerW || 0}
             batterySOC={battSoc}
             loadPowerW={solarData.totalLoadPowerW || 1850}
+            inverterTempC={solarData.inverterTempC || 60.1}
+            batteryTempC={solarData.batteryTempC || 28.5}
+            todayGenKWh={todayGenKWh || 20.69}
             isHomeSolar={true}
           />
           <EsgCarbonCounter
