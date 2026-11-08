@@ -16,8 +16,40 @@ import {
   X,
   Gauge,
   Flame,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
+
+/**
+ * Format date string into Thai format (พ.ศ. & วันในสัปดาห์)
+ */
+export const formatThaiDate = (dateStr) => {
+  let target = dateStr;
+  if (!target) {
+    const now = new Date(Date.now() + 7 * 3600 * 1000);
+    target = now.toISOString().slice(0, 10);
+  }
+  const parts = target.split('-');
+  const y = Number(parts[0]) || 2026;
+  const m = Number(parts[1]) || 11;
+  const d = Number(parts[2]) || 8;
+  const thaiMonths = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+  ];
+  const thaiDays = [
+    'อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'
+  ];
+  const dateObj = new Date(y, m - 1, d);
+  const dayName = thaiDays[dateObj.getDay()] || '';
+  const thaiYear = y > 2400 ? y : y + 543;
+  return {
+    fullThai: `วัน${dayName}ที่ ${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
+    shortThai: `${d} ${thaiMonths[m - 1] || ''} ${thaiYear}`,
+    dayName,
+    rawDate: target
+  };
+};
 
 /**
  * AnimatedEnergyFlow
@@ -55,10 +87,14 @@ export function AnimatedEnergyFlow({
   statLoadElectricityKWh = 19.66,
   todayEstSavings = 76,
   sajDeviceSn = 'H2A2602J2539E14713',
-  isHomeSolar = true
+  isHomeSolar = true,
+  currentDate = ''
 }) {
   // Interactive selected node state: 'battery' | 'inverter' | 'solar' | 'grid' | 'load' | null
   const [selectedNode, setSelectedNode] = useState('battery');
+
+  // Format Thai current date
+  const thaiDate = useMemo(() => formatThaiDate(currentDate), [currentDate]);
 
   // Compute live physics
   const physics = useMemo(() => {
@@ -251,27 +287,35 @@ export function AnimatedEnergyFlow({
         }
       `}</style>
 
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+      {/* Top Header with Current Day & Realtime Flow Indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-800/80">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
             <Zap className="w-4 h-4 animate-pulse" />
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-              แผนผังสายธารพลังงาน (Live Energy Flow)
+              <span>แผนผังสายธารพลังงาน (Live Energy Flow)</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
                 เรียลไทม์
               </span>
             </h3>
+            {/* CURRENT DAY DISPLAY (แสดงวันปัจจุบัน) */}
+            <div className="flex items-center gap-1.5 text-xs text-sky-300 font-medium mt-1">
+              <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span>วันปัจจุบัน: <strong className="text-white font-bold">{thaiDate.fullThai}</strong></span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-          <span>วันนี้สะสม:</span>
-          <span className="font-bold text-emerald-400">{todayGenKWh.toFixed(2)} kWh</span>
-          <span className="text-slate-600">•</span>
-          <span className="text-amber-300">🌙 29°C</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
+            <span className="text-slate-400 font-sans text-[11px]">ผลิตวันนี้สะสม:</span>
+            <span className="font-bold">{todayGenKWh.toFixed(2)} kWh</span>
+          </div>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-amber-300">
+            <span>🌙 29°C</span>
+          </div>
         </div>
       </div>
 
@@ -654,9 +698,14 @@ export function AnimatedEnergyFlow({
 
           {/* Daily Energy Summary & Distribution Metrics */}
           <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-2">
-            <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-sky-400" />
-              <span>สรุปข้อมูลการจ่ายไฟของวันนั้นๆ (Daily Energy Summary)</span>
+            <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-sky-400" />
+                <span>สรุปข้อมูลการจ่ายไฟวันปัจจุบัน (Today's Energy Summary)</span>
+              </span>
+              <span className="text-[10px] font-mono font-bold text-sky-300 bg-sky-950/70 px-2.5 py-0.5 rounded-lg border border-sky-800/50">
+                {thaiDate.shortThai}
+              </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">

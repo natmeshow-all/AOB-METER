@@ -4562,6 +4562,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           statLoadElectricityKWh={solarData?.statLoadElectricityKWh ?? 19.66}
           todayEstSavings={Math.round((todayGenKWh || 20.69) * (tariffSettings?.tier2Rate || 4.22))}
           sajDeviceSn={solarData?.sajDeviceSn || 'H2A2602J2539E14713'}
+          currentDate={todayThaiDateStr}
           isHomeSolar={true}
         />
       )}
@@ -4942,8 +4943,8 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-900 text-amber-300 border border-slate-700 font-bold">
-              วันที่ {activeHistoryDay?.date || getThailandDateStr(0)}
+            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-900 text-sky-300 border border-slate-700 font-bold">
+              {isViewingToday ? `วันปัจจุบัน (${todayThaiDateStr})` : `วันที่ ${activeHistoricalDate}`}
             </span>
           </div>
 
