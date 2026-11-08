@@ -4554,7 +4554,7 @@ export const HomeInverterView = ({ activeSection, onSectionChange }) => {
           inverterTempC={solarData?.inverterTempC ?? 36.5}
           batteryTempC={solarData?.batteryTempC ?? 28.5}
           todayGenKWh={todayGenKWh || 20.69}
-          peakPvWatts={peakPvWatts || 5420}
+          peakPvWatts={dailyPeakStats?.peakPvW || 5420}
           statGridImportKWh={solarData?.statGridImportKWh ?? 4.19}
           statGridExportKWh={solarData?.statGridExportKWh ?? 0.0}
           chargeBatteryKWh={Number(solarData?.statChargeBatteryKWh || solarData?.chargeBatteryKWh || 9.20)}
