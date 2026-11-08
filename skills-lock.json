@@ -37,6 +37,12 @@
       "skillPath": "skills/media-use/SKILL.md",
       "computedHash": "3f28b8da79aa54bb507b17d07f5b5e09faf69fda663db3be2e21a9c97d54e4c3"
     },
+    "playwright-skill": {
+      "source": "lackeyjb/playwright-skill",
+      "sourceType": "github",
+      "skillPath": "skills/playwright-skill/SKILL.md",
+      "computedHash": "47aea4e29bab40739f6c5f46ecdf87a38ae7a76566369827958316d15582888d"
+    },
     "remotion-to-hyperframes": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",

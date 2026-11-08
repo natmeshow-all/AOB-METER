@@ -67,7 +67,8 @@ All coding assistants and agents working on this project MUST strictly follow th
      9. **Vite Bundle & Web Performance:** `bundle-performance-optimizer` ➔ `verification-before-completion`
      10. **Hardware Modbus & Inverter API:** `iot-modbus-protocol-debugger` ➔ `systematic-debugging`
      11. **Web Scraping & Live Web Extraction:** `firecrawl`
-     12. **Post-Task Completion Gate:** `verification-before-completion` (Linter, Build, Tests) ➔ `impeccable` (visual audit)
+     12. **Browser Automation & E2E Testing:** `playwright-skill` ➔ `verification-before-completion`
+     13. **Post-Task Completion Gate:** `verification-before-completion` (Linter, Build, Tests) ➔ `impeccable` (visual audit)
 
 10. **Impeccable Aesthetic Audit & Modern Craft Polish (Post-Task Workflow):**
    - Whenever completing UI/frontend implementation or modification, ALWAYS invoke skill `impeccable` to audit and polish visual craft, elegance, typography, subtle micro-interactions, and fresh modern aesthetics.
